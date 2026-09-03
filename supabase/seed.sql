@@ -1,0 +1,2 @@
+insert into public.colleges(name,state,city,division,conference) values
+('Kansas Wesleyan University','KS','Salina','NAIA','KCAC'),('Graceland University','IA','Lamoni','NAIA','Heart of America'),('Morningside University','IA','Sioux City','NAIA','GPAC'),('Williams College','MA','Williamstown','NCAA DIII','NESCAC'),('Ottawa University','KS','Ottawa','NAIA','KCAC'),('Evangel University','MO','Springfield','NAIA','KCAC') on conflict(name) do nothing;
