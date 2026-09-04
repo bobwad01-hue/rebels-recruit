@@ -1,0 +1,52 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import AppShell from '@/components/AppShell';
+import { createClient } from '@/lib/supabase-browser';
+
+const types = ['Email Sent','Email Received','Text','Phone Call','Video Call','X/Twitter DM','Instagram DM','Coach Followed Me','Coach Liked Post','Coach Commented','Questionnaire','College Camp','Campus Visit','Tournament Interaction','Coach Watched Game','Coach Contacted Me','Thank You Message','Other'];
+
+export default function NewActivityForm() {
+  const sp = useSearchParams();
+  const [colleges, setColleges] = useState<any[]>([]);
+  const [coaches, setCoaches] = useState<any[]>([]);
+  const [college, setCollege] = useState(sp.get('college') || '');
+  const [coach, setCoach] = useState('');
+  const [type, setType] = useState('Email Received');
+  const [initiated, setInitiated] = useState('Coach');
+  const [note, setNote] = useState('');
+  const [follow, setFollow] = useState(false);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const c = createClient();
+    c.auth.getUser().then(async ({ data: { user } }) => {
+      const { data } = await c.from('athlete_colleges').select('college_id,colleges(id,name)').eq('athlete_user_id', user?.id);
+      setColleges((data || []).map((x: any) => x.colleges));
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!college) { setCoaches([]); return; }
+    createClient().from('college_coaches').select('*').eq('college_id', college).then(({ data }) => setCoaches(data || []));
+  }, [college]);
+
+  async function save(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage('');
+    const c = createClient();
+    const { data: { user } } = await c.auth.getUser();
+    const { error } = await c.from('interactions').insert({ athlete_user_id: user?.id, actor_user_id: user?.id, college_id: college, coach_id: coach || null, type, initiated_by: initiated, date, note });
+    if (error) { setMessage(error.message); return; }
+    if (follow) {
+      const due = new Date(date);
+      due.setDate(due.getDate() + 7);
+      await c.from('reminders').insert({ owner_user_id: user?.id, athlete_user_id: user?.id, college_id: college, coach_id: coach || null, title: `Follow up after ${type.toLowerCase()}`, due_date: due.toISOString().slice(0, 10) });
+    }
+    location.href = '/activity';
+  }
+
+  return <AppShell><div className="max-w-2xl mx-auto px-5 md:px-8 py-8"><div className="card p-6"><h1 className="text-2xl font-black">Quick Log Interaction</h1><p className="muted mt-1">Capture what happened in about 10–15 seconds.</p><form onSubmit={save} className="space-y-5 mt-7"><label className="block"><span className="text-sm font-bold">College</span><select className="input mt-1" value={college} onChange={e=>setCollege(e.target.value)} required><option value="">Choose a college</option>{colleges.map(c=><option value={c.id} key={c.id}>{c.name}</option>)}</select></label><label className="block"><span className="text-sm font-bold">Coach</span><select className="input mt-1" value={coach} onChange={e=>setCoach(e.target.value)}><option value="">Select a coach</option>{coaches.map(c=><option value={c.id} key={c.id}>{c.first_name} {c.last_name}</option>)}</select></label><label className="block"><span className="text-sm font-bold">What happened?</span><select className="input mt-1" value={type} onChange={e=>setType(e.target.value)}>{types.map(t=><option key={t}>{t}</option>)}</select></label><label className="block"><span className="text-sm font-bold">Who initiated it?</span><select className="input mt-1" value={initiated} onChange={e=>setInitiated(e.target.value)}><option>Athlete</option><option>Coach</option><option>Advisor</option><option>Other</option></select></label><label className="block"><span className="text-sm font-bold">Date</span><input className="input mt-1" type="date" value={date} onChange={e=>setDate(e.target.value)} required/></label><label className="block"><span className="text-sm font-bold">Short note</span><textarea className="input mt-1 min-h-24" placeholder="What matters about this interaction?" value={note} onChange={e=>setNote(e.target.value)}/></label><label className="flex items-center gap-3"><input type="checkbox" checked={follow} onChange={e=>setFollow(e.target.checked)}/><span className="font-semibold">Create a 7-day follow-up reminder</span></label>{message&&<div className="text-sm text-red-600">{message}</div>}<button className="btn btn-red w-full">Save interaction</button></form></div></div></AppShell>;
+}
