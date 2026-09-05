@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, Clock3, ExternalLink, Instagram, RefreshCw, Users, X } from 'lucide-react';
+import { CheckCircle2, Clock3, ExternalLink, Instagram, RefreshCw, Users, X } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import { createClient } from '@/lib/supabase-browser';
@@ -37,7 +37,7 @@ export default function SocialPage(){
     setAccount(a.data||null);setPosts((p.data||[]) as Post[]);setConnections((c.data||[]) as Connection[]);setLoading(false);
   };
   useEffect(()=>{load()},[]);
-  const refresh=async()=>{setRefreshing(true);await load();setRefreshing(false)};
+  const refresh=async()=>{setRefreshing(true);if(account){const response=await fetch('/api/social/x/sync',{method:'POST'});if(!response.ok){const body=await response.json().catch(()=>null);setError(body?.error||'X could not be refreshed.')}}await load();setRefreshing(false)};
   const filtered=useMemo(()=>filter==='all'?connections:connections.filter(c=>c.category===filter),[connections,filter]);
   const followers=connections.filter(c=>c.follows_athlete);
   const following=connections.filter(c=>c.athlete_follows);
@@ -51,10 +51,11 @@ export default function SocialPage(){
     <section className="card p-5 mb-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-3"><div className="h-11 w-11 rounded-full bg-black text-white flex items-center justify-center"><X size={22}/></div><div><div className="font-black text-lg">X</div><div className="muted text-sm">Your recruiting activity on X</div></div></div>
-        {account?<div className="flex items-center gap-3"><span className="inline-flex items-center gap-1.5 text-sm font-bold"><CheckCircle2 size={17}/> Connected {account.username&&`@${account.username}`}</span><Link href={account.profile_url||'#'} target="_blank" className="text-sm font-bold inline-flex items-center gap-1">View profile <ExternalLink size={14}/></Link></div>:<Link href="/api/social/x/connect" className="btn btn-red"><X size={17}/> Connect X</Link>}
+        {account?<div className="flex flex-wrap items-center gap-3"><span className={`inline-flex items-center gap-1.5 text-sm font-bold ${account.status==='needs_reauth'?'text-red-600':''}`}>{account.status==='connected'?<CheckCircle2 size={17}/>:<RefreshCw size={16}/>} {account.status==='connected'?'Connected':'Needs reauthorization'} {account.username&&`@${account.username}`}</span><Link href={account.profile_url||'#'} target="_blank" className="text-sm font-bold inline-flex items-center gap-1">View profile <ExternalLink size={14}/></Link></div>:<Link href="/api/social/x/connect" className="btn btn-red"><X size={17}/> Connect X</Link>}
       </div>
       {!account&&<div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm muted">Connect your X account to bring in your recent posts, followers, following, and recruiting-related activity. Live X access requires an approved X developer app and the required API access plan.</div>}
       {account&&<div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5"><div className="rounded-xl bg-slate-50 p-4"><div className="muted text-xs">Followers tracked</div><div className="font-black text-2xl mt-1">{followers.length}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="muted text-xs">Following tracked</div><div className="font-black text-2xl mt-1">{following.length}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="muted text-xs">Don’t follow back</div><div className="font-black text-2xl mt-1">{notFollowingBack.length}</div></div><div className="rounded-xl bg-slate-50 p-4"><div className="muted text-xs">Post engagement</div><div className="font-black text-2xl mt-1">{engagement}</div></div></div>}
+      {account&&<div className="muted text-xs mt-4">Last synced {formatDate(account.last_synced_at)}</div>}
     </section>
 
     <div className="grid lg:grid-cols-3 gap-6">
