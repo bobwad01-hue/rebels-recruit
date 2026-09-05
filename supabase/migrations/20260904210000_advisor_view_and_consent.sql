@@ -5,7 +5,6 @@ alter table public.athlete_advisor_assignments
   add column if not exists relationship_type text not null default 'Recruiting Advisor',
   add column if not exists invited_at timestamptz not null default now(),
   add column if not exists responded_at timestamptz;
-
 update public.athlete_advisor_assignments set status='pending' where status is null or status not in ('pending','active','declined','revoked','suspended');
 create unique index if not exists athlete_advisor_assignments_unique_pair on public.athlete_advisor_assignments(athlete_user_id,advisor_user_id,organization_id);
 create index if not exists athlete_advisor_assignments_advisor_idx on public.athlete_advisor_assignments(advisor_user_id,status);
@@ -15,21 +14,15 @@ create table if not exists public.advisor_tasks (id uuid primary key default gen
 create table if not exists public.advisor_conversations (id uuid primary key default gen_random_uuid(),organization_id uuid references public.organizations(id) on delete cascade,conversation_type text not null default 'direct' check(conversation_type in ('direct','group')),subject text,created_by_user_id uuid not null references auth.users(id) on delete cascade,created_at timestamptz not null default now());
 create table if not exists public.advisor_conversation_members (id uuid primary key default gen_random_uuid(),conversation_id uuid not null references public.advisor_conversations(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,created_at timestamptz not null default now(),unique(conversation_id,user_id));
 create table if not exists public.advisor_messages (id uuid primary key default gen_random_uuid(),conversation_id uuid not null references public.advisor_conversations(id) on delete cascade,sender_user_id uuid not null references auth.users(id) on delete cascade,body text not null,created_at timestamptz not null default now(),read_at timestamptz);
-create index if not exists advisor_tasks_athlete_idx on public.advisor_tasks(athlete_user_id,status,due_date);
-create index if not exists advisor_tasks_assigned_idx on public.advisor_tasks(assigned_to_user_id,status,due_date);
-create index if not exists advisor_conversation_members_user_idx on public.advisor_conversation_members(user_id);
-create index if not exists advisor_messages_conversation_idx on public.advisor_messages(conversation_id,created_at);
+create index if not exists advisor_tasks_athlete_idx on public.advisor_tasks(athlete_user_id,status,due_date);create index if not exists advisor_tasks_assigned_idx on public.advisor_tasks(assigned_to_user_id,status,due_date);create index if not exists advisor_conversation_members_user_idx on public.advisor_conversation_members(user_id);create index if not exists advisor_messages_conversation_idx on public.advisor_messages(conversation_id,created_at);
 
 alter table public.advisor_tasks enable row level security;alter table public.advisor_conversations enable row level security;alter table public.advisor_conversation_members enable row level security;alter table public.advisor_messages enable row level security;
-
 create or replace function private.is_staff_user() returns boolean language sql stable security definer set search_path='' as $$ select exists(select 1 from public.organization_members om where om.user_id=(select auth.uid()) and om.status='active' and om.role in ('owner','admin','advisor')); $$;
 revoke execute on function private.is_staff_user() from public;grant usage on schema private to authenticated;grant execute on function private.is_staff_user() to authenticated;
 create or replace function private.can_message_user(target_user uuid) returns boolean language sql stable security definer set search_path='' as $$ select target_user=(select auth.uid()) or exists(select 1 from public.athlete_advisor_assignments aa where aa.status='active' and ((aa.athlete_user_id=(select auth.uid()) and aa.advisor_user_id=target_user) or (aa.advisor_user_id=(select auth.uid()) and aa.athlete_user_id=target_user))); $$;
 revoke execute on function private.can_message_user(uuid) from public;grant execute on function private.can_message_user(uuid) to authenticated;
-
 create or replace function public.can_access_athlete(a uuid) returns boolean language sql stable security definer set search_path='' as $$ select a=(select auth.uid()) or exists(select 1 from public.athlete_advisor_assignments aa where aa.athlete_user_id=a and aa.advisor_user_id=(select auth.uid()) and aa.status='active') or exists(select 1 from public.organization_members me join public.organization_members athlete on athlete.organization_id=me.organization_id where me.user_id=(select auth.uid()) and me.status='active' and athlete.user_id=a and athlete.status='active' and me.role in ('owner','admin')); $$;
 
--- Consent-aware advisor relationship policies.
 drop policy if exists "assignments access" on public.athlete_advisor_assignments;
 create policy "assignment select" on public.athlete_advisor_assignments for select to authenticated using (athlete_user_id=(select auth.uid()) or advisor_user_id=(select auth.uid()) or exists(select 1 from public.organization_members om where om.user_id=(select auth.uid()) and om.organization_id=athlete_advisor_assignments.organization_id and om.status='active' and om.role in ('owner','admin')));
 create policy "advisor creates pending assignments" on public.athlete_advisor_assignments for insert to authenticated with check (advisor_user_id=(select auth.uid()) and status='pending' and exists(select 1 from public.organization_members om where om.user_id=(select auth.uid()) and om.organization_id=athlete_advisor_assignments.organization_id and om.status='active' and om.role in ('advisor','admin','owner')));
@@ -53,6 +46,17 @@ create policy "messages insert" on public.advisor_messages for insert to authent
 create policy "messages update read" on public.advisor_messages for update to authenticated using (exists(select 1 from public.advisor_conversation_members m where m.conversation_id=advisor_messages.conversation_id and m.user_id=(select auth.uid()))) with check (exists(select 1 from public.advisor_conversation_members m where m.conversation_id=advisor_messages.conversation_id and m.user_id=(select auth.uid())));
 
 grant select,insert,update,delete on public.advisor_tasks to authenticated;grant select,insert,update,delete on public.advisor_conversations to authenticated;grant select,insert,delete on public.advisor_conversation_members to authenticated;grant select,insert,update on public.advisor_messages to authenticated;
+
+-- Notes support private advisor notes and shared advisor notes.
+drop policy if exists "notes access" on public.notes;
+drop policy if exists "notes select" on public.notes;
+drop policy if exists "notes insert" on public.notes;
+drop policy if exists "notes update" on public.notes;
+drop policy if exists "notes delete" on public.notes;
+create policy "notes select" on public.notes for select to authenticated using (author_user_id=(select auth.uid()) or (athlete_user_id=(select auth.uid()) and visibility <> 'advisor_only') or ((visibility='advisors' or visibility='athlete_and_author') and (select public.can_access_athlete(athlete_user_id))));
+create policy "notes insert" on public.notes for insert to authenticated with check (author_user_id=(select auth.uid()) and (select public.can_access_athlete(athlete_user_id)));
+create policy "notes update" on public.notes for update to authenticated using (author_user_id=(select auth.uid()) or athlete_user_id=(select auth.uid())) with check (author_user_id=(select auth.uid()) or athlete_user_id=(select auth.uid()));
+create policy "notes delete" on public.notes for delete to authenticated using (author_user_id=(select auth.uid()) or athlete_user_id=(select auth.uid()));
 
 alter function public.is_org_member(uuid) set search_path='public';
 alter function public.set_reminder_completed_at() set search_path='public';
