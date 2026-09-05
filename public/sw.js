@@ -3,8 +3,6 @@ self.addEventListener('push', event => {
   const title = data.title || 'Rebels Recruit';
   const options = {
     body: data.body || 'You have a new recruiting update.',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
     tag: data.kind || 'rebels-recruit',
     renotify: true,
     data: { url: data.url || '/dashboard', ...(data.data || {}) }
