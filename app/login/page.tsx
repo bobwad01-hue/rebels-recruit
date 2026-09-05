@@ -11,6 +11,7 @@ export default function Login() {
   const [resetMessage, setResetMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [resetBusy, setResetBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -32,24 +33,31 @@ export default function Login() {
   async function forgotPassword() {
     setError('');
     setResetMessage('');
-
     const cleanEmail = email.trim();
     if (!cleanEmail) {
       setError('Enter your email address first, then tap Forgot password?');
       return;
     }
-
     setResetBusy(true);
     const { error } = await createClient().auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     });
+    if (error) setError(error.message);
+    else setResetMessage(`Password reset email sent to ${cleanEmail}. Check your inbox and spam folder for a link to create a new password.`);
+    setResetBusy(false);
+  }
 
+  async function continueWithGoogle() {
+    setError('');
+    setGoogleBusy(true);
+    const { error } = await createClient().auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
+    });
     if (error) {
       setError(error.message);
-    } else {
-      setResetMessage(`Password reset email sent to ${cleanEmail}. Check your inbox and spam folder for a link to create a new password.`);
+      setGoogleBusy(false);
     }
-    setResetBusy(false);
   }
 
   return (
@@ -62,19 +70,14 @@ export default function Login() {
           <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
           <input className="input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} />
           <div className="text-right -mt-1">
-            <button
-              type="button"
-              onClick={forgotPassword}
-              disabled={resetBusy}
-              className="text-sm font-bold text-red-600 hover:underline disabled:opacity-60"
-            >
+            <button type="button" onClick={forgotPassword} disabled={resetBusy} className="text-sm font-bold text-red-600 hover:underline disabled:opacity-60">
               {resetBusy ? 'Sending reset email...' : 'Forgot password?'}
             </button>
           </div>
           {resetMessage && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-800">{resetMessage}</div>}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button disabled={busy} className="btn btn-primary w-full">{busy ? 'Signing in...' : 'Sign in'}</button>
-          <button type="button" onClick={() => createClient().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + '/dashboard' } })} className="btn w-full">Continue with Google</button>
+          <button type="button" disabled={googleBusy} onClick={continueWithGoogle} className="btn w-full">{googleBusy ? 'Connecting to Google...' : 'Continue with Google'}</button>
         </div>
         <p className="text-sm muted mt-6 text-center">Don't have an account? <Link className="font-bold text-slate-900" href="/signup">Create one</Link></p>
       </form>
