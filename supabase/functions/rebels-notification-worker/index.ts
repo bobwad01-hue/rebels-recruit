@@ -19,7 +19,7 @@ async function queueDueNotifications() {
       'reminder-due:'||r.id::text||':'||r.due_date::text
     from public.reminders r
     where r.status='open' and r.owner_user_id is not null and r.due_date<=current_date
-    on conflict (user_id,dedupe_key) do nothing
+    on conflict do nothing
   `;
 
   await sql`
@@ -30,7 +30,7 @@ async function queueDueNotifications() {
       'task-due:'||t.id::text||':'||t.due_date::text
     from public.advisor_tasks t
     where t.status='open' and t.assigned_to_user_id is not null and t.due_date is not null and t.due_date<=current_date
-    on conflict (user_id,dedupe_key) do nothing
+    on conflict do nothing
   `;
 }
 
