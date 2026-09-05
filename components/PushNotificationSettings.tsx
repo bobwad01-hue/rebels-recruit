@@ -20,8 +20,13 @@ function urlBase64ToUint8Array(value: string) {
   return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
 }
 
-function isIos() {
-  return /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+function isIosPhone() {
+  return /iphone|ipod/i.test(window.navigator.userAgent);
+}
+
+function isPhone() {
+  const ua = window.navigator.userAgent;
+  return /iphone|ipod/i.test(ua) || /android/i.test(ua) && /mobile/i.test(ua) || /windows phone/i.test(ua);
 }
 
 function isStandalone() {
@@ -32,6 +37,7 @@ export default function PushNotificationSettings() {
   const supabase = createClient();
   const [userId, setUserId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [phoneDevice, setPhoneDevice] = useState(false);
   const [prefs, setPrefs] = useState<Preferences>({ messages: true, tasks: true, reminders: true, advisor_activity: true });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -42,6 +48,8 @@ export default function PushNotificationSettings() {
   async function load() {
     setLoading(true);
     setError('');
+    const phone = isPhone();
+    setPhoneDevice(phone);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
@@ -49,12 +57,14 @@ export default function PushNotificationSettings() {
     const { data: preference } = await supabase.from('notification_preferences').select('messages,tasks,reminders,advisor_activity').eq('user_id', user.id).maybeSingle();
     if (preference) setPrefs(preference);
 
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
+    if (phone && 'serviceWorker' in navigator && 'PushManager' in window) {
       const registration = await navigator.serviceWorker.getRegistration('/');
       const subscription = registration ? await registration.pushManager.getSubscription() : null;
       setEnabled(Boolean(subscription));
+    } else {
+      setEnabled(false);
     }
-    setNeedsHomeScreen(isIos() && !isStandalone());
+    setNeedsHomeScreen(isIosPhone() && !isStandalone());
     setLoading(false);
   }
 
@@ -72,12 +82,13 @@ export default function PushNotificationSettings() {
     if (!userId) return;
     setBusy(true); setError(''); setMessage('');
     try {
+      if (!isPhone()) throw new Error('Phone alerts can only be enabled from a smartphone. Desktop and tablet notifications are intentionally disabled.');
       if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
         throw new Error('This browser does not support web push notifications.');
       }
-      if (isIos() && !isStandalone()) {
+      if (isIosPhone() && !isStandalone()) {
         setNeedsHomeScreen(true);
-        throw new Error('On iPhone or iPad, first add Rebels Recruit to your Home Screen and open it there.');
+        throw new Error('On iPhone, first add Rebels Recruit to your Home Screen and open it there.');
       }
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') throw new Error('Notification permission was not granted.');
@@ -103,9 +114,9 @@ export default function PushNotificationSettings() {
 
       await supabase.from('notification_preferences').upsert({ user_id: userId, ...prefs, updated_at: new Date().toISOString() });
       setEnabled(true);
-      setMessage('Phone notifications are enabled on this device.');
+      setMessage('Phone alerts are enabled on this phone.');
     } catch (e: any) {
-      setError(e?.message || 'Unable to enable phone notifications.');
+      setError(e?.message || 'Unable to enable phone alerts.');
     } finally {
       setBusy(false);
     }
@@ -121,26 +132,26 @@ export default function PushNotificationSettings() {
       if (subscription) await subscription.unsubscribe();
       if (endpoint) await supabase.from('push_subscriptions').delete().eq('user_id', userId).eq('endpoint', endpoint);
       setEnabled(false);
-      setMessage('Phone notifications are disabled on this device.');
+      setMessage('Phone alerts are disabled on this phone.');
     } catch (e: any) {
-      setError(e?.message || 'Unable to disable phone notifications.');
+      setError(e?.message || 'Unable to disable phone alerts.');
     } finally {
       setBusy(false);
     }
   }
 
   async function sendTest() {
-    if (!userId || !enabled) return;
+    if (!userId || !enabled || !phoneDevice) return;
     setBusy(true); setError(''); setMessage('');
     const { error: testError } = await supabase.from('notifications').insert({
       user_id: userId,
       title: 'Rebels Recruit test alert',
-      body: 'Phone notifications are working.',
+      body: 'Phone alerts are working.',
       kind: 'general',
       url: '/settings',
       data: { test: true },
     });
-    if (testError) setError(testError.message); else setMessage('Test alert queued. It should arrive shortly.');
+    if (testError) setError(testError.message); else setMessage('Test alert sent to your enabled phone.');
     setBusy(false);
   }
 
@@ -151,18 +162,20 @@ export default function PushNotificationSettings() {
       <div className="h-11 w-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0"><Bell size={21}/></div>
       <div className="flex-1">
         <h2 className="font-black text-lg">Phone Alerts</h2>
-        <p className="muted text-sm mt-1">Get free push notifications for recruiting messages, tasks, reminders and advisor activity.</p>
+        <p className="muted text-sm mt-1">Get free push notifications on your smartphone for recruiting messages, tasks, reminders and advisor activity. Desktop and tablet alerts are disabled.</p>
       </div>
       {enabled ? <div className="text-green-700 text-sm font-bold flex items-center gap-1"><CheckCircle2 size={16}/> Enabled</div> : null}
     </div>
 
+    {!phoneDevice && <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><div className="font-bold flex items-center gap-2"><Smartphone size={17}/> Phone-only alerts</div><p className="mt-2">Open Rebels Recruit on your smartphone to enable or test alerts. Notifications will not be sent to this desktop or tablet.</p></div>}
+
     {needsHomeScreen && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
-      <div className="font-bold flex items-center gap-2"><Smartphone size={17}/> iPhone/iPad setup</div>
+      <div className="font-bold flex items-center gap-2"><Smartphone size={17}/> iPhone setup</div>
       <p className="mt-2">In Safari, tap Share, choose Add to Home Screen, open the new Rebels Recruit icon, then return here and tap Enable phone alerts.</p>
     </div>}
 
     <div className="mt-5 flex flex-wrap gap-2">
-      {!enabled ? <button className="btn btn-red" onClick={enableNotifications} disabled={busy}><Bell size={17}/>{busy ? 'Enabling...' : 'Enable phone alerts'}</button> : <><button className="btn" onClick={sendTest} disabled={busy}>Send test alert</button><button className="btn" onClick={disableNotifications} disabled={busy}><BellOff size={17}/>Disable on this device</button></>}
+      {phoneDevice && (!enabled ? <button className="btn btn-red" onClick={enableNotifications} disabled={busy}><Bell size={17}/>{busy ? 'Enabling...' : 'Enable phone alerts'}</button> : <><button className="btn" onClick={sendTest} disabled={busy}>Send test alert</button><button className="btn" onClick={disableNotifications} disabled={busy}><BellOff size={17}/>Disable on this phone</button></>)}
     </div>
 
     <div className="mt-6 border-t pt-5">
