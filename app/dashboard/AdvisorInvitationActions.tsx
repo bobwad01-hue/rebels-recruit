@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 export default function AdvisorInvitationActions({ id }: { id: string }) {
   const router = useRouter();
@@ -13,8 +13,8 @@ export default function AdvisorInvitationActions({ id }: { id: string }) {
     setBusy(status);
     setError('');
 
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const client = supabase();
+    const { data: { user } } = await client.auth.getUser();
 
     if (!user) {
       setError('Your session has expired. Please sign in again.');
@@ -22,7 +22,7 @@ export default function AdvisorInvitationActions({ id }: { id: string }) {
       return;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await client
       .from('athlete_advisor_assignments')
       .update({ status, responded_at: new Date().toISOString() })
       .eq('id', id)
