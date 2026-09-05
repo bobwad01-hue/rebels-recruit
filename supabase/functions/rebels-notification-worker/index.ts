@@ -50,9 +50,14 @@ async function processNotification(notification:any){
     return {id:notification.id,sent:0,skipped:true};
   }
 
-  const subscriptions=await sql<any[]>`select id,endpoint,p256dh,auth from public.push_subscriptions where user_id=${notification.user_id}`;
+  const subscriptions=await sql<any[]>`
+    select id,endpoint,p256dh,auth
+    from public.push_subscriptions
+    where user_id=${notification.user_id}
+      and coalesce(user_agent,'') ~* '(iphone|ipod|android.*mobile|windows phone)'
+  `;
   if(!subscriptions.length){
-    await sql`update public.notifications set push_sent_at=now(),push_error='No push subscription for this user' where id=${notification.id}`;
+    await sql`update public.notifications set push_sent_at=now(),push_error='No phone push subscription for this user' where id=${notification.id}`;
     return {id:notification.id,sent:0,skipped:true};
   }
 
