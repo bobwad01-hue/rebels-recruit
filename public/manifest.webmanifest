@@ -1,0 +1,11 @@
+{
+  "name": "Rebels Recruit",
+  "short_name": "Rebels Recruit",
+  "id": "/",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#111827",
+  "description": "Your recruiting. Your relationships. Your journey."
+}
