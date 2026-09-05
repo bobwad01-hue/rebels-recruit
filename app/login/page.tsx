@@ -36,9 +36,13 @@ export default function Login() {
           <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
           <input className="input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
           <div className="text-right -mt-1">
-            <Link href="/forgot-password" className="text-sm font-bold text-red-600 hover:underline">
+            <button
+              type="button"
+              onClick={() => { window.location.href = '/forgot-password'; }}
+              className="text-sm font-bold text-red-600 hover:underline"
+            >
               Forgot password?
-            </Link>
+            </button>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button disabled={busy} className="btn btn-primary w-full">{busy ? 'Signing in...' : 'Sign in'}</button>
