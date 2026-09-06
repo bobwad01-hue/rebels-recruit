@@ -32,7 +32,7 @@ export default function AdvisorPlayer() {
 
   async function load() {
     const {data:{user}}=await c.auth.getUser();
-    const [p, ap, ac, ints, rems, ns, ts, sa, viewer] = await Promise.all([
+    const [p, ap, ac, coachRows, ints, rems, ns, ts, sa, viewer] = await Promise.all([
       c.from('profiles').select('id,full_name,email').eq('id', id).single(),
       c.from('athlete_profiles').select('*').eq('user_id', id).single(),
       c.from('athlete_colleges').select('id,status,fit_rating,academic_fit,athletic_fit,location_fit,notes,colleges(id,name,state,city,division,conference)').eq('athlete_user_id', id),
@@ -53,7 +53,7 @@ export default function AdvisorPlayer() {
     setTimezone(viewer.data?.timezone||DEFAULT_TIMEZONE);
     setPlayer({ ...p.data, ...(ap.data || {}) });
     setColleges(ac.data || []);
-    setCoaches(ac.data || []);
+    setCoaches(coachRows.data || []);
     setInteractions(ints.data || []);
     setReminders(rems.data || []);
     setNotes(ns.data || []);
