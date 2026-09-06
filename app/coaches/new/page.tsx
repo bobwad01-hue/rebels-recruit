@@ -1,15 +1,14 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import {useSearchParams} from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import {createClient} from '@/lib/supabase-browser';
 
 export default function NewCoach(){
-  const c=createClient();const params=useSearchParams();const requestedCollege=params.get('college')||'';
+  const c=createClient();
   const [userId,setUserId]=useState('');const [colleges,setColleges]=useState<any[]>([]);const [collegeId,setCollegeId]=useState('');const [known,setKnown]=useState<any[]>([]);const [coachSearch,setCoachSearch]=useState('');const [existingCoachId,setExistingCoachId]=useState('');
   const [first,setFirst]=useState('');const [last,setLast]=useState('');const [title,setTitle]=useState('');const [email,setEmail]=useState('');const [phone,setPhone]=useState('');const [x,setX]=useState('');const [instagram,setInstagram]=useState('');const [msg,setMsg]=useState('');const [busy,setBusy]=useState(false);
-  useEffect(()=>{(async()=>{const {data:{user}}=await c.auth.getUser();if(!user)return;setUserId(user.id);const {data}=await c.from('athlete_colleges').select('college_id,colleges(id,name)').eq('athlete_user_id',user.id).order('created_at',{ascending:false});setColleges(data||[]);if(data?.length)setCollegeId(data.some((r:any)=>r.college_id===requestedCollege)?requestedCollege:data[0].college_id)})()},[requestedCollege]);
+  useEffect(()=>{(async()=>{const {data:{user}}=await c.auth.getUser();if(!user)return;setUserId(user.id);const {data}=await c.from('athlete_colleges').select('college_id,colleges(id,name)').eq('athlete_user_id',user.id).order('created_at',{ascending:false});setColleges(data||[]);if(data?.length)setCollegeId(data[0].college_id)})()},[]);
   useEffect(()=>{if(!collegeId){setKnown([]);return}(async()=>{const {data}=await c.from('college_coaches').select('id,first_name,last_name,title,email,phone,x_url,instagram_url').eq('college_id',collegeId).order('last_name');setKnown(data||[])})()},[collegeId]);
   const suggestions=useMemo(()=>{const q=coachSearch.trim().toLowerCase();if(!q)return known.slice(0,8);return known.filter(k=>[k.first_name,k.last_name,k.title,k.email].filter(Boolean).join(' ').toLowerCase().includes(q)).slice(0,8)},[known,coachSearch]);
   function choose(k:any){setExistingCoachId(k.id);setFirst(k.first_name||'');setLast(k.last_name||'');setTitle(k.title||'');setEmail(k.email||'');setPhone(k.phone||'');setX(k.x_url||'');setInstagram(k.instagram_url||'');setCoachSearch(`${k.first_name||''} ${k.last_name||''}`.trim())}
