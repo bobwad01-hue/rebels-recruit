@@ -33,7 +33,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: { prompt: 'select_account' },
       },
     });
@@ -43,7 +43,7 @@ export default function Signup() {
     }
   }
 
-  if (sent) return <div className="min-h-screen grid place-items-center p-6"><div className="card p-8 max-w-md text-center"><h1 className="text-2xl font-black">Check your email</h1><p className="muted mt-2">We sent a verification link to {email}.</p></div></div>;
+  if (sent) return <div className="min-h-screen grid place-items-center p-6"><div className="card p-8 max-w-md text-center"><h1 className="text-2xl font-black">Check your email</h1><p className="muted mt-2">We sent a verification link to {email}. After you verify your account, you'll complete your profile before entering Rebels Recruit.</p></div></div>;
 
   return (
     <div className="min-h-screen grid place-items-center p-6">
