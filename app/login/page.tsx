@@ -24,8 +24,10 @@ export default function Login() {
     else if (!user) {
       setError('Unable to sign in. Please try again.');
     } else {
-      const { data: profile } = await c.from('profiles').select('app_role').eq('id', user.id).single();
-      location.href = profile?.app_role === 'athlete' ? '/dashboard' : '/advisors';
+      const { data: profile } = await c.from('profiles').select('app_role,profile_completed_at').eq('id', user.id).single();
+      const role = profile?.app_role || 'athlete';
+      if (!profile?.profile_completed_at) location.href = role === 'athlete' ? '/profile' : '/advisors/profile';
+      else location.href = role === 'athlete' ? '/dashboard' : '/advisors';
     }
     setBusy(false);
   }
@@ -52,7 +54,7 @@ export default function Login() {
     setGoogleBusy(true);
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback?next=/dashboard` },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
     if (error) {
       setError(error.message);
