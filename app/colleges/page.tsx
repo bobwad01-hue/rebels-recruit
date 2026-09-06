@@ -1,2 +1,13 @@
-import Link from 'next/link';import {Search,Plus} from 'lucide-react';import AppShell from '@/components/AppShell';import PageHeader from '@/components/PageHeader';import {createClient} from '@/lib/supabase-server';
-export default async function Colleges(){const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();const {data}=await supabase.from('athlete_colleges').select('id,status,fit_rating,colleges(id,name,division,state,city)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false});return <AppShell><div className="max-w-7xl mx-auto px-5 md:px-8 py-6"><PageHeader title="Colleges" subtitle="Your recruiting board, not a spreadsheet." action={<Link href="/colleges/new" className="btn btn-red"><Plus size={18}/> Add College</Link>}/><div className="card p-3 mb-5 flex items-center gap-3"><Search size={18} className="muted"/><input className="w-full outline-none" placeholder="Search your colleges"/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{data?.map((row:any)=><Link href={`/colleges/${row.colleges.id}`} key={row.id} className="card p-5 hover:shadow-md transition"><div className="flex justify-between gap-3"><div><div className="font-black text-lg">{row.colleges.name}</div><div className="muted text-sm mt-1">{row.colleges.division||'College'} · {row.colleges.state}</div></div><span className="pill">{row.status}</span></div><div className="mt-6 flex justify-between text-sm"><span className="muted">Fit</span><span className="font-bold">{row.fit_rating?`${row.fit_rating}/5`:'Not rated'}</span></div></Link>)}{!data?.length&&<div className="card p-10 md:col-span-2 xl:col-span-3 text-center"><div className="font-black text-lg">Start building your college list</div><p className="muted mt-2">Add schools you’re researching or already talking with.</p></div>}</div></div></AppShell>}
+import AppShell from '@/components/AppShell';
+import CollegesCoachesBoard from '@/components/CollegesCoachesBoard';
+import {createClient} from '@/lib/supabase-server';
+
+export default async function Colleges(){
+  const supabase=await createClient();
+  const {data:{user}}=await supabase.auth.getUser();
+  const [colleges,coaches]=await Promise.all([
+    supabase.from('athlete_colleges').select('id,status,fit_rating,colleges(id,name,division,state,city)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false}),
+    supabase.from('athlete_coaches').select('id,relationship_rating,last_contact_date,next_step,colleges(id,name,state,division),college_coaches(id,first_name,last_name,title,email,phone)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false})
+  ]);
+  return <AppShell><div className="max-w-7xl mx-auto px-5 md:px-8 py-6"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]}/></div></AppShell>;
+}
