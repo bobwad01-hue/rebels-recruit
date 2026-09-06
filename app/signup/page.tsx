@@ -33,7 +33,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}`,
         queryParams: { prompt: 'select_account' },
       },
     });
