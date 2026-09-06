@@ -1,13 +1,4 @@
 import AppShell from '@/components/AppShell';
 import CollegesCoachesBoard from '@/components/CollegesCoachesBoard';
 import {createClient} from '@/lib/supabase-server';
-
-export default async function Colleges(){
-  const supabase=await createClient();
-  const {data:{user}}=await supabase.auth.getUser();
-  const [colleges,coaches]=await Promise.all([
-    supabase.from('athlete_colleges').select('id,status,fit_rating,colleges(id,name,division,state,city)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false}),
-    supabase.from('athlete_coaches').select('id,relationship_rating,last_contact_date,next_step,colleges(id,name,state,division),college_coaches(id,first_name,last_name,title,email,phone)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false})
-  ]);
-  return <AppShell><div className="max-w-7xl mx-auto px-5 md:px-8 py-6"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]}/></div></AppShell>;
-}
+export default async function Colleges(){const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();const [colleges,coaches]=await Promise.all([supabase.from('athlete_colleges').select('id,status,fit_rating,colleges(id,name,division,state,city,conference)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false}),supabase.from('athlete_coaches').select('id,relationship_rating,last_contact_date,next_step,colleges(id,name,state,division,conference),college_coaches(id,first_name,last_name,title,email,phone)').eq('athlete_user_id',user?.id).order('created_at',{ascending:false})]);return <AppShell><div className="max-w-7xl mx-auto px-5 md:px-8 py-6"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]}/></div></AppShell>}
