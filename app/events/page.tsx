@@ -82,7 +82,8 @@ export default function Events(){
   const [form,setForm]=useState<FormState>(EMPTY);
   const [editingId,setEditingId]=useState<string|null>(null);
   const [calendarConnected,setCalendarConnected]=useState(false);
-  const [showCalendarNotices,setShowCalendarNotices]=useState(true);
+  const [showPersonalCalendarNotice,setShowPersonalCalendarNotice]=useState(false);
+  const [showOrgCalendarNotice,setShowOrgCalendarNotice]=useState(false);
   const [msg,setMsg]=useState('');
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
@@ -104,7 +105,28 @@ export default function Events(){
     const {data:collegeRows}=await c.from('colleges').select('id,name,division').order('name');setColleges(collegeRows||[]);
     if(user){const {data}=await c.from('google_workspace_connections').select('calendar_connected').eq('user_id',user.id).maybeSingle();setCalendarConnected(Boolean(data?.calendar_connected))}
   })()},[]);
-  useEffect(()=>{if(!calendarConnected&&!orgSources.length)return;setShowCalendarNotices(true);const timer=window.setTimeout(()=>setShowCalendarNotices(false),10000);return()=>window.clearTimeout(timer)},[calendarConnected,orgSources.length]);
+
+  const orgNoticeSignature=useMemo(()=>orgSources.map((s:any)=>`${s.organizationId||s.organization_id||s.organizationName||s.organization_name||''}:${s.calendarId||s.calendar_id||s.calendarName||s.calendar_name||''}`).sort().join('|'),[orgSources]);
+  useEffect(()=>{
+    const timers:number[]=[];
+    if(calendarConnected){
+      const key='rr-events-google-calendar-notice-seen-v1';
+      if(!window.localStorage.getItem(key)){
+        setShowPersonalCalendarNotice(true);
+        window.localStorage.setItem(key,'1');
+        timers.push(window.setTimeout(()=>setShowPersonalCalendarNotice(false),10000));
+      }
+    }
+    if(orgNoticeSignature){
+      const key=`rr-events-org-calendar-notice-seen-v1:${orgNoticeSignature}`;
+      if(!window.localStorage.getItem(key)){
+        setShowOrgCalendarNotice(true);
+        window.localStorage.setItem(key,'1');
+        timers.push(window.setTimeout(()=>setShowOrgCalendarNotice(false),10000));
+      }
+    }
+    return()=>timers.forEach(timer=>window.clearTimeout(timer));
+  },[calendarConnected,orgNoticeSignature]);
 
   const combined=useMemo(()=>{
     const all=[...orgEvents.map(r=>({...r,_source:'org'})),...rows.map(r=>({...r,_source:'local'}))];
@@ -168,8 +190,8 @@ export default function Events(){
 
   return <AppShell><div className="max-w-6xl mx-auto px-5 md:px-8 py-6">
     <PageHeader title="Recruiting Events" subtitle="Track camps, visits, calls, showcases, deadlines and other recruiting opportunities."/>
-    {showCalendarNotices&&calendarConnected&&<div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center gap-2"><CalendarDays size={17}/><span><b>Google Calendar connected.</b> New and edited recruiting events sync automatically. Rebels Recruit only updates calendar items it created.</span></div>}
-    {showCalendarNotices&&orgSources.length>0&&<div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-center gap-2"><CalendarDays size={17}/><span><b>Rebels organization calendar connected.</b> Shared Google Calendar events are displayed below as read-only and stay managed in Google.</span></div>}
+    {showPersonalCalendarNotice&&calendarConnected&&<div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center gap-2"><CalendarDays size={17}/><span><b>Google Calendar connected.</b> New and edited recruiting events sync automatically. Rebels Recruit only updates calendar items it created.</span></div>}
+    {showOrgCalendarNotice&&orgSources.length>0&&<div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-center gap-2"><CalendarDays size={17}/><span><b>Rebels organization calendar connected.</b> Shared Google Calendar events are displayed below as read-only and stay managed in Google.</span></div>}
     {orgWarnings.length>0&&<div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Some shared calendar events could not be loaded: {orgWarnings.join(' · ')}</div>}
 
     <div className="grid lg:grid-cols-3 gap-6">
