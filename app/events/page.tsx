@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import {createClient} from '@/lib/supabase-browser';
-import {CalendarDays,CheckCircle2,Edit3,Trash2,X} from 'lucide-react';
+import {CalendarDays,CheckCircle2,Edit3,Trash2,X,ExternalLink} from 'lucide-react';
 
 const EVENT_TYPES=['Tournament','College Camp','Campus Visit','Showcase','Coach Call','Follow-up','Recruiting Deadline','Other'];
 
@@ -13,6 +13,9 @@ const EMPTY:FormState={name:'',type:'Tournament',date:'',location:'',college:'',
 export default function Events(){
   const c=createClient();
   const [rows,setRows]=useState<any[]>([]);
+  const [orgEvents,setOrgEvents]=useState<any[]>([]);
+  const [orgSources,setOrgSources]=useState<any[]>([]);
+  const [orgWarnings,setOrgWarnings]=useState<string[]>([]);
   const [colleges,setColleges]=useState<any[]>([]);
   const [form,setForm]=useState<FormState>(EMPTY);
   const [editingId,setEditingId]=useState<string|null>(null);
@@ -25,10 +28,13 @@ export default function Events(){
     const {data}=await c.from('events').select('*,colleges(name)').order('date');
     setRows(data||[]);
   }
+  async function loadOrgEvents(){
+    try{const res=await fetch('/api/google/calendar/organization',{cache:'no-store'});let data:any={};try{data=await res.json()}catch{};if(res.ok){setOrgEvents(data.events||[]);setOrgSources(data.sources||[]);setOrgWarnings(data.warnings||[])}}catch{}
+  }
 
   useEffect(()=>{(async()=>{
     const {data:{user}}=await c.auth.getUser();
-    await load();
+    await Promise.all([load(),loadOrgEvents()]);
     const {data:collegeRows}=await c.from('colleges').select('id,name').order('name');
     setColleges(collegeRows||[]);
     if(user){const {data}=await c.from('google_workspace_connections').select('calendar_connected').eq('user_id',user.id).maybeSingle();setCalendarConnected(Boolean(data?.calendar_connected))}
@@ -87,6 +93,8 @@ export default function Events(){
   return <AppShell><div className="max-w-6xl mx-auto px-5 md:px-8 py-6">
     <PageHeader title="Recruiting Events" subtitle="Track camps, visits, calls, showcases, deadlines and other recruiting opportunities."/>
     {calendarConnected&&<div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center gap-2"><CalendarDays size={17}/><span><b>Google Calendar connected.</b> New and edited recruiting events sync automatically. Rebels Recruit only updates calendar items it created.</span></div>}
+    {orgSources.length>0&&<div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-center gap-2"><CalendarDays size={17}/><span><b>Rebels organization calendar connected.</b> Shared Google Calendar events are displayed below as read-only and stay managed in Google.</span></div>}
+    {orgWarnings.length>0&&<div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Some shared calendar events could not be loaded: {orgWarnings.join(' · ')}</div>}
     <div className="grid lg:grid-cols-3 gap-6">
       <form onSubmit={save} className="card p-5 lg:col-span-1 space-y-4">
         <div className="flex items-center justify-between gap-3"><h2 className="font-black text-lg">{editingId?'Edit Event':'Add Event'}</h2>{editingId&&<button type="button" className="btn py-1.5 px-2.5 text-xs" onClick={cancelEdit}><X size={13}/> Cancel</button>}</div>
@@ -101,8 +109,9 @@ export default function Events(){
         <button className="btn btn-red w-full" disabled={busy}>{busy?'Saving...':editingId?'Save Changes':'Add Event'}</button>
       </form>
       <div className="lg:col-span-2 space-y-3">
+        {orgEvents.map(r=><div className="card p-5 border-blue-200" key={r.id}><div className="flex justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><div className="font-black text-lg">{r.name}</div><span className="pill bg-blue-50 text-blue-700">Rebels Calendar</span></div><div className="muted text-sm mt-1">{r.organizationName} · {r.calendarName}{r.location?` · ${r.location}`:''}</div></div><div className="font-bold shrink-0">{r.date}</div></div>{r.description&&<div className="text-sm mt-3 whitespace-pre-wrap">{r.description}</div>}{r.url&&<a className="btn text-sm px-3 py-2 mt-4 inline-flex" href={r.url} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Open in Google Calendar</a>}<div className="text-xs muted mt-3">Read-only in Rebels Recruit. Edit or delete this event in Google Calendar.</div></div>)}
         {rows.map(r=><div className="card p-5" key={r.id}><div className="flex justify-between gap-4"><div><div className="font-black text-lg">{r.name}</div><div className="muted text-sm mt-1">{r.type}{r.colleges?.name?` · ${r.colleges.name}`:''}{r.location?` · ${r.location}`:''}</div></div><div className="font-bold shrink-0">{r.date}</div></div>{r.registration_url&&<a className="text-sm font-bold inline-block mt-3" href={r.registration_url} target="_blank" rel="noreferrer">Registration / Info</a>}<div className="mt-4 pt-4 border-t flex flex-wrap gap-2"><button type="button" className="btn text-sm px-3 py-2" onClick={()=>edit(r)} disabled={busy}><Edit3 size={15}/> Edit</button><button type="button" className="btn text-sm px-3 py-2" onClick={()=>remove(r)} disabled={busy}><Trash2 size={15}/> Delete</button>{calendarConnected&&<button type="button" className="btn text-sm px-3 py-2" disabled={busy} onClick={async()=>{setBusy(true);setError('');setMsg('');const result=await syncCalendar(r.id);setBusy(false);if(result.ok)setMsg(`“${r.name}” synced to Google Calendar.`);else setError(result.error||'Calendar sync failed.')}}><CalendarDays size={15}/> Sync Calendar</button>}</div></div>)}
-        {!rows.length&&<div className="card p-10 text-center muted">No recruiting events yet.</div>}
+        {!rows.length&&!orgEvents.length&&<div className="card p-10 text-center muted">No recruiting events yet.</div>}
       </div>
     </div>
   </div></AppShell>
