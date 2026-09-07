@@ -4,7 +4,14 @@ import {createAdminClient} from '@/lib/supabase-admin';
 import {encryptGoogleToken} from '@/lib/google-token-crypto';
 
 const STATE_COOKIE='rr_google_oauth_state';
-const SCOPES={gmail:'https://www.googleapis.com/auth/gmail.send',calendar:'https://www.googleapis.com/auth/calendar.events.owned'} as const;
+const SCOPES={
+  gmail:'https://www.googleapis.com/auth/gmail.send',
+  calendar:[
+    'https://www.googleapis.com/auth/calendar.events.owned',
+    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
+  ].join(' ')
+} as const;
 type Service=keyof typeof SCOPES;
 
 type StatePayload={state:string;service:Service;userId:string};
