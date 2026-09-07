@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
-import { ScriptBrand } from '@/components/BrandLogo';
 
 const APP_URL = 'https://rebels-recruit.vercel.app';
 
@@ -38,18 +37,17 @@ export default function Signup() {
         queryParams: { prompt: 'select_account' },
       },
     });
-    if (error) {
-      setError(error.message);
-      setGoogleBusy(false);
-    }
+    if (error) { setError(error.message); setGoogleBusy(false); }
   }
 
-  if (sent) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><ScriptBrand size="md" center/><h1 className="text-2xl font-black mt-8">Check your email</h1><p className="muted mt-2">We sent a verification link to {email}. After you verify your account, you'll complete your profile before entering Rebels Recruit.</p></div></div>;
+  const Brand=()=> <div className="text-2xl tracking-tight text-center"><span className="font-black text-red-600">REBELS</span><span className="font-normal text-slate-900"> RECRUIT</span></div>;
+
+  if (sent) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><Brand/><h1 className="text-2xl font-black mt-8">Check your email</h1><p className="muted mt-2">We sent a verification link to {email}. After you verify your account, you'll complete your profile before entering Rebels Recruit.</p></div></div>;
 
   return (
     <div className="min-h-screen grid place-items-center p-6 bg-slate-50">
       <form onSubmit={submit} className="card p-8 w-full max-w-md bg-white">
-        <ScriptBrand size="md" center />
+        <Brand/>
         <h1 className="text-2xl font-black mt-8">Create your account</h1>
         <div className="space-y-4 mt-6">
           <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} required />
