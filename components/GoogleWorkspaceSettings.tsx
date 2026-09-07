@@ -19,17 +19,17 @@ export default function GoogleWorkspaceSettings(){
     const {data}=await c.from('google_workspace_connections').select('gmail_connected,calendar_connected,google_email').eq('user_id',user.id).maybeSingle();
     setState(data||{});
   }
-  useEffect(()=>{load()},[]);
+  useEffect(()=>{void load()},[]);
 
   async function disconnect(service:Service){
     const label=service==='gmail'?'Gmail':'Google Calendar';
-    if(!window.confirm(`Disconnect ${label}? Rebels Recruit will revoke its saved permission for this service.`))return;
+    if(!window.confirm(`Disconnect ${label}? Rebels Recruit will delete its saved authorization for this service and stop using it.`))return;
     setBusy(service);setMessage('');setError('');
     try{
       const res=await fetch('/api/google/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service})});
       let data:any={};try{data=await res.json()}catch{}
       if(!res.ok){setError(data.error||`Could not disconnect ${label}.`);return}
-      setMessage(`${label} disconnected. Rebels Recruit no longer has saved permission for it.`);
+      setMessage(`${label} disconnected. Rebels Recruit no longer has a saved token for it.`);
       await load();
     }catch{setError(`Could not disconnect ${label}.`)}finally{setBusy(null)}
   }
@@ -43,6 +43,6 @@ export default function GoogleWorkspaceSettings(){
       <div className="border rounded-xl p-4"><div className="flex items-center gap-2 font-black"><Mail size={18}/> Gmail</div><p className="muted text-sm mt-2">Review and send recruiting emails through your connected Gmail account. Rebels Recruit does not need permission to read your inbox.</p><div className="mt-4 flex flex-wrap items-center gap-2"><span className={`pill ${gmail?'bg-green-50 text-green-700':''}`}>{gmail?'Connected':'Not connected'}</span><div className="ml-auto flex flex-wrap gap-2">{gmail?<><a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=gmail"><RefreshCw size={13}/> Reconnect</a><button type="button" className="btn py-1.5 px-2.5 text-xs" disabled={busy==='gmail'} onClick={()=>disconnect('gmail')}><Unplug size={13}/>{busy==='gmail'?'Disconnecting...':'Disconnect'}</button></>:<a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=gmail"><ExternalLink size={13}/> Connect Gmail</a>}</div></div></div>
       <div className="border rounded-xl p-4"><div className="flex items-center gap-2 font-black"><CalendarDays size={18}/> Google Calendar</div><p className="muted text-sm mt-2">Keep Rebels Recruit camps, visits, calls, deadlines and follow-ups on your Google Calendar. Rebels Recruit only updates or removes calendar items it created.</p><div className="mt-4 flex flex-wrap items-center gap-2"><span className={`pill ${cal?'bg-green-50 text-green-700':''}`}>{cal?'Connected':'Not connected'}</span><div className="ml-auto flex flex-wrap gap-2">{cal?<><a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=calendar"><RefreshCw size={13}/> Reconnect</a><button type="button" className="btn py-1.5 px-2.5 text-xs" disabled={busy==='calendar'} onClick={()=>disconnect('calendar')}><Unplug size={13}/>{busy==='calendar'?'Disconnecting...':'Disconnect'}</button></>:<a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=calendar"><ExternalLink size={13}/> Connect Calendar</a>}</div></div></div>
     </div>
-    <p className="muted text-xs mt-4">Gmail and Calendar are independent opt-ins. Disconnecting one does not affect the other or your normal Rebels Recruit sign-in.</p>
+    <p className="muted text-xs mt-4">Gmail and Calendar are independent opt-ins. Disconnecting one deletes only that service's saved token and does not affect the other service or your normal Rebels Recruit sign-in.</p>
   </div>
 }
