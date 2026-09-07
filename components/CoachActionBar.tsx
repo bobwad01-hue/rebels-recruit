@@ -13,9 +13,10 @@ type Props={
   phone?:string|null;
   athleteUserId?:string;
   compact?:boolean;
+  hideReminder?:boolean;
 };
 
-export default function CoachActionBar({coachId,collegeId,coachName,collegeName,email,phone,athleteUserId,compact=false}:Props){
+export default function CoachActionBar({coachId,collegeId,coachName,collegeName,email,phone,athleteUserId,compact=false,hideReminder=false}:Props){
   const c=createClient();
   const [pendingEmail,setPendingEmail]=useState(false);
   const [message,setMessage]=useState('');
@@ -65,10 +66,10 @@ export default function CoachActionBar({coachId,collegeId,coachName,collegeName,
       <a className={`${base} ${phone?'':'opacity-50 pointer-events-none'}`} href={phone?`sms:${phone}`:undefined}><MessageCircle size={compact?13:15}/> Text</a>
       <a className={`${base} ${phone?'':'opacity-50 pointer-events-none'}`} href={phone?`tel:${phone}`:undefined}><Phone size={compact?13:15}/> Call</a>
       <Link className={`${base} btn-red`} href={logHref}><Activity size={compact?13:15}/> Log</Link>
-      <button type="button" className={base} onClick={()=>setReminderOpen(v=>!v)}><Clock3 size={compact?13:15}/> Reminder</button>
+      {!hideReminder&&<button type="button" className={base} onClick={()=>setReminderOpen(v=>!v)}><Clock3 size={compact?13:15}/> Reminder</button>}
     </div>
     {pendingEmail&&<div className="mt-3 rounded-xl border bg-slate-50 p-3 text-sm flex flex-col sm:flex-row sm:items-center gap-2"><div className="flex-1"><b>Did you send the email to {coachName}?</b><div className="muted text-xs mt-1">One tap will add “Email Sent” to the recruiting timeline.</div></div><button type="button" disabled={busy} onClick={logEmailSent} className="btn btn-red"><CheckCircle2 size={15}/> {busy?'Logging...':'Yes, log it'}</button><button type="button" onClick={()=>setPendingEmail(false)} className="btn">Not yet</button></div>}
-    {reminderOpen&&<div className="mt-3 rounded-xl border bg-white p-3"><div className="text-sm font-bold">Remind me to follow up</div><div className="flex flex-wrap gap-2 mt-2"><button className="btn py-1.5 px-2.5 text-xs" disabled={busy} onClick={()=>createReminder(1)}>Tomorrow</button><button className="btn py-1.5 px-2.5 text-xs" disabled={busy} onClick={()=>createReminder(3)}>3 days</button><button className="btn py-1.5 px-2.5 text-xs" disabled={busy} onClick={()=>createReminder(7)}>1 week</button><input className="input py-1.5 text-xs max-w-[155px]" type="date" value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/><button className="btn btn-red py-1.5 px-2.5 text-xs" disabled={!reminderDate||busy} onClick={()=>createReminder()}>Set date</button></div></div>}
+    {!hideReminder&&reminderOpen&&<div className="mt-3 rounded-xl border bg-white p-3"><div className="text-sm font-bold">Remind me to follow up</div><div className="flex flex-wrap gap-2 mt-2"><button className="btn py-1.5 px-2.5 text-xs" disabled={busy} onClick={()=>createReminder(1)}>Tomorrow</button><button className="btn py-1.5 px-2.5 text-xs" disabled={busy} onClick={()=>createReminder(3)}>3 days</button><button className="btn py-1.5 px-2.5 text-xs" disabled={busy} onClick={()=>createReminder(7)}>1 week</button><input className="input py-1.5 text-xs max-w-[155px]" type="date" value={reminderDate} onChange={e=>setReminderDate(e.target.value)}/><button className="btn btn-red py-1.5 px-2.5 text-xs" disabled={!reminderDate||busy} onClick={()=>createReminder()}>Set date</button></div></div>}
     {message&&<div className="text-xs mt-2 font-semibold">{message}</div>}
   </div>;
 }
