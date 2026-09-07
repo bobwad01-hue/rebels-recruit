@@ -31,14 +31,15 @@ export async function POST(req:NextRequest){
   let body:any;
   try{body=await req.json()}catch{return NextResponse.json({error:'Invalid request.'},{status:400})}
   const raw=Array.isArray(body?.locations)?body.locations:[];
-  const locations=[...new Set(raw.map((v:any)=>String(v||'').trim()).filter(Boolean))].slice(0,500);
+  const normalized:string[]=raw.map((v:any)=>String(v||'').trim()).filter((v:string)=>Boolean(v));
+  const locations:string[]=[...new Set<string>(normalized)].slice(0,500);
   if(!locations.length)return NextResponse.json({configured:true,origin:ORIGIN,times:{}});
 
   const times:Record<string,{minutes:number;distanceMiles:number}>= {};
 
   try{
     for(let start=0;start<locations.length;start+=MAX_DESTINATIONS_PER_REQUEST){
-      const chunk=locations.slice(start,start+MAX_DESTINATIONS_PER_REQUEST);
+      const chunk:string[]=locations.slice(start,start+MAX_DESTINATIONS_PER_REQUEST);
       const res=await fetch('https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix',{
         method:'POST',
         headers:{
@@ -48,11 +49,10 @@ export async function POST(req:NextRequest){
         },
         body:JSON.stringify({
           origins:[{waypoint:{address:ORIGIN}}],
-          destinations:chunk.map(location=>({waypoint:{address:location}})),
+          destinations:chunk.map((location:string)=>({waypoint:{address:location}})),
           travelMode:'DRIVE',
           routingPreference:'TRAFFIC_UNAWARE',
-          regionCode:'us',
-          units:'IMPERIAL'
+          regionCode:'us'
         }),
         cache:'no-store'
       });
