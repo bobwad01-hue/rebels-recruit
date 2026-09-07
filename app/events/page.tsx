@@ -2,6 +2,7 @@
 import {useEffect,useMemo,useState} from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
+import CollegeSearchSelect from '@/components/CollegeSearchSelect';
 import {createClient} from '@/lib/supabase-browser';
 import {CalendarDays,CheckCircle2,Edit3,Trash2,X,ExternalLink,Search,RotateCcw,Clock,Mail} from 'lucide-react';
 
@@ -29,8 +30,9 @@ export default function Events(){
   const [rows,setRows]=useState<any[]>([]);const [orgEvents,setOrgEvents]=useState<any[]>([]);const [orgSources,setOrgSources]=useState<any[]>([]);const [orgWarnings,setOrgWarnings]=useState<string[]>([]);const [colleges,setColleges]=useState<any[]>([]);const [form,setForm]=useState<FormState>(EMPTY);const [editingId,setEditingId]=useState<string|null>(null);const [calendarConnected,setCalendarConnected]=useState(false);const [showPersonalCalendarNotice,setShowPersonalCalendarNotice]=useState(false);const [showOrgCalendarNotice,setShowOrgCalendarNotice]=useState(false);const [msg,setMsg]=useState('');const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [search,setSearch]=useState('');const [scope,setScope]=useState<'upcoming'|'past'>('upcoming');const [dateFilter,setDateFilter]=useState('all');const [divisionFilter,setDivisionFilter]=useState('all');const [typeFilter,setTypeFilter]=useState('All Event Types');const [distanceFilter,setDistanceFilter]=useState('all');const [driveTimes,setDriveTimes]=useState<Record<string,DriveTime>>({});const [distanceConfigured,setDistanceConfigured]=useState<boolean|null>(null);const [distanceError,setDistanceError]=useState('');
 
   async function load(){const {data}=await c.from('events').select('*,colleges(name,division)').order('date');setRows(data||[])}
+  async function loadAllColleges(){const pageSize=1000;let from=0;const all:any[]=[];while(true){const {data,error}=await c.from('colleges').select('id,name,division').order('name').range(from,from+pageSize-1);if(error)break;const batch=data||[];all.push(...batch);if(batch.length<pageSize)break;from+=pageSize;if(from>=20000)break}setColleges(all)}
   async function loadOrgEvents(){try{const res=await fetch('/api/google/calendar/organization',{cache:'no-store'});let data:any={};try{data=await res.json()}catch{};if(res.ok){setOrgEvents(data.events||[]);setOrgSources(data.sources||[]);setOrgWarnings(data.warnings||[])}}catch{}}
-  useEffect(()=>{(async()=>{const {data:{user}}=await c.auth.getUser();await Promise.all([load(),loadOrgEvents()]);const {data:collegeRows}=await c.from('colleges').select('id,name,division').order('name');setColleges(collegeRows||[]);if(user){const {data}=await c.from('google_workspace_connections').select('calendar_connected').eq('user_id',user.id).maybeSingle();setCalendarConnected(Boolean(data?.calendar_connected))}})()},[]);
+  useEffect(()=>{(async()=>{const {data:{user}}=await c.auth.getUser();await Promise.all([load(),loadOrgEvents(),loadAllColleges()]);if(user){const {data}=await c.from('google_workspace_connections').select('calendar_connected').eq('user_id',user.id).maybeSingle();setCalendarConnected(Boolean(data?.calendar_connected))}})()},[]);
   const orgNoticeSignature=useMemo(()=>orgSources.map((s:any)=>`${s.organizationId||s.organization_id||s.organizationName||s.organization_name||''}:${s.calendarId||s.calendar_id||s.calendarName||s.calendar_name||''}`).sort().join('|'),[orgSources]);
   useEffect(()=>{const timers:number[]=[];if(calendarConnected){const key='rr-events-google-calendar-notice-seen-v1';if(!window.localStorage.getItem(key)){setShowPersonalCalendarNotice(true);window.localStorage.setItem(key,'1');timers.push(window.setTimeout(()=>setShowPersonalCalendarNotice(false),10000))}}if(orgNoticeSignature){const key=`rr-events-org-calendar-notice-seen-v1:${orgNoticeSignature}`;if(!window.localStorage.getItem(key)){setShowOrgCalendarNotice(true);window.localStorage.setItem(key,'1');timers.push(window.setTimeout(()=>setShowOrgCalendarNotice(false),10000))}}return()=>timers.forEach(timer=>window.clearTimeout(timer))},[calendarConnected,orgNoticeSignature]);
 
@@ -60,7 +62,7 @@ export default function Events(){
         <select className="input" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{EVENT_TYPES.map(t=><option key={t}>{t}</option>)}</select>
         <input className="input" type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} required/>
         <input className="input" placeholder="Location" value={form.location} onChange={e=>setForm({...form,location:e.target.value})}/>
-        <select className="input" value={form.college} onChange={e=>setForm({...form,college:e.target.value})}><option value="">No college</option>{colleges.map(col=><option key={col.id} value={col.id}>{col.name}</option>)}</select>
+        <CollegeSearchSelect colleges={colleges} value={form.college} onChange={college=>setForm({...form,college})}/>
         <input className="input" placeholder="Registration / info URL" value={form.url} onChange={e=>setForm({...form,url:e.target.value})}/>
         {error&&<p className="text-sm text-red-700 font-semibold">{error}</p>}{msg&&<p className="text-sm text-green-700 font-semibold flex gap-2 items-start"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/>{msg}</p>}
         <button className="btn btn-red w-full" disabled={busy}>{busy?'Saving...':editingId?'Save Changes':'Add Event'}</button>
