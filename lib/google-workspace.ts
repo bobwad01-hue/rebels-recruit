@@ -11,7 +11,7 @@ export async function getGoogleAccessToken(userId:string,service:Service){
 
   const admin=createAdminClient();
   const {data,error}=await admin.from('google_workspace_tokens')
-    .select('refresh_token_ciphertext,refresh_token_iv,refresh_token_tag,granted_scopes')
+    .select('refresh_token_ciphertext,refresh_token_iv,refresh_token_tag,scope')
     .eq('user_id',userId)
     .eq('service',service)
     .maybeSingle();
@@ -34,5 +34,5 @@ export async function getGoogleAccessToken(userId:string,service:Service){
   if(!tokenRes.ok||!tokens.access_token){
     throw new Error(tokens.error_description||'Google authorization needs to be refreshed.');
   }
-  return {accessToken:tokens.access_token,grantedScopes:data.granted_scopes||tokens.scope||''};
+  return {accessToken:tokens.access_token,grantedScopes:data.scope||tokens.scope||''};
 }
