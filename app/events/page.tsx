@@ -3,13 +3,15 @@ import {useEffect,useMemo,useState} from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import {createClient} from '@/lib/supabase-browser';
-import {CalendarDays,CheckCircle2,Edit3,Trash2,X,ExternalLink,Search,RotateCcw} from 'lucide-react';
+import {CalendarDays,CheckCircle2,Edit3,Trash2,X,ExternalLink,Search,RotateCcw,Clock} from 'lucide-react';
 
 const EVENT_TYPES=['Tournament','College Camp','Campus Visit','Showcase','Coach Call','Follow-up','Recruiting Deadline','Other'];
 const SEARCH_EVENT_TYPES=['All Event Types','Prospect Camps','Pitching','Hitting','Catching','Showcases','Visits','Other'];
 
 type FormState={name:string;type:string;date:string;location:string;college:string;url:string};
 const EMPTY:FormState={name:'',type:'Tournament',date:'',location:'',college:'',url:''};
+
+type DriveTime={minutes:number;distanceMiles:number};
 
 function text(v:any){return String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
 function divisionLabel(v:any){
@@ -57,6 +59,12 @@ function matchCollege(r:any,colleges:any[]){
   }
   return tie?null:best;
 }
+function driveLabel(value?:DriveTime){
+  if(!value)return '';
+  const h=Math.floor(value.minutes/60),m=value.minutes%60;
+  const duration=h?`${h} hr${m?` ${m} min`:''}`:`${m} min`;
+  return `≈ ${duration} from Overland Park · ${Math.round(value.distanceMiles)} mi`;
+}
 
 export default function Events(){
   const c=createClient();
@@ -78,6 +86,10 @@ export default function Events(){
   const [divisionFilter,setDivisionFilter]=useState('all');
   const [typeFilter,setTypeFilter]=useState('All Event Types');
   const [schoolFilter,setSchoolFilter]=useState('all');
+  const [distanceFilter,setDistanceFilter]=useState('all');
+  const [driveTimes,setDriveTimes]=useState<Record<string,DriveTime>>({});
+  const [distanceConfigured,setDistanceConfigured]=useState<boolean|null>(null);
+  const [distanceError,setDistanceError]=useState('');
 
   async function load(){const {data}=await c.from('events').select('*,colleges(name,division)').order('date');setRows(data||[])}
   async function loadOrgEvents(){try{const res=await fetch('/api/google/calendar/organization',{cache:'no-store'});let data:any={};try{data=await res.json()}catch{};if(res.ok){setOrgEvents(data.events||[]);setOrgSources(data.sources||[]);setOrgWarnings(data.warnings||[])}}catch{}}
@@ -94,6 +106,23 @@ export default function Events(){
     return all.map(r=>{const college=matchCollege(r,colleges);return {...r,_college:college,_division:divisionLabel(college?.division||r.colleges?.division),_category:eventCategory(r)}})
   },[orgEvents,rows,colleges]);
 
+  const locations=useMemo(()=>[...new Set(combined.map(r=>String(r.location||'').trim()).filter(Boolean))],[combined]);
+  useEffect(()=>{
+    if(!locations.length){setDriveTimes({});setDistanceConfigured(null);setDistanceError('');return}
+    let cancelled=false;
+    (async()=>{
+      try{
+        const res=await fetch('/api/maps/driving-times',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locations})});
+        let data:any={};try{data=await res.json()}catch{}
+        if(cancelled)return;
+        setDistanceConfigured(data.configured!==false);
+        setDriveTimes(data.times||{});
+        setDistanceError(data.error||'');
+      }catch{if(!cancelled){setDistanceConfigured(false);setDriveTimes({});setDistanceError('Driving-time estimates could not be loaded.')}}
+    })();
+    return()=>{cancelled=true};
+  },[locations.join('|')]);
+
   const filtered=useMemo(()=>{
     const today=new Date();today.setHours(0,0,0,0);
     const thisMonthStart=new Date(today.getFullYear(),today.getMonth(),1),nextMonthStart=new Date(today.getFullYear(),today.getMonth()+1,1),afterNextMonth=new Date(today.getFullYear(),today.getMonth()+2,1);
@@ -109,16 +138,24 @@ export default function Events(){
       if(divisionFilter!=='all'&&r._division!==divisionFilter)return false;
       if(typeFilter!=='All Event Types'&&r._category!==typeFilter)return false;
       if(schoolFilter!=='all'&&r._college?.id!==schoolFilter)return false;
+      if(distanceFilter!=='all'){
+        const minutes=driveTimes[String(r.location||'').trim()]?.minutes;
+        if(minutes==null)return false;
+        if(distanceFilter==='1'&&minutes>60)return false;
+        if(distanceFilter==='2'&&minutes>120)return false;
+        if(distanceFilter==='4'&&minutes>240)return false;
+        if(distanceFilter==='6'&&minutes>360)return false;
+        if(distanceFilter==='8'&&minutes>480)return false;
+        if(distanceFilter==='8plus'&&minutes<=480)return false;
+      }
       if(q){const hay=text(`${r.name||''} ${r.type||''} ${r.location||''} ${r.description||''} ${r.organizationName||''} ${r.calendarName||''} ${r._college?.name||''} ${r._division||''} ${r._category||''} ${monthText(r.date)}`);if(!hay.includes(q))return false}
       return true;
     }).sort((a,b)=>scope==='past'?String(b.date).localeCompare(String(a.date)):String(a.date).localeCompare(String(b.date)));
-  },[combined,search,scope,dateFilter,divisionFilter,typeFilter,schoolFilter]);
+  },[combined,search,scope,dateFilter,divisionFilter,typeFilter,schoolFilter,distanceFilter,driveTimes]);
 
-  const visibleSchools=useMemo(()=>{
-    const ids=new Set(combined.map(r=>r._college?.id).filter(Boolean));return colleges.filter(c=>ids.has(c.id));
-  },[combined,colleges]);
-  const hasFilters=Boolean(search||dateFilter!=='all'||divisionFilter!=='all'||typeFilter!=='All Event Types'||schoolFilter!=='all');
-  function clearFilters(){setSearch('');setDateFilter('all');setDivisionFilter('all');setTypeFilter('All Event Types');setSchoolFilter('all')}
+  const visibleSchools=useMemo(()=>{const ids=new Set(combined.map(r=>r._college?.id).filter(Boolean));return colleges.filter(c=>ids.has(c.id))},[combined,colleges]);
+  const hasFilters=Boolean(search||dateFilter!=='all'||divisionFilter!=='all'||typeFilter!=='All Event Types'||schoolFilter!=='all'||distanceFilter!=='all');
+  function clearFilters(){setSearch('');setDateFilter('all');setDivisionFilter('all');setTypeFilter('All Event Types');setSchoolFilter('all');setDistanceFilter('all')}
 
   async function syncCalendar(entityId:string){if(!calendarConnected)return {ok:false,skipped:true,error:''};try{const res=await fetch('/api/google/calendar/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entityType:'event',entityId})});let data:any={};try{data=await res.json()}catch{}return {ok:res.ok,skipped:false,error:data.error||''}}catch{return {ok:false,skipped:false,error:'Google Calendar could not be reached.'}}}
   async function save(e:React.FormEvent){e.preventDefault();setMsg('');setError('');setBusy(true);const payload={name:form.name.trim(),type:form.type,date:form.date,location:form.location.trim()||null,college_id:form.college||null,registration_url:form.url.trim()||null};let id=editingId;if(editingId){const {error}=await c.from('events').update(payload).eq('id',editingId);if(error){setError(error.message);setBusy(false);return}}else{const {data,error}=await c.from('events').insert(payload).select('id').single();if(error||!data){setError(error?.message||'Could not add event.');setBusy(false);return}id=data.id}const sync=id?await syncCalendar(id):null;setForm(EMPTY);setEditingId(null);await load();setBusy(false);if(sync?.ok)setMsg(editingId?'Event updated in Rebels Recruit and Google Calendar.':'Event added to Rebels Recruit and Google Calendar.');else if(sync&&!sync.skipped)setMsg(`${editingId?'Event updated':'Event added'} in Rebels Recruit. Google Calendar: ${sync.error||'sync failed.'}`);else setMsg(editingId?'Event updated.':'Event added.')}
@@ -148,12 +185,15 @@ export default function Events(){
       <div className="lg:col-span-2">
         <div className="card p-4 mb-4">
           <div className="flex items-center gap-2 border rounded-xl px-3"><Search size={18} className="muted shrink-0"/><input className="w-full py-3 outline-none bg-transparent text-sm" placeholder="Search schools, camps, locations, pitching, June..." value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" onClick={()=>setSearch('')} className="muted"><X size={17}/></button>}</div>
-          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-2 mt-3">
+          <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-2 mt-3">
             <select className="input" value={dateFilter} onChange={e=>setDateFilter(e.target.value)}><option value="all">Show All Dates</option><option value="this_month">This Month</option><option value="next_month">Next Month</option><option value="30">Next 30 Days</option><option value="90">Next 90 Days</option></select>
             <select className="input" value={divisionFilter} onChange={e=>setDivisionFilter(e.target.value)}><option value="all">All Divisions</option><option value="DI">DI</option><option value="DII">DII</option><option value="DIII">DIII</option><option value="NAIA">NAIA</option><option value="JUCO">JUCO</option></select>
             <select className="input" value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>{SEARCH_EVENT_TYPES.map(t=><option key={t}>{t}</option>)}</select>
             <select className="input" value={schoolFilter} onChange={e=>setSchoolFilter(e.target.value)}><option value="all">All Schools</option>{visibleSchools.map(col=><option key={col.id} value={col.id}>{col.name}</option>)}</select>
+            <select className="input" value={distanceFilter} disabled={distanceConfigured===false} onChange={e=>setDistanceFilter(e.target.value)}><option value="all">Any Distance</option><option value="1">Within 1 Hour</option><option value="2">Within 2 Hours</option><option value="4">Within 4 Hours</option><option value="6">Within 6 Hours</option><option value="8">Within 8 Hours</option><option value="8plus">More Than 8 Hours</option></select>
           </div>
+          {distanceConfigured===false&&<div className="text-xs text-amber-700 mt-2">Distance estimates from Overland Park are not configured yet.</div>}
+          {distanceConfigured&&distanceError&&<div className="text-xs text-amber-700 mt-2">Distance estimates are temporarily unavailable: {distanceError}</div>}
           <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
             <div className="inline-flex rounded-lg border p-1"><button type="button" className={`px-3 py-1.5 rounded-md text-sm font-bold ${scope==='upcoming'?'bg-slate-900 text-white':''}`} onClick={()=>setScope('upcoming')}>Upcoming</button><button type="button" className={`px-3 py-1.5 rounded-md text-sm font-bold ${scope==='past'?'bg-slate-900 text-white':''}`} onClick={()=>setScope('past')}>Past</button></div>
             <div className="flex items-center gap-3"><span className="muted text-sm font-semibold">{filtered.length} event{filtered.length===1?'':'s'}</span>{hasFilters&&<button type="button" className="text-sm font-bold flex items-center gap-1" onClick={clearFilters}><RotateCcw size={14}/> Clear filters</button>}</div>
@@ -161,8 +201,8 @@ export default function Events(){
         </div>
 
         <div className="space-y-3">
-          {filtered.map(r=>r._source==='org'?<div className="card p-5 border-blue-200" key={r.id}><div className="flex justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><div className="font-black text-lg">{r.name}</div><span className="pill bg-blue-50 text-blue-700">Rebels Calendar</span>{r._division&&<span className="pill">{r._division}</span>}</div><div className="muted text-sm mt-1">{r._college?.name?`${r._college.name} · `:''}{r.organizationName} · {r.calendarName}{r.location?` · ${r.location}`:''}</div></div><div className="font-bold shrink-0">{r.date}</div></div>{r.description&&<div className="text-sm mt-3 whitespace-pre-wrap leading-6">{r.description}</div>}<div className="flex flex-wrap gap-2 mt-4">{r.infoUrl&&<a className="btn text-sm px-3 py-2 inline-flex" href={r.infoUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Event Info / Registration</a>}{r.url&&<a className="btn text-sm px-3 py-2 inline-flex" href={r.url} target="_blank" rel="noreferrer"><CalendarDays size={15}/> Open in Google Calendar</a>}</div><div className="text-xs muted mt-3">Read-only in Rebels Recruit. Edit or delete this event in Google Calendar.</div></div>:
-          <div className="card p-5" key={r.id}><div className="flex justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><div className="font-black text-lg">{r.name}</div>{r._division&&<span className="pill">{r._division}</span>}</div><div className="muted text-sm mt-1">{r.type}{r.colleges?.name?` · ${r.colleges.name}`:''}{r.location?` · ${r.location}`:''}</div></div><div className="font-bold shrink-0">{r.date}</div></div>{r.registration_url&&<a className="text-sm font-bold inline-block mt-3" href={r.registration_url} target="_blank" rel="noreferrer">Registration / Info</a>}<div className="mt-4 pt-4 border-t flex flex-wrap gap-2"><button type="button" className="btn text-sm px-3 py-2" onClick={()=>edit(r)} disabled={busy}><Edit3 size={15}/> Edit</button><button type="button" className="btn text-sm px-3 py-2" onClick={()=>remove(r)} disabled={busy}><Trash2 size={15}/> Delete</button>{calendarConnected&&<button type="button" className="btn text-sm px-3 py-2" disabled={busy} onClick={async()=>{setBusy(true);setError('');setMsg('');const result=await syncCalendar(r.id);setBusy(false);if(result.ok)setMsg(`“${r.name}” synced to Google Calendar.`);else setError(result.error||'Calendar sync failed.')}}><CalendarDays size={15}/> Sync Calendar</button>}</div></div>)}
+          {filtered.map(r=>r._source==='org'?<div className="card p-5 border-blue-200" key={r.id}><div className="flex justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><div className="font-black text-lg">{r.name}</div><span className="pill bg-blue-50 text-blue-700">Rebels Calendar</span>{r._division&&<span className="pill">{r._division}</span>}</div><div className="muted text-sm mt-1">{r._college?.name?`${r._college.name} · `:''}{r.organizationName} · {r.calendarName}{r.location?` · ${r.location}`:''}</div>{driveTimes[String(r.location||'').trim()]&&<div className="text-xs font-semibold text-slate-600 mt-2 flex items-center gap-1.5"><Clock size={14}/>{driveLabel(driveTimes[String(r.location||'').trim()])}</div>}</div><div className="font-bold shrink-0">{r.date}</div></div>{r.description&&<div className="text-sm mt-3 whitespace-pre-wrap leading-6">{r.description}</div>}<div className="flex flex-wrap gap-2 mt-4">{r.infoUrl&&<a className="btn text-sm px-3 py-2 inline-flex" href={r.infoUrl} target="_blank" rel="noreferrer"><ExternalLink size={15}/> Event Info / Registration</a>}{r.url&&<a className="btn text-sm px-3 py-2 inline-flex" href={r.url} target="_blank" rel="noreferrer"><CalendarDays size={15}/> Open in Google Calendar</a>}</div><div className="text-xs muted mt-3">Read-only in Rebels Recruit. Edit or delete this event in Google Calendar.</div></div>:
+          <div className="card p-5" key={r.id}><div className="flex justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><div className="font-black text-lg">{r.name}</div>{r._division&&<span className="pill">{r._division}</span>}</div><div className="muted text-sm mt-1">{r.type}{r.colleges?.name?` · ${r.colleges.name}`:''}{r.location?` · ${r.location}`:''}</div>{driveTimes[String(r.location||'').trim()]&&<div className="text-xs font-semibold text-slate-600 mt-2 flex items-center gap-1.5"><Clock size={14}/>{driveLabel(driveTimes[String(r.location||'').trim()])}</div>}</div><div className="font-bold shrink-0">{r.date}</div></div>{r.registration_url&&<a className="text-sm font-bold inline-block mt-3" href={r.registration_url} target="_blank" rel="noreferrer">Registration / Info</a>}<div className="mt-4 pt-4 border-t flex flex-wrap gap-2"><button type="button" className="btn text-sm px-3 py-2" onClick={()=>edit(r)} disabled={busy}><Edit3 size={15}/> Edit</button><button type="button" className="btn text-sm px-3 py-2" onClick={()=>remove(r)} disabled={busy}><Trash2 size={15}/> Delete</button>{calendarConnected&&<button type="button" className="btn text-sm px-3 py-2" disabled={busy} onClick={async()=>{setBusy(true);setError('');setMsg('');const result=await syncCalendar(r.id);setBusy(false);if(result.ok)setMsg(`“${r.name}” synced to Google Calendar.`);else setError(result.error||'Calendar sync failed.')}}><CalendarDays size={15}/> Sync Calendar</button>}</div></div>)}
           {!filtered.length&&<div className="card p-10 text-center"><div className="font-black">No matching events</div><div className="muted text-sm mt-1">Try changing your search or filters.</div>{hasFilters&&<button type="button" className="btn mt-4" onClick={clearFilters}><RotateCcw size={14}/> Clear filters</button>}</div>}
         </div>
       </div>
