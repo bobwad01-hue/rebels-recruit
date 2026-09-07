@@ -1,10 +1,13 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {CalendarDays,Mail,ShieldCheck,ExternalLink,RefreshCw,Unplug,AlertCircle} from 'lucide-react';
+import {CalendarDays,Mail,ShieldCheck,ExternalLink,RefreshCw,Unplug,AlertCircle,Building2} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 
 type State={gmail_connected?:boolean;calendar_connected?:boolean;google_email?:string|null};
 type Service='gmail'|'calendar';
+type Org={id:string;name:string};
+type Cal={id:string;name:string;primary?:boolean;accessRole?:string;timeZone?:string|null};
+type Source={organizationId:string;organizationName:string;calendarId:string;calendarName:string};
 
 export default function GoogleWorkspaceSettings(){
   const c=createClient();
@@ -12,6 +15,12 @@ export default function GoogleWorkspaceSettings(){
   const [busy,setBusy]=useState<Service|null>(null);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
+  const [orgs,setOrgs]=useState<Org[]>([]);
+  const [calendars,setCalendars]=useState<Cal[]>([]);
+  const [sources,setSources]=useState<Source[]>([]);
+  const [selections,setSelections]=useState<Record<string,string>>({});
+  const [orgBusy,setOrgBusy]=useState<string|null>(null);
+  const [orgError,setOrgError]=useState('');
 
   async function load(){
     const {data:{user}}=await c.auth.getUser();
@@ -19,7 +28,21 @@ export default function GoogleWorkspaceSettings(){
     const {data}=await c.from('google_workspace_connections').select('gmail_connected,calendar_connected,google_email').eq('user_id',user.id).maybeSingle();
     setState(data||{});
   }
+
+  async function loadOrgSetup(){
+    setOrgError('');
+    try{
+      const res=await fetch('/api/google/calendar/organization?mode=setup',{cache:'no-store'});
+      let data:any={};try{data=await res.json()}catch{}
+      if(!res.ok){setOrgError(data.error||'Could not load organization calendars.');return}
+      const o:Org[]=data.organizations||[], cs:Cal[]=data.calendars||[], ss:Source[]=data.sources||[];
+      setOrgs(o);setCalendars(cs);setSources(ss);
+      const next:Record<string,string>={};for(const org of o){next[org.id]=ss.find(s=>s.organizationId===org.id)?.calendarId||''}setSelections(next);
+    }catch{setOrgError('Could not load organization calendars.')}
+  }
+
   useEffect(()=>{void load()},[]);
+  useEffect(()=>{if(state.calendar_connected)void loadOrgSetup();else{setOrgs([]);setCalendars([]);setSources([])}},[state.calendar_connected]);
 
   async function disconnect(service:Service){
     const label=service==='gmail'?'Gmail':'Google Calendar';
@@ -34,6 +57,28 @@ export default function GoogleWorkspaceSettings(){
     }catch{setError(`Could not disconnect ${label}.`)}finally{setBusy(null)}
   }
 
+  async function saveOrgCalendar(org:Org){
+    const calendarId=selections[org.id];if(!calendarId)return;
+    setOrgBusy(org.id);setOrgError('');setMessage('');
+    try{
+      const res=await fetch('/api/google/calendar/organization',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({organizationId:org.id,calendarId})});
+      let data:any={};try{data=await res.json()}catch{}
+      if(!res.ok){setOrgError(data.error||'Could not save organization calendar.');return}
+      setMessage(`${org.name} is now showing events from ${data.source?.calendarName||'the selected Google Calendar'}.`);await loadOrgSetup();
+    }catch{setOrgError('Could not save organization calendar.')}finally{setOrgBusy(null)}
+  }
+
+  async function removeOrgCalendar(org:Org){
+    if(!window.confirm(`Stop showing the shared Google Calendar for ${org.name}? This will not delete anything from Google.`))return;
+    setOrgBusy(org.id);setOrgError('');
+    try{
+      const res=await fetch('/api/google/calendar/organization',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({organizationId:org.id})});
+      let data:any={};try{data=await res.json()}catch{}
+      if(!res.ok){setOrgError(data.error||'Could not remove organization calendar.');return}
+      setMessage(`${org.name} shared calendar removed from Rebels Recruit. No Google events were changed.`);await loadOrgSetup();
+    }catch{setOrgError('Could not remove organization calendar.')}finally{setOrgBusy(null)}
+  }
+
   const gmail=state.gmail_connected,cal=state.calendar_connected;
   return <div className="card p-6">
     <div className="flex items-start gap-3"><div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center"><ShieldCheck size={19}/></div><div><h2 className="font-black text-lg">Google Connections</h2><p className="muted text-sm mt-1">Connect Gmail and Google Calendar only when you want Rebels Recruit to use them. These permissions are separate from signing in with Google.</p></div></div>
@@ -41,8 +86,11 @@ export default function GoogleWorkspaceSettings(){
     {message&&<div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{message}</div>}
     <div className="grid md:grid-cols-2 gap-4 mt-5">
       <div className="border rounded-xl p-4"><div className="flex items-center gap-2 font-black"><Mail size={18}/> Gmail</div><p className="muted text-sm mt-2">Review and send recruiting emails through your connected Gmail account. Rebels Recruit does not need permission to read your inbox.</p><div className="mt-4 flex flex-wrap items-center gap-2"><span className={`pill ${gmail?'bg-green-50 text-green-700':''}`}>{gmail?'Connected':'Not connected'}</span><div className="ml-auto flex flex-wrap gap-2">{gmail?<><a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=gmail"><RefreshCw size={13}/> Reconnect</a><button type="button" className="btn py-1.5 px-2.5 text-xs" disabled={busy==='gmail'} onClick={()=>disconnect('gmail')}><Unplug size={13}/>{busy==='gmail'?'Disconnecting...':'Disconnect'}</button></>:<a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=gmail"><ExternalLink size={13}/> Connect Gmail</a>}</div></div></div>
-      <div className="border rounded-xl p-4"><div className="flex items-center gap-2 font-black"><CalendarDays size={18}/> Google Calendar</div><p className="muted text-sm mt-2">Keep Rebels Recruit camps, visits, calls, deadlines and follow-ups on your Google Calendar. Rebels Recruit only updates or removes calendar items it created.</p><div className="mt-4 flex flex-wrap items-center gap-2"><span className={`pill ${cal?'bg-green-50 text-green-700':''}`}>{cal?'Connected':'Not connected'}</span><div className="ml-auto flex flex-wrap gap-2">{cal?<><a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=calendar"><RefreshCw size={13}/> Reconnect</a><button type="button" className="btn py-1.5 px-2.5 text-xs" disabled={busy==='calendar'} onClick={()=>disconnect('calendar')}><Unplug size={13}/>{busy==='calendar'?'Disconnecting...':'Disconnect'}</button></>:<a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=calendar"><ExternalLink size={13}/> Connect Calendar</a>}</div></div></div>
+      <div className="border rounded-xl p-4"><div className="flex items-center gap-2 font-black"><CalendarDays size={18}/> Google Calendar</div><p className="muted text-sm mt-2">Sync Rebels Recruit events you create, and allow organization admins to display an existing shared Rebels calendar as read-only events.</p><div className="mt-4 flex flex-wrap items-center gap-2"><span className={`pill ${cal?'bg-green-50 text-green-700':''}`}>{cal?'Connected':'Not connected'}</span><div className="ml-auto flex flex-wrap gap-2">{cal?<><a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=calendar"><RefreshCw size={13}/> Reconnect</a><button type="button" className="btn py-1.5 px-2.5 text-xs" disabled={busy==='calendar'} onClick={()=>disconnect('calendar')}><Unplug size={13}/>{busy==='calendar'?'Disconnecting...':'Disconnect'}</button></>:<a className="btn py-1.5 px-2.5 text-xs" href="/api/google/connect?service=calendar"><ExternalLink size={13}/> Connect Calendar</a>}</div></div></div>
     </div>
-    <p className="muted text-xs mt-4">Gmail and Calendar are independent opt-ins. Disconnecting one deletes only that service's saved token and does not affect the other service or your normal Rebels Recruit sign-in.</p>
+
+    {cal&&orgs.length>0&&<div className="mt-5 border rounded-xl p-4"><div className="flex items-start gap-3"><Building2 size={19} className="mt-0.5"/><div><div className="font-black">Organization Calendar</div><p className="muted text-sm mt-1">Owners and admins can choose a shared Google Calendar. Its existing events appear in Recruiting Events for organization members, but Rebels Recruit will not edit or delete those imported events.</p></div></div>{orgError&&<div className="mt-3 rounded-lg bg-red-50 text-red-800 px-3 py-2 text-sm">{orgError}</div>}<div className="mt-4 space-y-4">{orgs.map(org=>{const source=sources.find(s=>s.organizationId===org.id);return <div key={org.id} className="rounded-xl bg-slate-50 p-3"><div className="font-bold text-sm">{org.name}</div>{source&&<div className="text-xs text-green-700 font-semibold mt-1">Currently showing: {source.calendarName}</div>}<div className="flex flex-col sm:flex-row gap-2 mt-3"><select className="input flex-1" value={selections[org.id]||''} onChange={e=>setSelections(v=>({...v,[org.id]:e.target.value}))}><option value="">Choose a Google Calendar</option>{calendars.map(x=><option key={x.id} value={x.id}>{x.name}{x.primary?' (Primary)':''}</option>)}</select><button type="button" className="btn btn-red" disabled={!selections[org.id]||orgBusy===org.id} onClick={()=>saveOrgCalendar(org)}>{orgBusy===org.id?'Saving...':'Show in Rebels Recruit'}</button>{source&&<button type="button" className="btn" disabled={orgBusy===org.id} onClick={()=>removeOrgCalendar(org)}>Remove</button>}</div></div>})}</div></div>}
+    {cal&&orgError&&orgs.length===0&&<div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><b>Shared calendar setup needs refreshed Calendar permission.</b> Click Reconnect above, approve the Calendar permissions, then return here.</div>}
+    <p className="muted text-xs mt-4">Gmail and Calendar are independent opt-ins. Shared organization calendars are read-only inside Rebels Recruit; the app continues to modify only Google events it created itself.</p>
   </div>
 }
