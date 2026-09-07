@@ -1,7 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 
-const SCOPES={gmail:['https://www.googleapis.com/auth/gmail.compose'],calendar:['https://www.googleapis.com/auth/calendar.events.owned']};
+const SCOPES={gmail:['https://www.googleapis.com/auth/gmail.send'],calendar:['https://www.googleapis.com/auth/calendar.events.owned']};
 const STATE_COOKIE='rr_google_oauth_state';
 
 export async function GET(req:NextRequest){
