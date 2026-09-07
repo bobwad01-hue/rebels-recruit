@@ -1,0 +1,72 @@
+import {NextRequest,NextResponse} from 'next/server';
+import {createClient} from '@/lib/supabase-server';
+import {getGoogleAccessToken} from '@/lib/google-workspace';
+
+function cleanHeader(value:string){return value.replace(/[\r\n]+/g,' ').trim()}
+function encodeMessage(to:string,subject:string,body:string){
+  const raw=[
+    `To: ${cleanHeader(to)}`,
+    `Subject: ${cleanHeader(subject)}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    body
+  ].join('\r\n');
+  return Buffer.from(raw,'utf8').toString('base64url');
+}
+
+export async function POST(req:NextRequest){
+  const c=await createClient();
+  const {data:{user}}=await c.auth.getUser();
+  if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
+
+  let payload:any;
+  try{payload=await req.json()}catch{return NextResponse.json({error:'Invalid request.'},{status:400})}
+  const coachId=String(payload?.coachId||'');
+  const athleteUserId=String(payload?.athleteUserId||user.id);
+  const subject=String(payload?.subject||'').trim();
+  const body=String(payload?.body||'').trim();
+  if(!coachId||!subject||!body)return NextResponse.json({error:'Coach, subject, and message are required.'},{status:400});
+  if(subject.length>200||body.length>20000)return NextResponse.json({error:'Email is too long.'},{status:400});
+
+  const {data:coach,error:coachError}=await c.from('college_coaches')
+    .select('id,email,first_name,last_name,college_id,college:colleges!college_coaches_college_id_fkey(name)')
+    .eq('id',coachId)
+    .maybeSingle();
+  if(coachError||!coach?.email)return NextResponse.json({error:'This coach does not have a usable email address.'},{status:400});
+
+  if(athleteUserId!==user.id){
+    const {data:allowed}=await c.rpc('can_access_athlete',{target_athlete_id:athleteUserId});
+    if(!allowed)return NextResponse.json({error:'You do not have access to send for this athlete.'},{status:403});
+  }
+
+  try{
+    const {accessToken}=await getGoogleAccessToken(user.id,'gmail');
+    const sendRes=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send',{
+      method:'POST',
+      headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},
+      body:JSON.stringify({raw:encodeMessage(coach.email,subject,body)}),
+      cache:'no-store'
+    });
+    const sent=await sendRes.json() as {id?:string;threadId?:string;error?:{message?:string}};
+    if(!sendRes.ok||!sent.id)return NextResponse.json({error:sent.error?.message||'Gmail could not send the message.'},{status:502});
+
+    const coachName=[coach.first_name,coach.last_name].filter(Boolean).join(' ')||'Coach';
+    const {error:logError}=await c.from('interactions').insert({
+      athlete_user_id:athleteUserId,
+      actor_user_id:user.id,
+      college_id:coach.college_id,
+      coach_id:coach.id,
+      type:'Email Sent',
+      initiated_by:athleteUserId===user.id?'Athlete':'Advisor',
+      date:new Date().toISOString().slice(0,10),
+      note:`Email sent to ${coachName}: ${subject}`
+    });
+
+    return NextResponse.json({ok:true,messageId:sent.id,threadId:sent.threadId||null,logged:!logError,logError:logError?'Email sent, but the activity log could not be updated.':null});
+  }catch(error){
+    const message=error instanceof Error?error.message:'Could not send through Gmail.';
+    return NextResponse.json({error:message},{status:500});
+  }
+}
