@@ -20,6 +20,7 @@ export default function Events(){
   const [form,setForm]=useState<FormState>(EMPTY);
   const [editingId,setEditingId]=useState<string|null>(null);
   const [calendarConnected,setCalendarConnected]=useState(false);
+  const [showCalendarNotices,setShowCalendarNotices]=useState(true);
   const [msg,setMsg]=useState('');
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
@@ -39,6 +40,13 @@ export default function Events(){
     setColleges(collegeRows||[]);
     if(user){const {data}=await c.from('google_workspace_connections').select('calendar_connected').eq('user_id',user.id).maybeSingle();setCalendarConnected(Boolean(data?.calendar_connected))}
   })()},[]);
+
+  useEffect(()=>{
+    if(!calendarConnected&&!orgSources.length)return;
+    setShowCalendarNotices(true);
+    const timer=window.setTimeout(()=>setShowCalendarNotices(false),10000);
+    return ()=>window.clearTimeout(timer);
+  },[calendarConnected,orgSources.length]);
 
   async function syncCalendar(entityId:string){
     if(!calendarConnected)return {ok:false,skipped:true,error:''};
@@ -92,8 +100,8 @@ export default function Events(){
 
   return <AppShell><div className="max-w-6xl mx-auto px-5 md:px-8 py-6">
     <PageHeader title="Recruiting Events" subtitle="Track camps, visits, calls, showcases, deadlines and other recruiting opportunities."/>
-    {calendarConnected&&<div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center gap-2"><CalendarDays size={17}/><span><b>Google Calendar connected.</b> New and edited recruiting events sync automatically. Rebels Recruit only updates calendar items it created.</span></div>}
-    {orgSources.length>0&&<div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-center gap-2"><CalendarDays size={17}/><span><b>Rebels organization calendar connected.</b> Shared Google Calendar events are displayed below as read-only and stay managed in Google.</span></div>}
+    {showCalendarNotices&&calendarConnected&&<div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 flex items-center gap-2"><CalendarDays size={17}/><span><b>Google Calendar connected.</b> New and edited recruiting events sync automatically. Rebels Recruit only updates calendar items it created.</span></div>}
+    {showCalendarNotices&&orgSources.length>0&&<div className="mb-5 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex items-center gap-2"><CalendarDays size={17}/><span><b>Rebels organization calendar connected.</b> Shared Google Calendar events are displayed below as read-only and stay managed in Google.</span></div>}
     {orgWarnings.length>0&&<div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Some shared calendar events could not be loaded: {orgWarnings.join(' · ')}</div>}
     <div className="grid lg:grid-cols-3 gap-6">
       <form onSubmit={save} className="card p-5 lg:col-span-1 space-y-4">
