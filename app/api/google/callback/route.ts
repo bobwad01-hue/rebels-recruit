@@ -58,7 +58,7 @@ export async function GET(req:NextRequest){
       refresh_token_ciphertext:encrypted.ciphertext,
       refresh_token_iv:encrypted.iv,
       refresh_token_tag:encrypted.tag,
-      granted_scopes:tokens.scope||SCOPES[saved.service],
+      scope:tokens.scope||SCOPES[saved.service],
       updated_at:new Date().toISOString()
     },{onConflict:'user_id,service'});
     if(tokenError)return redirect(req,'token-storage-failed');
