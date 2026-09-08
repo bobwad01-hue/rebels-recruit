@@ -11,6 +11,28 @@ export const US_TIMEZONES = [
 
 export const DEFAULT_TIMEZONE = 'America/Chicago';
 
+export function getGreetingForTimezone(timezone = DEFAULT_TIMEZONE, now = new Date()) {
+  let hour = 0;
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      hourCycle: 'h23',
+      timeZone: timezone,
+    }).formatToParts(now);
+    hour = Number(parts.find(part => part.type === 'hour')?.value ?? 0);
+  } catch {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit',
+      hourCycle: 'h23',
+      timeZone: DEFAULT_TIMEZONE,
+    }).formatToParts(now);
+    hour = Number(parts.find(part => part.type === 'hour')?.value ?? 0);
+  }
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function formatInteractionDate(date: string | null | undefined) {
   if (!date) return '—';
   const [year, month, day] = date.slice(0, 10).split('-');
