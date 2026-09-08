@@ -2,44 +2,12 @@
 import {useMemo,useState} from 'react';
 import {Search,X} from 'lucide-react';
 
-type College={id:string;name:string;division?:string|null};
+type College={id:string;name:string;division?:string|null;city?:string|null;state?:string|null;conference?:string|null;school_type?:string|null};
+type Props={colleges:College[];value:string;onChange:(collegeId:string)=>void;placeholder?:string;allowNone?:boolean};
+const aliases:Record<string,string>={sec:'southeastern conference',b1g:'big ten conference','big 10':'big ten conference','big ten':'big ten conference',acc:'atlantic coast conference',aac:'american athletic conference',mac:'mid-american conference',mvc:'missouri valley conference',wcc:'west coast conference',caa:'colonial athletic association',swac:'southwestern athletic conference',meac:'mid-eastern athletic conference',wac:'western athletic conference',rmacc:'rocky mountain athletic conference'};
 
-type Props={
-  colleges:College[];
-  value:string;
-  onChange:(collegeId:string)=>void;
-  placeholder?:string;
-};
-
-export default function CollegeSearchSelect({colleges,value,onChange,placeholder='Search college...'}:Props){
-  const selected=colleges.find(c=>c.id===value)||null;
-  const [query,setQuery]=useState('');
-  const [open,setOpen]=useState(false);
-  const matches=useMemo(()=>{
-    const q=query.trim().toLowerCase();
-    if(!q)return colleges.slice(0,12);
-    return colleges.filter(c=>c.name.toLowerCase().includes(q)).slice(0,20);
-  },[colleges,query]);
-
-  return <div className="relative">
-    <div className="input flex items-center gap-2 px-3">
-      <Search size={16} className="muted shrink-0"/>
-      <input
-        className="min-w-0 flex-1 bg-transparent outline-none"
-        value={open?query:(selected?.name||'')}
-        placeholder={selected?'':placeholder}
-        onFocus={()=>{setOpen(true);setQuery('')}}
-        onChange={e=>{setQuery(e.target.value);setOpen(true)}}
-        onBlur={()=>window.setTimeout(()=>setOpen(false),120)}
-        aria-label="Search college"
-        autoComplete="off"
-      />
-      {value&&<button type="button" className="muted shrink-0" aria-label="Clear college" onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange('');setQuery('');setOpen(false)}}><X size={15}/></button>}
-    </div>
-    {open&&<div className="absolute z-30 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border bg-white shadow-lg">
-      <button type="button" className="block w-full px-3 py-2.5 text-left text-sm hover:bg-slate-50" onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange('');setQuery('');setOpen(false)}}>No college</button>
-      {matches.map(col=><button key={col.id} type="button" className="block w-full border-t px-3 py-2.5 text-left hover:bg-slate-50" onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(col.id);setQuery('');setOpen(false)}}><div className="text-sm font-semibold">{col.name}</div>{col.division&&<div className="muted mt-0.5 text-xs">{col.division}</div>}</button>)}
-      {!matches.length&&<div className="px-3 py-3 text-sm muted">No matching colleges</div>}
-    </div>}
-  </div>
+export default function CollegeSearchSelect({colleges,value,onChange,placeholder='Search college, state, division or conference...',allowNone=true}:Props){
+  const selected=colleges.find(c=>c.id===value)||null;const [query,setQuery]=useState('');const [open,setOpen]=useState(false);
+  const matches=useMemo(()=>{const raw=query.trim().toLowerCase(),q=aliases[raw]||raw;if(!q)return colleges.slice(0,12);return colleges.filter(c=>[c.name,c.division,c.city,c.state,c.conference,c.school_type].filter(Boolean).join(' ').toLowerCase().includes(q)).slice(0,30)},[colleges,query]);
+  return <div className="relative"><div className="input flex items-center gap-2 px-3"><Search size={16} className="muted shrink-0"/><input className="min-w-0 flex-1 bg-transparent outline-none" value={open?query:(selected?.name||'')} placeholder={selected?'':placeholder} onFocus={()=>{setOpen(true);setQuery('')}} onChange={e=>{setQuery(e.target.value);setOpen(true)}} onBlur={()=>window.setTimeout(()=>setOpen(false),120)} aria-label="Search college" autoComplete="off"/>{value&&<button type="button" className="muted shrink-0" aria-label="Clear college" onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange('');setQuery('');setOpen(false)}}><X size={15}/></button>}</div>{open&&<div className="absolute z-30 mt-1 max-h-72 w-full overflow-y-auto rounded-xl border bg-white shadow-lg">{allowNone&&<button type="button" className="block w-full px-3 py-2.5 text-left text-sm hover:bg-slate-50" onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange('');setQuery('');setOpen(false)}}>No college</button>}{matches.map(col=><button key={col.id} type="button" className="block w-full border-t px-3 py-2.5 text-left hover:bg-slate-50" onMouseDown={e=>e.preventDefault()} onClick={()=>{onChange(col.id);setQuery('');setOpen(false)}}><div className="text-sm font-semibold">{col.name}</div><div className="muted mt-0.5 text-xs">{[col.division,[col.city,col.state].filter(Boolean).join(', '),col.conference].filter(Boolean).join(' · ')}</div></button>)}{!matches.length&&<div className="px-3 py-3 text-sm muted">No matching colleges</div>}</div>}</div>
 }
