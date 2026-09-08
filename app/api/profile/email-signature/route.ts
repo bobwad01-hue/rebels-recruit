@@ -1,0 +1,22 @@
+import {NextRequest,NextResponse} from 'next/server';
+import {createClient} from '@/lib/supabase-server';
+import {createAdminClient} from '@/lib/supabase-admin';
+
+const ENTITY='athlete_email_signature_profile';
+const FIELDS=['xTwitter','sportsRecruitsUrl','travelTeamCoachName','travelTeamCoachPhone','highSchoolCity','highSchoolState','highSchoolCoachName','highSchoolCoachPhone','throwBat','ncaaNumber'] as const;
+
+export async function GET(){
+ const c=await createClient();const {data:{user}}=await c.auth.getUser();if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
+ const admin=createAdminClient();
+ const {data}=await admin.from('audit_log').select('metadata,created_at').eq('actor_user_id',user.id).eq('entity_type',ENTITY).order('created_at',{ascending:false}).limit(1).maybeSingle();
+ return NextResponse.json({signature:(data?.metadata as any)||{}});
+}
+
+export async function POST(req:NextRequest){
+ const c=await createClient();const {data:{user}}=await c.auth.getUser();if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
+ let body:any;try{body=await req.json()}catch{return NextResponse.json({error:'Invalid request.'},{status:400})}
+ const metadata:any={};for(const key of FIELDS){const value=String(body?.[key]||'').trim();if(value)metadata[key]=value}
+ const admin=createAdminClient();const {data:member}=await admin.from('organization_members').select('organization_id').eq('user_id',user.id).eq('status','active').maybeSingle();
+ const {error}=await admin.from('audit_log').insert({organization_id:member?.organization_id||null,actor_user_id:user.id,action:'email_signature_profile_saved',entity_type:ENTITY,entity_id:user.id,metadata});
+ if(error)return NextResponse.json({error:error.message},{status:500});return NextResponse.json({ok:true,signature:metadata});
+}
