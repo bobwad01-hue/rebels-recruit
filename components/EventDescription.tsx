@@ -1,0 +1,2 @@
+import {ExternalLink} from 'lucide-react';
+export default function EventDescription({text}:{text?:string|null}){if(!text)return null;const parts=String(text).split(/(https?:\/\/[^\s]+)/g);return <div className="text-sm mt-3 whitespace-pre-wrap leading-6">{parts.map((part,i)=>/^https?:\/\//i.test(part)?<a key={i} href={part.replace(/[),.;]+$/,'')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-700 font-semibold hover:underline break-all">{part}<ExternalLink size={13}/></a>:part)}</div>}
