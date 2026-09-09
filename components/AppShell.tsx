@@ -13,9 +13,9 @@ export default function AppShell({children}:{children:React.ReactNode}){
  useEffect(()=>setMenuOpen(false),[path]);
  const athleteNav=[['/dashboard','Home',Home],['/discover','Discover',Compass],['/connections','Connections',School],['/activity','Activity',Activity],['/insights','Insights',Sparkles],['/events','Events',CalendarDays],['/messages','Messages',MessageSquare],['/advisor-requests',pendingAdvisorRequests?`Advisor Requests (${pendingAdvisorRequests})`:'Advisor Requests',UserPlus]] as const;
  const staffBase=[['/advisors','Home',Home],['/advisors/access','Player Access',UserPlus],['/advisors/connections','Connections',School],['/advisors/activity','Activity',Activity],['/insights','Insights',Sparkles],['/advisors/fit-insights','Fit Insights',BarChart3],['/messages','Messages',MessageSquare],['/advisors/tasks','Tasks',CheckSquare]] as const;
- const staffTail=[['/events','Events',CalendarDays],['/exports','Exports',Download]] as const;
+ const staffTail=[['/events','Events',CalendarDays],['/exports','Exports',Download],['/exports/college-fit','College Fit Report',Download]] as const;
  const staffNav=orgAccess?[...staffBase,['/organization','Organization',Building2] as const,...staffTail]:[...staffBase,...staffTail],nav=role==='athlete'?athleteNav:staffNav,profileHref=role==='athlete'?'/profile':'/advisors/profile';
- const isActive=(href:string)=>href==='/advisors'?path==='/advisors':path===href||path.startsWith(href+'/');
+ const isActive=(href:string)=>href==='/advisors'?path==='/advisors':href==='/exports'?path==='/exports':path===href||path.startsWith(href+'/');
  const signOut=()=>supabase.auth.signOut().then(()=>location.href='/');
  const Brand=({size='text-xl'}:{size?:string})=><PrimaryBrand className={size}/>;
  if(profileComplete===null)return <div className="min-h-screen bg-slate-50"/>;
