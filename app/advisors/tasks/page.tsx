@@ -27,7 +27,8 @@ export default function AdvisorTasks(){
   if(hasOrgAccess) pids=(members||[]).filter((m:any)=>m.role==='athlete').map((m:any)=>m.user_id);
   else {const {data:rels}=await c.from('athlete_advisor_assignments').select('athlete_user_id').eq('advisor_user_id',user.id).eq('status','active');pids=[...new Set((rels||[]).map((x:any)=>x.athlete_user_id))] as string[];}
   const playerRows=pids.map(id=>pm.get(id)).filter(Boolean); setPlayers(playerRows);
-  const requested=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('player'):null; if(requested&&playerRows.some((p:any)=>p.id===requested)){setMode('individual');setAthlete(requested)}
+  const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;const requested=params?.get('player'); if(requested&&playerRows.some((p:any)=>p.id===requested)){setMode('individual');setAthlete(requested)}
+  const requestedTitle=params?.get('title');const requestedDescription=params?.get('description');if(requestedTitle&&!title)setTitle(requestedTitle);if(requestedDescription&&!description)setDescription(requestedDescription);
   const {data:gs}=await c.from('advisor_player_groups').select('id,name').eq('owner_user_id',user.id).order('name');
   const gids=(gs||[]).map((g:any)=>g.id); const {data:gms}=gids.length?await c.from('advisor_player_group_members').select('group_id,athlete_user_id').in('group_id',gids):{data:[]};
   setGroups((gs||[]).map((g:any)=>({id:g.id,name:g.name,memberIds:(gms||[]).filter((m:any)=>m.group_id===g.id).map((m:any)=>m.athlete_user_id)})));
