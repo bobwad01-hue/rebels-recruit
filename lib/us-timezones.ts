@@ -1,3 +1,5 @@
+import {interactionDateLabel,type InteractionDatePrecision} from '@/lib/interaction-dates';
+
 export const US_TIMEZONES = [
   { value: 'America/New_York', label: 'Eastern Time' },
   { value: 'America/Chicago', label: 'Central Time' },
@@ -14,18 +16,10 @@ export const DEFAULT_TIMEZONE = 'America/Chicago';
 export function getGreetingForTimezone(timezone = DEFAULT_TIMEZONE, now = new Date()) {
   let hour = 0;
   try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      hourCycle: 'h23',
-      timeZone: timezone,
-    }).formatToParts(now);
+    const parts = new Intl.DateTimeFormat('en-US', { hour: '2-digit', hourCycle: 'h23', timeZone: timezone }).formatToParts(now);
     hour = Number(parts.find(part => part.type === 'hour')?.value ?? 0);
   } catch {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      hour: '2-digit',
-      hourCycle: 'h23',
-      timeZone: DEFAULT_TIMEZONE,
-    }).formatToParts(now);
+    const parts = new Intl.DateTimeFormat('en-US', { hour: '2-digit', hourCycle: 'h23', timeZone: DEFAULT_TIMEZONE }).formatToParts(now);
     hour = Number(parts.find(part => part.type === 'hour')?.value ?? 0);
   }
   if (hour < 12) return 'Good morning';
@@ -34,34 +28,18 @@ export function getGreetingForTimezone(timezone = DEFAULT_TIMEZONE, now = new Da
 }
 
 export function formatInteractionDate(date: string | null | undefined) {
-  if (!date) return '—';
-  const [year, month, day] = date.slice(0, 10).split('-');
-  return year && month && day ? `${month}/${day}/${year}` : date;
+  return interactionDateLabel({date,date_precision:date?'exact':'unknown'});
 }
 
 export function formatInteractionTimestamp(createdAt: string | null | undefined, timezone = DEFAULT_TIMEZONE) {
   if (!createdAt) return '';
   try {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: timezone,
-      timeZoneName: 'short',
-    }).format(new Date(createdAt));
+    return new Intl.DateTimeFormat('en-US', {hour:'numeric',minute:'2-digit',hour12:true,timeZone:timezone,timeZoneName:'short'}).format(new Date(createdAt));
   } catch {
-    return new Intl.DateTimeFormat('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: DEFAULT_TIMEZONE,
-      timeZoneName: 'short',
-    }).format(new Date(createdAt));
+    return new Intl.DateTimeFormat('en-US', {hour:'numeric',minute:'2-digit',hour12:true,timeZone:DEFAULT_TIMEZONE,timeZoneName:'short'}).format(new Date(createdAt));
   }
 }
 
-export function formatInteractionDateTime(date: string | null | undefined, createdAt: string | null | undefined, timezone = DEFAULT_TIMEZONE) {
-  const d = formatInteractionDate(date);
-  const t = formatInteractionTimestamp(createdAt, timezone);
-  return t ? `${d} · ${t}` : d;
+export function formatInteractionDateTime(date:string|null|undefined,_createdAt?:string|null,_timezone=DEFAULT_TIMEZONE,datePrecision:InteractionDatePrecision|string|null='exact',dateYear?:number|null,dateMonth?:number|null) {
+  return interactionDateLabel({date,date_precision:datePrecision,date_year:dateYear,date_month:dateMonth});
 }
