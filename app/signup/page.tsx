@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
 
-const APP_URL = 'https://rebels-recruit.vercel.app';
+const APP_URL = 'https://rebelsrecruit.com';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -52,7 +52,7 @@ export default function Signup() {
         <div className="space-y-4 mt-6">
           <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} required />
           <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-          <label className="block"><span className="text-sm font-bold">I am signing up as</span><select className="input mt-1" value={role} onChange={e => setRole(e.target.value)}><option value="athlete">Player / Athlete</option><option value="advisor">Advisor / Coach</option></select></label>
+          <label className="block"><span className="text-sm font-bold">I am signing up as</span><select className="input mt-1" value={role} onChange={e => setRole(e.target.value)}><option value="athlete">Player / Athlete</option><option value="parent">Parent / Guardian</option><option value="advisor">Advisor / Coach</option></select></label>
           <input className="input" type="password" placeholder="Password (8+ characters)" minLength={8} value={password} onChange={e => setPassword(e.target.value)} required />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <button className="btn btn-red w-full">Create account</button>
