@@ -1,0 +1,41 @@
+'use client';
+
+import Link from 'next/link';
+import {useEffect,useMemo,useState} from 'react';
+import {CheckCircle2,Flame,Target} from 'lucide-react';
+import {createClient} from '@/lib/supabase-browser';
+
+const one=(v:any)=>Array.isArray(v)?v[0]:v;
+const iso=(d:Date)=>d.toISOString().slice(0,10);
+const monday=(input=new Date())=>{const d=new Date(input);d.setHours(12,0,0,0);const day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return d};
+const weekBounds=(input=new Date())=>{const s=monday(input),e=new Date(s);e.setDate(s.getDate()+6);return{start:iso(s),end:iso(e)}};
+const meaningful=(x:any)=>{const t=String(x.type||'').toLowerCase();return !t.includes('note')&&!t.includes('profile')};
+const inWeek=(value:any,start:string,end:string)=>{if(!value)return false;const d=String(value).slice(0,10);return d>=start&&d<=end};
+
+export default function WeeklyRecruitingMomentum({athleteId,compact=false}:{athleteId?:string;compact?:boolean}){
+ const c=createClient();
+ const [uid,setUid]=useState('');
+ const [role,setRole]=useState('');
+ const [interactions,setInteractions]=useState<any[]>([]),[reminders,setReminders]=useState<any[]>([]),[tasks,setTasks]=useState<any[]>([]),[coaches,setCoaches]=useState<any[]>([]),[colleges,setColleges]=useState<any[]>([]),[events,setEvents]=useState<any[]>([]),[storedGoals,setStoredGoals]=useState<any[]>([]),[loading,setLoading]=useState(true);
+ const bounds=useMemo(()=>weekBounds(),[]);
+ useEffect(()=>{(async()=>{const {data:{user}}=await c.auth.getUser();if(!user){setLoading(false);return}const target=athleteId||user.id;setUid(target);const {data:viewer}=await c.from('profiles').select('app_role').eq('id',user.id).maybeSingle();setRole(viewer?.app_role||'athlete');const historyStart=new Date(monday());historyStart.setDate(historyStart.getDate()-56);const [i,r,t,ch,co,e,p]=await Promise.all([
+  c.from('interactions').select('id,type,date,date_precision,created_at').eq('athlete_user_id',target).gte('date',iso(historyStart)),
+  c.from('reminders').select('id,title,due_date,status,completed_at').eq('athlete_user_id',target),
+  c.from('advisor_tasks').select('id,title,due_date,status,completed_at').eq('athlete_user_id',target),
+  c.from('athlete_coaches').select('id,last_contact_date,archived_at,colleges(id,name),college_coaches(id,first_name,last_name)').eq('athlete_user_id',target),
+  c.from('athlete_colleges').select('id,status,archived_at,colleges(id,name)').eq('athlete_user_id',target),
+  c.from('athlete_events').select('id,status,events(id,name,date,type)').eq('athlete_user_id',target),
+  c.from('recruiting_weekly_plans').select('id,goals,week_start,week_end').eq('athlete_user_id',target).eq('week_start',bounds.start).maybeSingle()
+ ]);setInteractions(i.data||[]);setReminders(r.data||[]);setTasks(t.data||[]);setCoaches(ch.data||[]);setColleges(co.data||[]);setEvents((e.data||[]).map((x:any)=>({...one(x.events),rsvp:x.status})).filter((x:any)=>x.id));if(p.data?.goals?.length)setStoredGoals(p.data.goals);setLoading(false)})()},[athleteId]);
+ const currentActions=useMemo(()=>interactions.filter(x=>x.date_precision==='exact'&&meaningful(x)&&inWeek(x.date,bounds.start,bounds.end)).length+reminders.filter(x=>x.completed_at&&inWeek(x.completed_at,bounds.start,bounds.end)).length+tasks.filter(x=>x.completed_at&&inWeek(x.completed_at,bounds.start,bounds.end)).length,[interactions,reminders,tasks]);
+ const generatedGoals=useMemo(()=>{const goals:any[]=[];const today=iso(new Date());const overdue=[...reminders.filter(x=>x.status!=='completed'&&x.due_date&&x.due_date<today),...tasks.filter(x=>x.status!=='completed'&&x.due_date&&x.due_date<today)];if(overdue.length)goals.push({id:'overdue',title:`Clear ${Math.min(overdue.length,3)} overdue Next Move${overdue.length===1?'':'s'}`,detail:'Resolve or reschedule the recruiting work that is already late.',href:'/game-plan#next-moves'});
+ const cooling=coaches.filter(x=>!x.archived_at&&x.last_contact_date&&Math.floor((Date.now()-new Date(`${x.last_contact_date}T12:00:00`).getTime())/86400000)>=30).slice(0,2);if(cooling.length){const names=cooling.map(x=>{const coach=one(x.college_coaches);return [coach?.first_name,coach?.last_name].filter(Boolean).join(' ')||one(x.colleges)?.name||'coach'});goals.push({id:'reconnect',title:`Reconnect with ${cooling.length===1?names[0]:`${cooling.length} priority coach relationships`}`,detail:'Focus on relationships that are beginning to cool.',href:'/connections'});}const upcoming=events.filter(x=>x.date&&x.date>=today&&x.date<=new Date(Date.now()+14*86400000).toISOString().slice(0,10)).sort((a,b)=>String(a.date).localeCompare(String(b.date)))[0];if(upcoming)goals.push({id:'event',title:`Prepare for ${upcoming.name}`,detail:'Use the event to strengthen the right school and coach relationships.',href:'/events'});
+ const active=colleges.filter(x=>!x.archived_at&&!String(x.status||'').toLowerCase().includes('stop'));if(active.length<5)goals.push({id:'schools',title:`Add ${Math.max(1,5-active.length)} well-fit school${5-active.length===1?'':'s'}`,detail:'Build a focused list that matches your academic, athletic and personal preferences.',href:'/discover'});
+ goals.push({id:'momentum',title:'Complete 3 meaningful recruiting actions',detail:'Emails, coach conversations, camp prep, follow-ups and completed Next Moves all build momentum.',href:'/game-plan#next-moves'});return goals.slice(0,4)},[coaches,colleges,events,reminders,tasks]);
+ const goals=storedGoals.length?storedGoals:generatedGoals;
+ useEffect(()=>{if(loading||!uid||storedGoals.length||!generatedGoals.length||role!=='athlete')return;(async()=>{await c.from('recruiting_weekly_plans').upsert({athlete_user_id:uid,week_start:bounds.start,week_end:bounds.end,goals:generatedGoals,updated_at:new Date().toISOString()},{onConflict:'athlete_user_id,week_start'});setStoredGoals(generatedGoals)})()},[loading,uid,storedGoals.length,generatedGoals,role]);
+ const streak=useMemo(()=>{let run=0;for(let offset=1;offset<=8;offset++){const s=new Date(monday());s.setDate(s.getDate()-offset*7);const e=new Date(s);e.setDate(e.getDate()+6);const ws=iso(s),we=iso(e);const count=interactions.filter(x=>x.date_precision==='exact'&&meaningful(x)&&inWeek(x.date,ws,we)).length+reminders.filter(x=>x.completed_at&&inWeek(x.completed_at,ws,we)).length+tasks.filter(x=>x.completed_at&&inWeek(x.completed_at,ws,we)).length;if(count>=3)run++;else break}return currentActions>=3?run+1:run},[interactions,reminders,tasks,currentActions]);
+ if(loading)return null;
+ const pct=Math.min(100,Math.round(currentActions/3*100));
+ return <section className={`card ${compact?'p-4':'p-4 sm:p-5'}`}><div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3"><div><div className="text-xs uppercase tracking-[.14em] font-black text-red-600">This Week</div><h2 className="font-black text-lg sm:text-xl mt-1">Weekly Recruiting Goals</h2><p className="muted text-sm mt-1">A focused plan based on what is happening in your recruiting right now.</p></div><div className="flex gap-2"><div className="rounded-xl border px-3 py-2 min-w-24"><div className="text-xs muted">Momentum</div><div className="font-black flex items-center gap-1 mt-1"><Flame size={16}/>{streak} week{streak===1?'':'s'}</div></div><div className="rounded-xl border px-3 py-2 min-w-24"><div className="text-xs muted">Actions</div><div className="font-black mt-1">{currentActions}/3</div></div></div></div><div className="h-2 rounded-full bg-slate-100 mt-4 overflow-hidden"><div className="h-full bg-red-600" style={{width:`${pct}%`}}/></div><div className={`grid ${compact?'':'md:grid-cols-2'} gap-2 mt-4`}>{goals.map((g:any)=><Link href={g.href||'/game-plan'} key={g.id||g.title} className="border rounded-xl p-3 hover:bg-slate-50"><div className="flex gap-2"><Target size={16} className="shrink-0 mt-0.5"/><div><div className="font-bold text-sm">{g.title}</div>{!compact&&g.detail&&<div className="muted text-xs mt-1">{g.detail}</div>}</div></div></Link>)}</div>{currentActions>=3&&<div className="mt-4 rounded-xl border bg-slate-50 p-3 text-sm font-semibold flex gap-2"><CheckCircle2 size={17}/>Weekly momentum target reached. Keep building quality relationships—not just activity for activity's sake.</div>}</section>;
+}
