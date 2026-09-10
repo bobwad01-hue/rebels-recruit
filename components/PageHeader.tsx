@@ -13,11 +13,15 @@ function sectionEyebrow(title:string){
  if(t.includes('event'))return 'RECRUITING EVENTS';
  if(t.includes('message'))return 'COMMUNICATION';
  if(t.includes('video'))return 'RECRUITING VIDEO';
- if(t.includes('fit')||t.includes('school')||t.includes('college'))return 'SCHOOL DISCOVERY';
+ if(t.includes('fit')||t.includes('school')||t.includes('college')||t.includes('discover'))return 'SCHOOL DISCOVERY';
  if(t.includes('report')||t.includes('export'))return 'REPORTING';
  if(t.includes('board')||t.includes('organization'))return 'ORGANIZATION';
  if(t.includes('access')||t.includes('player'))return 'PLAYER SUPPORT';
- if(t.includes('task')||t.includes('move')||t.includes('goal')||t.includes('plan'))return 'NEXT MOVES';
+ if(t.includes('task')||t.includes('move')||t.includes('goal')||t.includes('plan')||t.includes('reminder'))return 'NEXT MOVES';
  if(t.includes('advisor'))return 'ADVISOR COMMAND CENTER';
+ if(t.includes('profile'))return 'RECRUITING PROFILE';
+ if(t.includes('setting'))return 'ACCOUNT & PREFERENCES';
+ if(t.includes('import'))return 'BRING YOUR HISTORY';
+ if(t.includes('health')||t.includes('intelligence')||t.includes('insight'))return 'RECRUITING INTELLIGENCE';
  return 'REBELS RECRUIT';
 }
