@@ -13,5 +13,5 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
   loadAllColleges(supabase),
   supabase.from('college_coaches').select('id,college_id,first_name,last_name,title,email,phone').order('last_name').limit(5000)
  ]);
- return <AppShell><div className="max-w-7xl mx-auto px-5 md:px-8 py-6"><PageHeader title="Connections" subtitle="Manage the schools and coaches in your recruiting network while preserving every relationship and milestone."/><div className="[&>div:first-child]:hidden [&>div:nth-child(2)>div:nth-child(3)]:hidden"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]} masterColleges={masterColleges||[]} masterCoaches={masterCoaches.data||[]}/></div></div></AppShell>
+ return <AppShell><div className="max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-6"><PageHeader eyebrow="RELATIONSHIPS" title="Connections" subtitle="Your active school and coach relationships — where they stand, who you know, and what relationship context matters next."/><div className="[&>div:first-child]:hidden [&>div:nth-child(2)>div:nth-child(3)]:hidden"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]} masterColleges={masterColleges||[]} masterCoaches={masterCoaches.data||[]}/></div></div></AppShell>
 }
