@@ -1,3 +1,9 @@
 import type { NextConfig } from 'next';
-const nextConfig: NextConfig = {};
+const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      { source: '/activity', destination: '/journey', permanent: false },
+    ];
+  },
+};
 export default nextConfig;
