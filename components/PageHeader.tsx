@@ -1,2 +1,23 @@
 import AdvisorHomeTitle from '@/components/AdvisorHomeTitle';
-export default function PageHeader({title,subtitle,action}:{title:string;subtitle?:string;action?:React.ReactNode}){const renderedTitle=title==='Advisor View'?<AdvisorHomeTitle/>:title;return <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 min-w-0"><div className="min-w-0"><h1 className="text-2xl md:text-3xl font-black tracking-tight break-words">{renderedTitle}</h1>{subtitle&&<p className="muted mt-1 max-w-3xl">{subtitle}</p>}</div>{action&&<div className="w-full sm:w-auto shrink-0">{action}</div>}</div>}
+
+export default function PageHeader({title,subtitle,action,eyebrow}:{title:string;subtitle?:string;action?:React.ReactNode;eyebrow?:string}){
+ const renderedTitle=title==='Advisor View'?<AdvisorHomeTitle/>:title;
+ const sectionLabel=eyebrow||sectionEyebrow(title);
+ return <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6 min-w-0"><div className="min-w-0">{sectionLabel&&<div className="rr-eyebrow">{sectionLabel}</div>}<h1 className="rr-section-title">{renderedTitle}</h1>{subtitle&&<p className="rr-section-subtitle">{subtitle}</p>}</div>{action&&<div className="w-full sm:w-auto shrink-0">{action}</div>}</div>
+}
+
+function sectionEyebrow(title:string){
+ const t=title.toLowerCase();
+ if(t.includes('activity')||t.includes('journey'))return 'RECRUITING JOURNEY';
+ if(t.includes('connection'))return 'RELATIONSHIPS';
+ if(t.includes('event'))return 'RECRUITING EVENTS';
+ if(t.includes('message'))return 'COMMUNICATION';
+ if(t.includes('video'))return 'RECRUITING VIDEO';
+ if(t.includes('fit')||t.includes('school')||t.includes('college'))return 'SCHOOL DISCOVERY';
+ if(t.includes('report')||t.includes('export'))return 'REPORTING';
+ if(t.includes('board')||t.includes('organization'))return 'ORGANIZATION';
+ if(t.includes('access')||t.includes('player'))return 'PLAYER SUPPORT';
+ if(t.includes('task')||t.includes('move')||t.includes('goal')||t.includes('plan'))return 'NEXT MOVES';
+ if(t.includes('advisor'))return 'ADVISOR COMMAND CENTER';
+ return 'REBELS RECRUIT';
+}
