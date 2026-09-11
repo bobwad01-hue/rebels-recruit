@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
+import { createAdminClient } from '@/lib/supabase-admin'
 
 type ProfileState = {
   app_role: string | null
@@ -8,6 +9,19 @@ type ProfileState = {
 
 function profilePath(role:string){return role==='athlete'?'/profile':role==='parent'?'/parent/profile':'/advisors/profile'}
 function homePath(role:string){return role==='athlete'?'/dashboard':role==='parent'?'/parent':'/advisors'}
+function clientIp(request:Request){return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()||request.headers.get('x-real-ip')||null}
+
+async function recordSignupAcceptance(request:Request,userId:string){
+  const admin=createAdminClient()
+  const{data:docs,error:docsError}=await admin.from('legal_document_versions').select('id,document_type').eq('is_current',true).in('document_type',['terms_of_service','privacy_policy'])
+  if(docsError)return false
+  const terms=(docs||[]).find((d:any)=>d.document_type==='terms_of_service'),privacy=(docs||[]).find((d:any)=>d.document_type==='privacy_policy')
+  if(!terms||!privacy)return false
+  const{data:existing}=await admin.from('user_legal_acceptances').select('id').eq('user_id',userId).eq('terms_version_id',terms.id).eq('privacy_version_id',privacy.id).limit(1).maybeSingle()
+  if(existing)return true
+  const{error}=await admin.from('user_legal_acceptances').insert({user_id:userId,terms_version_id:terms.id,privacy_version_id:privacy.id,acceptance_context:'signup',acceptance_method:'clickwrap',user_agent:request.headers.get('user-agent'),ip_address:clientIp(request)})
+  return !error
+}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -45,9 +59,8 @@ export async function GET(request: Request) {
   if(acceptError)return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
   if(!accepted){
     if(legalSignup){
-      const ua=request.headers.get('user-agent')||null
-      const {error}=await supabase.rpc('accept_current_legal_documents',{acceptance_context:'signup',acceptance_method:'clickwrap',client_user_agent:ua})
-      if(error)return NextResponse.redirect(new URL('/legal/accept?context=signup',requestUrl.origin))
+      const recorded=await recordSignupAcceptance(request,user.id)
+      if(!recorded)return NextResponse.redirect(new URL('/legal/accept?context=signup',requestUrl.origin))
     }else return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
   }
 
