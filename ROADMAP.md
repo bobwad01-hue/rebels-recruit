@@ -60,6 +60,16 @@ Status: ARCHITECTURE BUILT; REAL TWO-ORG PERSONA QA REMAINS.
 - Athlete data, other organization memberships, schools, coaches, Journey, events, Next Moves and videos remain intact.
 - Exercise owner/advisor users who themselves belong to multiple organizations and eliminate remaining single-membership assumptions.
 
+## P1 - Product language / navigation
+
+### Next Move -> Next Step terminology
+Status: DECISION PENDING; NOT IMPLEMENTED.
+
+- Evaluate changing user-facing `Next Move / Next Moves` to `Next Step / Next Steps` across the athlete, parent, advisor, owner/admin experience and public index page.
+- Recommended direction as of 2026-09-11: `Next Step` is clearer and more universally understood, especially for athletes and parents new to recruiting; `Next Move` is more distinctive/strategic but slightly more branded and abstract.
+- If approved, change user-facing copy consistently while leaving internal database/table/route identifiers unchanged unless there is a technical reason to migrate them.
+- Audit headings, CTAs, reminders, advisor assignment language, reports/exports, public marketing copy, onboarding/help text and empty states in one coordinated sweep.
+
 ## P1 - Integrations
 
 ### X API / X developer integration
