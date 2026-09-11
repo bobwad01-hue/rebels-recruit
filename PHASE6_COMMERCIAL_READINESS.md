@@ -25,7 +25,7 @@ Every canonical screen is reviewed against:
 9. Permission safety
 10. Large-data resilience
 
-No category may score below 8 before Phase 6 closes.
+**Anything below 9.5/10 is fixed before Phase 6 closes.** A 9.5 is the minimum evidence-based acceptance threshold, not a score to round up to. If a category cannot be credibly validated to 9.5, it remains open.
 
 ## Rendered QA viewports
 
@@ -133,7 +133,8 @@ A Phase 6 change is not complete until the exact commit has a successful build. 
 
 Phase 6 closes only when:
 - canonical screen audit is complete for all roles
-- no score is below 8
+- **every scored category on every canonical screen is at least 9.5/10 based on available evidence**
+- anything below 9.5 is remediated and rescored before closure
 - exact head commit builds successfully
 - production deployment is confirmed
 - browser/device validation results are explicitly separated into automated/emulated vs physical-device evidence
