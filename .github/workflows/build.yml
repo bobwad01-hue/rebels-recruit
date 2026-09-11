@@ -13,6 +13,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Audit user-facing College terminology
+        run: |
+          echo '--- College terminology audit (source only) ---'
+          grep -RInE "College|Colleges|college|colleges" app components --include='*.tsx' --include='*.ts' | grep -vE "from\('colleges'\)|from\(\"colleges\"\)|athlete_colleges|college_coaches|college_id|college_enrichment|college_majors|college_fit_profiles|/colleges|CollegeSearchSelect|CollegesCoachesBoard|collegeName|masterColleges|fallbackColleges|trackedCollege|activeColleges|visibleColleges|collegeSort|CollegeSort|restoreCollege|addCollege|requestArchiveCollege|kind:'college'|kind === 'college'|kind==='college'|\.colleges|type College|function College|NewCollege|allColleges|collegeId|const college|let college" || true
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
