@@ -24,11 +24,18 @@ Rules:
 - Report Center already isolates dataset failures.
 - Parent Journey already uses an authorized feed and distinguishes failure from empty.
 - Parent Connections already preserves successfully loaded school/coach data when the other relationship dataset fails.
-- Manage Access now distinguishes authentication failure, advisor-request load failure, partial advisor-profile failure, family-access load failure, family-profile partial failure, and true empty states.
-- Family access mutations now show explicit save failures rather than silently reloading stale state.
+- Manage Access distinguishes authentication failure, advisor-request load failure, partial advisor-profile failure, family-access load failure, family-profile partial failure, and true empty states.
+- Family access mutations show explicit save failures rather than silently reloading stale state.
 - Account deletion status explicitly distinguishes a failed status check from no deletion request.
 - Legal Acceptance report preserves partial results and identifies unavailable supporting datasets.
 - Support Cases page distinguishes permission, roster failure, case-load failure, partial profile failure, and true empty states.
+- Athlete Organizations distinguishes authentication, membership load failure, imported-history matching failure, true empty membership, and mutation failures.
+- Parent Athlete Switcher distinguishes parent-access failure from a true single/no-athlete state and only accepts active authorized athlete IDs.
+- Advisor Tasks isolates organization membership, roster, player-profile, saved-group, group-membership, task-load and mutation failures.
+- Athlete Activity now distinguishes signed-out/access failure, activity-load failure, partial timezone failure, true empty activity, and a 500-record display bound.
+- Advisor Activity now distinguishes no staff/player access, roster/assignment failure, partial player-profile failure, activity-load failure, true empty scope, and a 1,500-record display bound.
+- Connections now keeps existing athlete school/coach relationships usable when the supporting school or coach search catalog fails.
+- Recruiting Health now calculates from available datasets when supporting data is partially unavailable, warns that the score may be incomplete, and only blocks the page when all required recruiting datasets fail.
 
 ### Reliability work still requiring page-by-page regression QA
 Athlete Home, Advisor Home, Owner Command Center, Events, Messages, Videos, imports, and remaining Parent pages should be exercised with forced query failures. Existing pages that use large `Promise.all` loads must be checked for all-or-nothing behavior and converted to isolated results where needed.
@@ -49,6 +56,15 @@ User-facing actions should describe the action or destination. Preferred example
 Avoid generic action labels such as `Open`, `View`, `Take Action`, and `Open Context` when a specific verb is available. Avoid implementation language such as `exact-date`. Recruiting Health must be described as a workflow check, not a talent grade or recruiting prediction.
 
 The canonical user-facing term is **Next Step / Next Steps**. Internal identifiers such as `next_step`, `next_moves`, and legacy anchors may remain for stability.
+
+### CTA/language work completed in this pass
+- Athlete Activity now uses `Log Activity`, `Edit Activity`, and `Delete Activity`, and uses `School` rather than generic College labeling.
+- Advisor Activity now uses `Review Player 360°`, `Review School`, `Review Coach Relationship`, and `Review Activity Details` rather than generic Open/View labels.
+- Connections uses review-oriented relationship language and continues to use School terminology.
+- Recruiting Health now uses `Review My Next Steps`, `Review This Factor`, `Review Your Schools`, `Review Coach Relationships`, and `Prepare for Upcoming Events`.
+- Advisor Tasks uses clearer mutation language such as `Save Player Group` and `Mark Next Steps Complete`.
+
+The remaining CTA sweep should continue through Athlete Home, Advisor Home, Game Plan, Events, Messages, Videos, imports, and remaining organization/admin surfaces. Do not blind-replace internal status values such as `open`.
 
 ## Multi-organization pressure test
 
@@ -103,6 +119,8 @@ A synthetic CI smoke test now creates:
 It validates basic aggregation correctness, a 5-second aggregation budget, and a 512 MB heap budget. This is a regression guard, not a substitute for database/browser load testing.
 
 Known scale risk: Advisor Home currently loads up to 4,000 interactions into the browser and performs repeated in-memory filtering. This should move toward database/server-side aggregation before large organizations are considered fully scale-proven.
+
+Additional bounded-view warnings now exist on Athlete Activity (500 most recent records) and Advisor Activity (1,500 most recent records) so a limit cannot silently masquerade as complete history.
 
 ## Legal and account lifecycle
 
