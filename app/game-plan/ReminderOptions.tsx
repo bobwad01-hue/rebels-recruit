@@ -31,7 +31,7 @@ export default function ReminderOptions({reminder}:{reminder:Reminder}){
  const textPrimary=intent==='text';
  return <>
   {coach&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3" aria-label={`Contact ${coachName}`}>
-   <div className="text-xs font-black uppercase tracking-wide text-slate-500">Take Action</div>
+   <div className="text-xs font-black uppercase tracking-wide text-slate-500">Choose an Action</div>
    <div className="text-sm font-bold mt-1">Contact {coachName}{schoolName?` at ${schoolName}`:''}</div>
    {why&&<p className="text-xs text-slate-600 mt-1"><span className="font-bold">Why this matters:</span> {why}</p>}
    <div className="mt-3 flex flex-wrap gap-2">
