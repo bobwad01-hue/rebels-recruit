@@ -13,6 +13,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - run: npm run audit:language
       - run: npm run test:scale
       - run: npm run build
         env:
