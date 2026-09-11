@@ -2,63 +2,98 @@
 
 Last updated: 2026-09-11
 
-Purpose: This is the canonical handoff/backlog for work discussed but not fully built, deployed, or physically validated. Update it whenever scope is added, completed, deferred, or materially changed. When starting a new ChatGPT conversation, export/share this file with PROJECT_HANDOFF.md.
+Purpose: canonical handoff/backlog for work discussed but not fully built, deployed, or physically validated. Use with `PROJECT_HANDOFF.md` and `RELEASE_CANDIDATE_AUDIT.md` when starting a new conversation.
 
 ## P0 - Legal, consent, and launch readiness
 
-### Terms of Service + Privacy Policy acceptance
-Status: IN PROGRESS. Database audit foundation built 2026-09-11; UI/enforcement and final legal documents remain.
+### Terms, Privacy, age, and account lifecycle
+Status: SUBSTANTIALLY BUILT; COUNSEL/FINAL POLICY QA REMAINS.
 
-- Publish Rebels Recruit Terms of Service and Privacy Policy on Rebels Recruit-owned URLs. Do not point production consent at a competitor's legal pages.
-- Have counsel review/finalize both documents before launch.
-- Signup must use affirmative clickwrap: unchecked checkbox with linked Terms of Service and Privacy Policy; account creation and Google signup cannot continue until checked.
-- Existing accounts must be blocked by a one-time acceptance screen on their next authenticated entry until they accept the current versions.
-- When either legal document changes materially, mark a new current version and require re-acceptance.
-- Store immutable acceptance evidence: user ID, exact Terms version, exact Privacy version, acceptance timestamp, context/method, user agent, and where technically appropriate server-observed IP address.
-- Build an Owner/Admin legal acceptance report/export for audit/legal requests. Do not expose this broadly to advisors.
-- Preserve old document versions and acceptance records. Never overwrite historical acceptance evidence.
-- Decide and document retention policy for legal acceptance records.
-- Add age/date-of-birth strategy and legal review because the athlete audience includes minors. Determine whether Rebels Recruit will prohibit under-13 accounts or implement COPPA-compliant parental notice/verifiable consent if under-13 use is possible.
-- Review state minor/privacy requirements in addition to COPPA before commercial launch.
+Built:
+- Rebels Recruit-owned `/terms` and `/privacy` pages and versioned current document records.
+- Required clickwrap at signup and blocking reacceptance for existing users/current-version changes.
+- Immutable acceptance evidence with document versions, timestamp, context/method, user agent, and server-observed IP where available.
+- Owner/Admin Legal Acceptance report + CSV at `/organization/legal-acceptance`.
+- Athlete self-service signup requires age-13-or-older affirmation; immutable age attestation evidence is stored.
+- Account deletion request/cancel workflow is available from Settings. Requests do not automatically destroy data.
+- Support/audit foundation for lifecycle issues.
 
-Database foundation already live: `legal_document_versions`, `user_legal_acceptances`, `current_legal_documents()`, `has_current_legal_acceptance()`, `accept_current_legal_documents()`.
+Before commercial launch:
+- Have counsel review/finalize Terms and Privacy.
+- Confirm 13+ self-service policy and review state minor/privacy requirements in addition to COPPA.
+- Define retention periods for account data, legal acceptance evidence, audit records, and completed deletion requests.
+- Define deletion SLA and exceptions required for legal/security obligations.
+- Test password signup, Google signup, existing-user reacceptance, policy-version update, age gate, deletion request/cancel, and legal export end-to-end in production.
 
 ### Release-candidate QA
-Status: NOT COMPLETE.
+Status: IN PROGRESS. See `RELEASE_CANDIDATE_AUDIT.md`.
 
 - Real-device/browser QA: iPhone Safari, Android Chrome, desktop Chrome/Edge.
-- Test widths 375, 430, 768, 1024, 1280, ~1500 for orphan headings, forced breaks, clipped controls, uneven cards, whitespace, touch targets and sticky/fixed UI.
+- Test widths 375, 430, 768, 1024, 1280, ~1500.
 - Persona flows: Maia athlete; Maia parent; advisor 3 players; advisor 30 players; Owner 100+ players; brand-new player; imported-but-unclaimed player; two-organization athlete; parent with two daughters.
-- Verify failure vs permission vs genuinely empty states across all major data surfaces.
-- Continue CTA audit whenever new UI is added.
+- Force query failures across major surfaces and verify empty vs no-access vs failed vs partially-unavailable states.
+- Continue CTA/language audit whenever UI changes.
 
 ## P1 - Reliability and scale hardening
+
+### Reliability audit
+Status: ACTIVE HARDENING.
+
+Completed in current pass:
+- Manage Access and Family Access now distinguish load failures, partial profile failures, mutation failures, permission/auth failure, and genuine empty states.
+- Legal Acceptance and Support Cases preserve useful partial data when supporting datasets fail.
+- Account deletion status distinguishes failure from no request.
+- Report Center and Parent Journey already use isolated/authorized failure-aware patterns.
+
+Remaining:
+- Force-failure QA and hardening for Athlete Home, Advisor Home, Owner Command Center, Events, Messages, Videos, imports, and remaining Parent surfaces.
+- Convert remaining all-or-nothing `Promise.all` page loads to isolated results where a supporting dataset should not blank the page.
 
 ### Exports / Report Center
 Status: STRUCTURAL HARDENING BUILT; LARGE-SCALE VALIDATION REMAINS.
 
 - Validate every CSV and XLSX report end-to-end with realistic data.
 - Load-test large recruiting histories and 100+ player organizations.
-- Verify every report identifies unavailable datasets without killing unrelated reports.
 - Verify historical date precision survives CSV/XLSX round-trip.
-- Consider server/database-side report generation if browser-side generation becomes a scale bottleneck.
+- Consider server/database-side report generation if browser generation becomes a bottleneck.
 
-### Advisor / Owner scale
-Status: NEEDS SCALE TESTING.
+### Performance / scale
+Status: SYNTHETIC CI GUARD ADDED; REAL LOAD TESTING REMAINS.
 
-- Test Advisor Home with 30+ assigned players.
-- Test Owner/Admin surfaces with 100+ players.
-- Move expensive organization intelligence/history aggregation server/database-side where browser-side bounds become limiting.
-- Ensure Action Queue remains fast and prioritized at larger scale.
+- CI now runs `npm run test:scale` with 100 athletes, 50,000 interactions, 2,000 athlete-school relationships, and 1,200 athlete-coach relationships.
+- Test Advisor Home with 30+ real/safe fixture players and Owner/Admin with 100+.
+- Test athlete with 500+ interactions and large Report Center exports.
+- Advisor Home still loads up to 4,000 interactions and performs repeated browser-side filtering. Move expensive organization intelligence/history aggregation server/database-side before large-org scale is called proven.
 
 ### Multi-organization end-to-end validation
-Status: ARCHITECTURE BUILT; REAL TWO-ORG PERSONA QA REMAINS.
+Status: ARCHITECTURE RE-VERIFIED; REAL TWO-ORG FIXTURE REMAINS.
 
-- Validate athlete simultaneously belongs to travel + high school organizations.
-- Both organizations see only permitted canonical player data.
-- Leaving one organization immediately removes only that organization's access/assignments/import access.
-- Athlete data, other organization memberships, schools, coaches, Journey, events, Next Steps and videos remain intact.
-- Exercise owner/advisor users who themselves belong to multiple organizations and eliminate remaining single-membership assumptions.
+- `organization_members` supports multiple active organizations per user.
+- `can_access_athlete()` requires active shared organization membership/authorized advisor access.
+- Canonical athlete recruiting data is athlete-owned, so leaving one organization does not delete recruiting history.
+- Production currently has no user with >1 active organization membership. Run the travel + high-school fixture in `RELEASE_CANDIDATE_AUDIT.md` before calling this production-proven.
+
+### Parent multi-athlete validation
+Status: AUTHORIZATION LOGIC RE-VERIFIED; REAL TWO-ATHLETE FIXTURE REMAINS.
+
+- Parent context selects only active authorized athlete links; unauthorized requested athlete IDs are not accepted.
+- Production currently has zero `parent_guardian_access` rows, so two-athlete behavior still requires a real/safe fixture test.
+
+## P1 - Operational readiness
+
+Status: FOUNDATION BUILT; WORKFLOW QA REMAINS.
+
+Built:
+- In-app support case creation from Settings.
+- Diagnostic categories for missing athlete, wrong organization access, missing import history, Google disconnect, wrong team, parent access, account deletion, and other.
+- Limited diagnostic snapshots capture memberships/counts/connection state without copying recruiting-message content.
+- Owner/Admin diagnostics page at `/organization/support`.
+- `SUPPORT_PLAYBOOK.md` defines investigation and least-destructive repair procedures.
+
+Remaining:
+- Add staff case status/resolution controls if support volume warrants them.
+- Test every support scenario end-to-end and verify audit trail.
+- Define external support contact/SLA/escalation ownership before commercial launch.
 
 ## P1 - Integrations
 
@@ -66,59 +101,50 @@ Status: ARCHITECTURE BUILT; REAL TWO-ORG PERSONA QA REMAINS.
 Status: NOT COMPLETE. Developer-portal setup was started.
 
 - Finish X developer project/app configuration and production credentials.
-- Define the exact product use case before requesting scopes: profile/link enrichment, recruiting/social activity, posting, or other approved workflow.
-- Implement OAuth/token storage server-side if user-authorized X access is required.
+- Define exact product use case/scopes before implementation.
+- Implement OAuth/token storage server-side if user-authorized access is required.
 - Add least-privilege scopes, revocation/disconnect, failure states and auditability.
-- Confirm X API plan/rate limits/costs before making the integration a required product dependency.
-- Do not make core recruiting workflow depend on X availability.
+- Confirm X API plan/rate limits/costs.
+- Core recruiting workflow must not depend on X availability.
 
 ### Google / Gmail / Calendar hardening
 Status: PARTIALLY BUILT; FINAL SECURITY/PRODUCTION QA REMAINS.
 
-- Gmail send is intentionally athlete-owned and send-only; do not turn Rebels Recruit into another inbox.
+- Gmail send remains athlete-owned and send-only.
 - Finish production OAuth hardening/verification as required by Google.
 - Validate token refresh, revoked consent, reconnect, failure handling and account switching.
-- Validate Calendar integration across event creation/editing and disconnected/reconnected states.
-- Preserve manual email/calendar fallback paths.
+- Validate Calendar integration across creation/editing and disconnect/reconnect states.
+- Preserve manual fallback paths.
 
 ### Future communication intelligence
 Status: DEFERRED.
 
-- Inbound email detection only if product/privacy value justifies broader Gmail scopes.
-- Automatic activity suggestions from communication.
-- Meaningful-contact detection and cadence reminders.
-- Stronger relationship intelligence based on communication context without black-box claims.
-- Message Center enhancements: unread counts, previews, timestamps, search, archive/mute, task/Next Step creation and deep links.
+- Consider inbound email detection only if product/privacy value justifies broader scopes.
+- Automatic activity suggestions, meaningful-contact detection, cadence reminders.
+- Message Center enhancements: unread counts, previews, timestamps, search, archive/mute, Next Step creation and deep links.
 
 ## P2 - Product intelligence and workflow
 
 ### Advisor-side Smart Next Steps
 Status: DEFERRED.
-
-- Extend deterministic/explainable Smart Next Step logic to advisor workflows.
-- Keep athlete ownership of recruiting decisions; advisor suggestions should support, not silently mutate, athlete Journey stage or decisions.
+- Extend deterministic/explainable Smart Next Step logic to advisor workflows without silently changing athlete Journey decisions.
 
 ### Event intelligence expansion
 Status: CORE WORKFLOW BUILT; CONTINUE QA/ENRICHMENT.
-
-- Continue testing Before -> During -> After workflow across camps, visits and showcases.
+- Test Before -> During -> After across camps, visits and showcases.
 - Verify debrief edits never duplicate Journey activity.
-- Improve advisor event attendance/player drill-down where real usage identifies gaps.
 
 ### Coach relationship completion
 Status: CORE FLOW BUILT; CONTINUE QA.
-
 - Final QA of multi-coach email recipient timeline display.
-- Continue missing-coach prompts when a school is added without a coach.
-- Never auto-attach a guessed coach.
+- Continue missing-coach prompts; never auto-attach a guessed coach.
 
 ## P2 - Commercial / operational readiness
 
-- Finalize production Terms of Service and Privacy Policy with counsel.
-- Define data retention/deletion policy, account deletion workflow, and legal/audit export procedures.
-- Review privacy/security implications of minors, parent access, organization access, Gmail, X and imported recruiting history.
-- Establish support/escalation workflow for access disputes, mistaken organization claims and parent/athlete relationship changes.
-- Revisit infrastructure plan before large commercial organizations if Vercel Hobby build/rate limits become operationally disruptive.
+- Counsel review of Terms/Privacy/minor policy.
+- Final data retention/deletion policy and support SLA.
+- Review privacy/security implications of parent/org access, Gmail, X, and imported history.
+- Revisit infrastructure plan before large commercial organizations if Vercel Hobby limits remain disruptive.
 
 ## Completed but still worth regression-testing
 
@@ -131,8 +157,8 @@ Status: CORE FLOW BUILT; CONTINUE QA.
 - Event Prep workflow and event-linked Next Steps.
 - Athlete/Parent/Advisor/Owner navigation and Phase 7/7.5 language simplification.
 - Report Center structural failure isolation/date-precision work.
-- Global user-facing terminology changed from Next Move / Next Moves to Next Step / Next Steps. Internal identifiers and routes remain unchanged where useful for stability. Public Game Plan benefit message is "Know what to do next."
+- Global user-facing terminology changed to Next Step / Next Steps. Public benefit message: "Know what to do next."
 
 ## Roadmap maintenance rule
 
-Whenever a feature, integration, QA item, legal/compliance requirement, deferred idea, or deployment gap is discussed and not completed, add it here. When completed, move it to Completed with the commit/migration/deployment reference where useful. Do not call an item deployed until its production deployment is verified.
+Whenever a feature, integration, QA item, legal/compliance requirement, deferred idea, or deployment gap is discussed and not completed, add it here. When completed, move it to Completed with commit/migration/deployment reference where useful. Never call an item deployed until production deployment is verified.
