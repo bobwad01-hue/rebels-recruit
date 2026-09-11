@@ -22,6 +22,7 @@ async function recordSignupAcceptance(request:Request,userId:string){
   const{error}=await admin.from('user_legal_acceptances').insert({user_id:userId,terms_version_id:terms.id,privacy_version_id:privacy.id,acceptance_context:'signup',acceptance_method:'clickwrap',user_agent:request.headers.get('user-agent'),ip_address:clientIp(request)})
   return !error
 }
+async function recordAgeAttestation(request:Request,userId:string){const admin=createAdminClient();const{data:existing}=await admin.from('user_age_attestations').select('id').eq('user_id',userId).eq('attestation','age_13_or_older').limit(1).maybeSingle();if(existing)return true;const{error}=await admin.from('user_age_attestations').insert({user_id:userId,attestation:'age_13_or_older',context:'signup',user_agent:request.headers.get('user-agent'),ip_address:clientIp(request)});return !error}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -40,10 +41,15 @@ export async function GET(request: Request) {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(new URL('/login', requestUrl.origin))
+  const passwordAthleteSignup=legalSignup&&user.user_metadata?.app_role==='athlete'&&user.user_metadata?.age_13_plus===true
 
   if(legalSignup&&signupRole==='athlete'&&!age13Plus){
     await supabase.auth.signOut()
     return NextResponse.redirect(new URL('/signup?error=age_requirement',requestUrl.origin))
+  }
+  if(legalSignup&&(age13Plus||passwordAthleteSignup)){
+    const ageRecorded=await recordAgeAttestation(request,user.id)
+    if(!ageRecorded)return NextResponse.redirect(new URL('/signup?error=age_recording',requestUrl.origin))
   }
 
   const { data } = await supabase
