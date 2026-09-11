@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {performance} from 'node:perf_hooks';
 import ExcelJS from 'exceljs-hardened';
 
 const rows=[
@@ -35,7 +36,21 @@ assert.match(csv,/"Coach replied, ""See you at camp\."""/,'CSV must escape embed
 assert.match(csv,/"Line one\nLine two"/,'CSV must retain embedded newlines inside quoted cells');
 assert.ok(Buffer.byteLength(csv,'utf8')>100,'CSV should contain representative export data');
 
+let malformedRejected=false;
+try{const bad=new ExcelJS.Workbook();await bad.xlsx.load(Buffer.from('this is not an xlsx workbook'))}catch{malformedRejected=true}
+assert.equal(malformedRejected,true,'Malformed XLSX data must be rejected');
+
+const largeStart=performance.now();
+const large=new ExcelJS.Workbook(),largeSheet=large.addWorksheet('Large Export');
+largeSheet.addRow(headers);
+for(let i=0;i<5000;i++)largeSheet.addRow([`Player ${i%100}`,`School ${i%200}`,i%7===0?'08/2026':'09/11/2026',i%2?'Email':'Camp',`Representative recruiting note ${i}`]);
+const largeBuffer=await large.xlsx.writeBuffer();
+const largeMs=performance.now()-largeStart;
+assert.ok(largeBuffer.byteLength>50000,'Large workbook should contain representative export data');
+assert.ok(largeMs<15000,`5,000-row workbook exceeded 15s budget: ${Math.round(largeMs)}ms`);
+assert.ok(process.memoryUsage().heapUsed/1024/1024<512,'Spreadsheet smoke test exceeded 512 MB heap budget');
+
 const oversized=10*1024*1024+1;
 assert.ok(oversized>10*1024*1024,'10 MB import guard boundary must remain explicit');
 
-console.log(JSON.stringify({xlsxRoundTripRows:got.length,csvBytes:Buffer.byteLength(csv,'utf8'),partialDatesPreserved:true,quotedNotesPreserved:true},null,2));
+console.log(JSON.stringify({xlsxRoundTripRows:got.length,csvBytes:Buffer.byteLength(csv,'utf8'),partialDatesPreserved:true,quotedNotesPreserved:true,malformedXlsxRejected:malformedRejected,largeWorkbookRows:5000,largeWorkbookMs:Math.round(largeMs),largeWorkbookBytes:largeBuffer.byteLength},null,2));
