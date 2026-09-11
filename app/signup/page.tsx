@@ -11,6 +11,7 @@ export default function Signup() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('athlete');
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
@@ -18,10 +19,11 @@ export default function Signup() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!legalAccepted) { setError('Please agree to the Terms of Service and Privacy Policy to create an account.'); return; }
     const { error } = await createClient().auth.signUp({
       email,
       password,
-      options: { data: { full_name: name, app_role: role }, emailRedirectTo: `${APP_URL}/auth/callback` },
+      options: { data: { full_name: name, app_role: role }, emailRedirectTo: `${APP_URL}/auth/callback?legal_signup=1` },
     });
     if (error) setError(error.message);
     else setSent(true);
@@ -29,11 +31,12 @@ export default function Signup() {
 
   async function continueWithGoogle() {
     setError('');
+    if (!legalAccepted) { setError('Please agree to the Terms of Service and Privacy Policy to continue with Google.'); return; }
     setGoogleBusy(true);
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}`,
+        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1`,
         queryParams: { prompt: 'select_account' },
       },
     });
@@ -54,10 +57,11 @@ export default function Signup() {
           <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
           <label className="block"><span className="text-sm font-bold">I am signing up as</span><select className="input mt-1" value={role} onChange={e => setRole(e.target.value)}><option value="athlete">Player / Athlete</option><option value="parent">Parent / Guardian</option><option value="advisor">Advisor / Coach</option></select></label>
           <input className="input" type="password" placeholder="Password (8+ characters)" minLength={8} value={password} onChange={e => setPassword(e.target.value)} required />
+          <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button className="btn btn-red w-full">Create account</button>
+          <button disabled={!legalAccepted} className="btn btn-red w-full">Create account</button>
           <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-xs font-bold text-slate-400">OR</span><div className="h-px flex-1 bg-slate-200"/></div>
-          <button type="button" disabled={googleBusy} onClick={continueWithGoogle} className="btn w-full">{googleBusy ? 'Connecting to Google...' : 'Continue with Google'}</button>
+          <button type="button" disabled={googleBusy||!legalAccepted} onClick={continueWithGoogle} className="btn w-full">{googleBusy ? 'Connecting to Google...' : 'Continue with Google'}</button>
         </div>
         <p className="text-sm muted mt-6 text-center">Already have an account? <Link className="font-bold" href="/login">Sign in</Link></p>
       </form>
