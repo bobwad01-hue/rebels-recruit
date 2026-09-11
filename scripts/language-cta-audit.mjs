@@ -33,8 +33,9 @@ for(const file of roots.flatMap(walk)){
   const source=fs.readFileSync(file,'utf8');
   const lines=source.split(/\r?\n/);
   for(let i=0;i<lines.length;i++){
+    const lower=lines[i].toLowerCase();
     for(const rule of banned){
-      if(lines[i].includes(rule.text))findings.push({file,line:i+1,...rule,snippet:lines[i].trim().slice(0,220)});
+      if(lower.includes(rule.text.toLowerCase()))findings.push({file,line:i+1,...rule,snippet:lines[i].trim().slice(0,220)});
     }
   }
 }
