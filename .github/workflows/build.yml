@@ -4,8 +4,6 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-permissions:
-  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,52 +13,6 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - name: Finish user-facing School terminology sweep
-        if: github.event_name == 'push'
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          replacements = {
-            'app/import/page.tsx': [
-              ("Map the School / College column first.", "Map the School column first."),
-              ("['school','School / College']", "['school','School']"),
-            ],
-            'app/intelligence/page.tsx': [
-              ("name:one(r.colleges)?.name||'College'", "name:one(r.colleges)?.name||'School'"),
-              ("one(row?.colleges)?.name||'College'", "one(row?.colleges)?.name||'School'"),
-              (">Coach / College<", ">Coach / School<"),
-              ("predictions of a college coach's intent", "predictions of a coach's intent"),
-            ],
-            'app/advisors/page.tsx': [
-              ("collegeByRel.get(m.relationshipId)||'College'", "collegeByRel.get(m.relationshipId)||'School'"),
-              ("college?.name||'College'", "college?.name||'School'"),
-            ],
-          }
-          changed = False
-          for file, pairs in replacements.items():
-            p = Path(file)
-            text = p.read_text()
-            original = text
-            for old, new in pairs:
-              count = text.count(old)
-              print(f'{file}: {old!r} -> {new!r} ({count} match(es))')
-              text = text.replace(old, new)
-            if text != original:
-              p.write_text(text)
-              changed = True
-          print('changed=', changed)
-          PY
-          if ! git diff --quiet; then
-            git config user.name "Rebels Recruit QA"
-            git config user.email "actions@users.noreply.github.com"
-            git add app/import/page.tsx app/intelligence/page.tsx app/advisors/page.tsx
-            git commit -m "Complete School terminology sweep"
-            git push origin HEAD:main
-          fi
-      - name: Audit user-facing College terminology
-        run: |
-          echo '--- College terminology audit (source only) ---'
-          grep -RInE "College|Colleges|college|colleges" app components --include='*.tsx' --include='*.ts' | grep -vE "from\('colleges'\)|from\(\"colleges\"\)|athlete_colleges|college_coaches|college_id|college_enrichment|college_majors|college_fit_profiles|/colleges|CollegeSearchSelect|CollegesCoachesBoard|collegeName|masterColleges|fallbackColleges|trackedCollege|activeColleges|visibleColleges|collegeSort|CollegeSort|restoreCollege|addCollege|requestArchiveCollege|kind:'college'|kind === 'college'|kind==='college'|\.colleges|type College|function College|NewCollege|allColleges|collegeId|const college|let college" || true
       - run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
