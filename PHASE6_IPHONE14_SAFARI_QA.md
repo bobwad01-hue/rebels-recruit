@@ -8,113 +8,74 @@ Purpose: capture real-device evidence for Rebels Recruit on iPhone 14 using Safa
 
 - Device: iPhone 14
 - Browser: Safari
-- Orientation: portrait unless a step says otherwise
+- Orientation: portrait
 - Site: https://rebelsrecruit.com
-- Use normal production data; do not create destructive test data just for QA.
-- If anything looks wrong, capture a screenshot before navigating away.
+- Production data was used.
+- Screenshots were captured for issues before changes were made.
 
-## Pass 1 — Athlete
+## Physical-device result
 
-1. Open Athlete Home.
-   - No horizontal page scrolling.
-   - Main sections appear centered with even left/right padding.
-   - Cards do not touch the viewport edge.
-   - Bottom navigation does not cover content.
-   - Header and bottom navigation remain stable while scrolling.
+Status: **Completed with findings.**
 
-2. Open the mobile Menu.
-   - Menu opens fully on screen.
-   - Close button is easy to tap.
-   - Menu scrolls if needed without moving the page behind it.
-   - Closing returns cleanly to the same page.
+The Athlete/Player pass found several mobile polish issues. The Parent/Guardian pass found no additional issues. Findings were treated as Phase 6 defects and remediated before rescoring.
 
-3. Open Find Schools.
-   - Search input does not zoom Safari when tapped.
-   - Search icon/text spacing looks correct.
-   - Filters fit the phone width.
-   - No dropdown or card causes horizontal overflow.
+## Athlete / Player findings
 
-4. Open Connections.
-   - School/coach cards fit cleanly.
-   - Long school or coach names wrap instead of widening the page.
-   - Tapping a school/coach opens the expected relationship context.
-   - Back navigation returns to the same place cleanly.
+### Find Schools — section hierarchy
+Observed: recommendation section headers such as **Academic + Athletic Fit** were too close in size and color to college names, making the start of a new section harder to recognize on a phone.
 
-5. Open Game Plan.
-   - Next Moves are easy to scan.
-   - Primary action is obvious.
-   - Buttons are comfortably tappable and do not collide.
+Remediation:
+- Recommendation section headers now use a distinct mobile treatment with smaller uppercase red text and increased semantic separation from school-card titles.
 
-6. Open Journey.
-   - Timeline remains aligned.
-   - Month labels, timeline rail, and cards do not overlap.
-   - Expanding an entry works with one tap.
-   - Filters remain usable on mobile.
+### Connections — Stop Pursuing action
+Observed: **Stop Pursuing** appeared too subdued in gray for an available action.
 
-7. Open Events and one Event Prep workflow.
-   - Event cards fit without overflow.
-   - Prep/debrief sections expand naturally.
-   - Sticky/mobile navigation does not cover the bottom of forms or actions.
+Remediation:
+- Destructive archive/stop-pursuing actions now use a persistent red treatment rather than relying on hover, which does not exist as a useful affordance on touch devices.
 
-8. Tap into at least one text input or textarea.
-   - Safari keyboard does not hide the active field or primary action in an unusable way.
-   - Page does not unexpectedly zoom.
-   - Dismissing the keyboard leaves the page positioned sensibly.
+### Events — calendar-connected notice
+Observed: the organization-calendar confirmation should not remain a recurring piece of page content after the user has already seen it.
 
-## Pass 2 — Parent / Guardian
+Remediation:
+- Calendar-connected notices use local one-time acknowledgement state and auto-dismiss after first display for that connection/signature.
+- Existing persistent warning behavior remains reserved for actual calendar-loading problems.
 
-1. Open Parent Home.
-   - Only Home is selected in navigation.
-   - Support Center hierarchy is clear.
-   - “How You Can Help Next” is prominent without looking like an athlete mutation control.
+### Events — clipped mobile filter/search text
+Observed:
+- Search placeholder text was clipped.
+- Dropdown labels were clipped on iPhone 14.
+- The Add Event college search showed the same class of problem.
 
-2. Open Connections, Goals & Next Moves, Journey, and Events.
-   - Exactly one navigation destination appears selected at a time.
-   - Parent can explore school/player/event context.
-   - No Add, Pass, Stop Pursuing, contact-coach, or athlete decision controls are exposed.
+Remediation:
+- Added a universal mobile search-control typography rule.
+- Added a compact filter treatment for narrow controls.
+- Events search and filter controls use the compact mobile treatment.
+- Mobile search placeholders across the app use smaller responsive text while preserving accessible control height.
 
-3. Open Player 360°.
-   - Page is readable without sideways scrolling.
-   - Dense sections stack naturally.
-   - Links remain usable in read-only context.
+### Public landing page — oversized buttons and hero wrapping
+Observed:
+- Header and hero button text was too large and wrapped awkwardly.
+- “Your recruiting. Your relationships. Your next move.” did not preserve one sentence per line.
 
-## Pass 3 — General Safari behavior
+Remediation:
+- Mobile button typography was reduced globally while preserving 44px tap targets.
+- Landing-page buttons use explicit no-wrap treatment where practical.
+- The hero uses responsive clamp sizing and no-wrap spans so each sentence occupies its own line on phone widths.
 
-1. Rotate once to landscape and back to portrait.
-   - Layout recovers without clipped content or stuck overlays.
+## Parent / Guardian result
 
-2. Use Safari Back/Forward between two major screens.
-   - Active navigation stays correct.
-   - No duplicate selection appears.
+Physical iPhone 14 / Safari review of the Parent experience found **no additional issues**. In particular:
+- Parent navigation did not show the previously reported duplicate-active-state issue.
+- Read-only navigation remained usable.
+- No athlete mutation/contact controls were reported as exposed.
+- No additional mobile layout defects were reported.
 
-3. Refresh a major screen.
-   - Loading state is understandable.
-   - The page settles without severe layout jump.
+## Validation notes
 
-4. Temporarily switch away from Safari and return.
-   - Open menu/modal state does not leave the page unusable.
+This test is valid physical-device evidence for iPhone 14 / Safari only. It does not substitute for Android Chrome or desktop-browser validation.
 
-5. Scan for:
-   - horizontal scrolling
-   - clipped text
-   - overlapping buttons
-   - controls smaller than a comfortable finger target
-   - content hidden behind bottom navigation
-   - Safari input zoom
-   - sticky headers covering content
-   - modals wider/taller than the usable viewport
-
-## Report format
-
-For each issue, send:
-- screen name
-- what you tapped
-- what happened
-- screenshot
-- whether it is repeatable
-
-If no issue is found in a pass, report that pass as “No issues found.”
+The remediations above still require successful exact-head build/deployment confirmation and a quick production regression spot-check after deployment before the iPhone findings are considered closed.
 
 ## Evidence rule
 
-Only this real-device run can be recorded as iPhone 14 / Safari physical-device validation. Source inspection, desktop responsive mode, or emulation do not count as physical-device evidence.
+Only this real-device run is recorded as iPhone 14 / Safari physical-device validation. Source inspection, desktop responsive mode, or emulation do not count as physical-device evidence.
