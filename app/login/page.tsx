@@ -23,10 +23,15 @@ export default function Login() {
     if (error) setError(error.message);
     else if (!user) setError('Unable to sign in. Please try again.');
     else {
-      const { data: profile } = await c.from('profiles').select('app_role,profile_completed_at').eq('id', user.id).single();
+      const [{data:accepted,error:acceptError},{ data: profile }] = await Promise.all([
+        c.rpc('has_current_legal_acceptance'),
+        c.from('profiles').select('app_role,profile_completed_at').eq('id', user.id).single()
+      ]);
+      if(acceptError){setError('We could not verify your Terms and Privacy acceptance. Please try again.');setBusy(false);return}
+      if(!accepted){location.href='/legal/accept?context=existing_account';return}
       const role = profile?.app_role || 'athlete';
-      if (!profile?.profile_completed_at) location.href = role === 'athlete' ? '/profile' : '/advisors/profile';
-      else location.href = role === 'athlete' ? '/dashboard' : '/advisors';
+      if (!profile?.profile_completed_at) location.href = role === 'athlete' ? '/profile' : role === 'parent' ? '/parent/profile' : '/advisors/profile';
+      else location.href = role === 'athlete' ? '/dashboard' : role === 'parent' ? '/parent' : '/advisors';
     }
     setBusy(false);
   }
