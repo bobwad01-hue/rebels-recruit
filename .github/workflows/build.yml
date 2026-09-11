@@ -4,6 +4,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,6 +15,47 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Finish user-facing School terminology sweep
+        if: github.event_name == 'push'
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          replacements = {
+            'app/import/page.tsx': [
+              ("Map the School / College column first.", "Map the School column first."),
+              ("['school','School / College']", "['school','School']"),
+            ],
+            'app/intelligence/page.tsx': [
+              ("name:one(r.colleges)?.name||'College'", "name:one(r.colleges)?.name||'School'"),
+              ("one(row?.colleges)?.name||'College'", "one(row?.colleges)?.name||'School'"),
+              (">Coach / College<", ">Coach / School<"),
+              ("predictions of a college coach's intent", "predictions of a coach's intent"),
+            ],
+            'app/advisors/page.tsx': [
+              ("collegeByRel.get(m.relationshipId)||'College'", "collegeByRel.get(m.relationshipId)||'School'"),
+            ],
+          }
+          changed = False
+          for file, pairs in replacements.items():
+            p = Path(file)
+            text = p.read_text()
+            original = text
+            for old, new in pairs:
+              count = text.count(old)
+              print(f'{file}: {old!r} -> {new!r} ({count} match(es))')
+              text = text.replace(old, new)
+            if text != original:
+              p.write_text(text)
+              changed = True
+          print('changed=', changed)
+          PY
+          if ! git diff --quiet; then
+            git config user.name "Rebels Recruit QA"
+            git config user.email "actions@users.noreply.github.com"
+            git add app/import/page.tsx app/intelligence/page.tsx app/advisors/page.tsx
+            git commit -m "Complete School terminology sweep"
+            git push origin HEAD:main
+          fi
       - name: Audit user-facing College terminology
         run: |
           echo '--- College terminology audit (source only) ---'
