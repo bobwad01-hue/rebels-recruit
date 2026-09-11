@@ -6,7 +6,7 @@ Date: 2026-09-11
 
 Phase 5 explicitly left rendered browser/device, degraded-network, large-data, and permission validation open. Phase 6 treats those as commercial readiness gates rather than assuming responsive source code proves them.
 
-Current audit combines the Phase 5 canonical inventory with Phase 6 source/architecture review and production build evidence. Scores are not upgraded merely because a screen previously scored well. Physical-device claims remain open until tested on actual hardware.
+Current audit combines the Phase 5 canonical inventory with Phase 6 source/architecture review, production build evidence, and a completed physical iPhone 14 / Safari pass. Scores are not upgraded merely because a screen previously scored well. Android and desktop-browser physical/rendered evidence remain open until tested.
 
 **Phase 6 acceptance floor: 9.5/10.** Anything below 9.5 remains open, is remediated, and is rescored before the phase can close. No rounding up.
 
@@ -29,6 +29,22 @@ Current audit combines the Phase 5 canonical inventory with Phase 6 source/archi
 - Master-school pagination now throws on data failure instead of silently returning a partial/empty list.
 - Relationship, coach, and master-coach request failures now render an explicit recoverable error state instead of `[]`.
 - Legitimate empty Connections remain distinct from load failure.
+- Physical iPhone QA found Stop Pursuing too visually quiet; destructive archive actions now use persistent red emphasis rather than hover-only emphasis.
+
+### Events
+- Physical iPhone QA found clipped search/filter copy on the Events screen.
+- Mobile search and filter typography has been tightened while preserving comfortable tap-target heights.
+- Compact mobile filter treatment is reusable rather than Events-only.
+- Calendar-connected confirmations are treated as one-time acknowledgement content rather than permanent page chrome; actual calendar-loading warnings remain persistent when relevant.
+
+### Find Schools
+- Physical iPhone QA found recommendation-section headings too close in hierarchy to school-card headings.
+- Mobile section headings now use a distinct red uppercase treatment so the beginning of a recommendation group is obvious on a phone.
+
+### Public landing page
+- Physical iPhone QA found oversized button typography and awkward hero wrapping.
+- Mobile buttons now use smaller typography while maintaining 44px tap targets.
+- Hero copy now preserves one sentence per line for “Your recruiting.”, “Your relationships.”, and “Your next move.” on phone widths.
 
 ### Owner View As / permissions
 Static review confirms:
@@ -51,18 +67,33 @@ Static review confirms:
 - Optional recruiting/contact details are explicitly non-blocking.
 - Getting Started Tour remains available from the Athlete account menu.
 
+## Physical iPhone 14 / Safari evidence
+
+A real-device pass was completed on iPhone 14 using Safari in portrait orientation.
+
+Athlete/Player findings were captured with screenshots and remediated:
+- Find Schools section hierarchy
+- Stop Pursuing affordance
+- Events persistent calendar notice treatment
+- Events/search/filter clipped mobile text
+- landing-page button typography and hero wrapping
+
+Parent/Guardian review found no additional issues. Parent navigation remained single-selected and no athlete mutation/contact controls were reported as exposed.
+
+This is valid physical-device evidence for iPhone 14 / Safari only. The remediation batch still requires successful exact-head build/deployment confirmation and a quick production regression spot-check before the iPhone findings are considered closed.
+
 ## Remaining Phase 6 findings
 
 ### P1 — Large organization/reporting datasets
-Exports currently uses a deliberately bounded client query of up to 10,000 interactions and builds reports in-browser. This prevents unbounded loading, but the 10k path is still a known commercial stress point because report generation and multiple derived reports share the same browser-resident interaction set.
+Exports uses a deliberately bounded client query of up to 10,000 interactions and builds reports in-browser. This prevents unbounded loading, but the 10k path remains a commercial stress point because report generation and multiple derived reports share the same browser-resident interaction set.
 
 Before Phase 6 closes at a 9.5 standard, this must have evidence from a representative large dataset. If the 10k stress pass causes noticeable blocking, memory pressure, incomplete reporting, or misleading truncation, the export path must be further changed rather than scored up.
 
 ### P1 — Additional degraded-network evidence
 College Fit Insights and Athlete Connections now distinguish failure from empty data. Other Tier A client-heavy workflows still require controlled failed/slow-network evidence before receiving a 9.5 Loading/Error Recovery score. A source review alone does not prove runtime recovery behavior.
 
-### P1 — Physical browser/device evidence
-Source-responsive confidence is not physical-device validation. iPhone 14 / Safari now has a dedicated QA checklist in `PHASE6_IPHONE14_SAFARI_QA.md`. Android Chrome and the desktop browser matrix remain external validation requirements.
+### P1 — Remaining browser/device evidence
+Android Chrome and the desktop browser matrix remain external validation requirements. iPhone 14 / Safari is no longer open as an untested device category, but its remediation batch still needs post-deploy spot verification.
 
 ## Role-level Phase 6 status
 
@@ -70,10 +101,12 @@ These are current evidence scores, not aspirational close scores.
 
 | Role | Product coherence | Permission model | Empty/new user | Degraded network | Large data | Mobile | Phase status |
 |---|---:|---:|---:|---:|---:|---:|---|
-| Athlete | 9.7 | 9.5 | 9.5 | 9.2 | 9.4 | 9.3 | Open: runtime/mobile evidence |
-| Parent / Guardian | 9.7 | 9.5 | 9.5 | 9.1 | 9.4 | 9.3 | Open: runtime/mobile evidence |
+| Athlete | 9.7 | 9.5 | 9.5 | 9.2 | 9.4 | 9.5* | Open: runtime + post-fix mobile spot-check |
+| Parent / Guardian | 9.7 | 9.5 | 9.5 | 9.1 | 9.4 | 9.5 | Open: runtime evidence |
 | Advisor | 9.5 | 9.5 | 9.5 | 9.3 | 9.1 | 9.2 | Open: Exports + rendered evidence |
 | Owner / Admin | 9.5 | 9.5 | 9.5 | 9.2 | 9.0 | 9.2 | Open: org-scale + rendered evidence |
+
+`*` Athlete mobile is provisionally 9.5 based on physical-device findings plus remediation; it remains open until the deployed fixes receive a production spot-check.
 
 Anything below 9.5 remains a Phase 6 remediation target. These values are deliberately not rounded up.
 
@@ -118,13 +151,9 @@ Simplify when touching a screen:
 - long forms grouped by purpose
 - dense staff data starts with “what needs attention?” rather than raw totals
 
-## Physical iPhone 14 / Safari pass
-
-The physical iPhone test is now ready to run after the latest Phase 6 build is deployed. Use `PHASE6_IPHONE14_SAFARI_QA.md` and report screenshots for any issue. This is the first physical-device evidence item and must not be substituted with responsive desktop emulation.
-
 ## Remaining external validation before Phase 6 can close
 
-1. Actual iPhone 14 / Safari pass using the committed checklist.
+1. Post-deploy iPhone 14 / Safari spot-check of the remediated screens.
 2. Actual Android Chrome pass on representative hardware.
 3. Desktop Chrome, Edge, Firefox, Safari rendered pass.
 4. Keyboard-only pass and screen-reader spot checks.
