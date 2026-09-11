@@ -17,7 +17,7 @@ function sectionEyebrow(title:string){
  if(t.includes('report')||t.includes('export'))return 'REPORTING';
  if(t.includes('board')||t.includes('organization'))return 'ORGANIZATION';
  if(t.includes('access')||t.includes('player'))return 'PLAYER SUPPORT';
- if(t.includes('task')||t.includes('move')||t.includes('goal')||t.includes('plan')||t.includes('reminder'))return 'NEXT MOVES';
+ if(t.includes('task')||t.includes('move')||t.includes('goal')||t.includes('plan')||t.includes('reminder'))return 'NEXT STEPS';
  if(t.includes('advisor'))return 'ADVISOR COMMAND CENTER';
  if(t.includes('profile'))return 'RECRUITING PROFILE';
  if(t.includes('setting'))return 'ACCOUNT & PREFERENCES';
