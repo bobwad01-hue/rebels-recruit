@@ -13,7 +13,10 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - run: npm audit --omit=dev --audit-level=critical
       - run: npm run audit:language
+      - run: npm run test:fixtures
+      - run: npm run test:spreadsheets
       - run: npm run test:scale
       - run: npm run build
         env:
