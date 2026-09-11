@@ -23,7 +23,7 @@ async function buildTargets(admin:any,athleteIds:string[]){
   if(rels.error)throw new Error(rels.error.message);if(profiles.error)throw new Error(profiles.error.message);
   const pm=new Map((profiles.data||[]).map((p:any)=>[String(p.id),p]));
   const groups=new Map<string,any[]>();
-  for(const r of rels.data||[]){if(r.archived_at)continue;const c=Array.isArray(r.colleges)?r.colleges[0]:r.colleges;const rank=ranks.get(`${r.athlete_user_id}:${r.id}`)||999999;const item={relationshipId:r.id,athleteUserId:r.athlete_user_id,collegeId:c?.id||null,name:c?.name||'College',division:c?.division||null,state:c?.state||null,conference:c?.conference||null,status:r.status||'Researching',rank};groups.set(String(r.athlete_user_id),[...(groups.get(String(r.athlete_user_id))||[]),item])}
+  for(const r of rels.data||[]){if(r.archived_at)continue;const c=Array.isArray(r.colleges)?r.colleges[0]:r.colleges;const rank=ranks.get(`${r.athlete_user_id}:${r.id}`)||999999;const item={relationshipId:r.id,athleteUserId:r.athlete_user_id,collegeId:c?.id||null,name:c?.name||'School',division:c?.division||null,state:c?.state||null,conference:c?.conference||null,status:r.status||'Researching',rank};groups.set(String(r.athlete_user_id),[...(groups.get(String(r.athlete_user_id))||[]),item])}
   return athleteIds.map(id=>{const p:any=pm.get(String(id))||{};const targets=(groups.get(String(id))||[]).sort((a,b)=>a.rank-b.rank||a.name.localeCompare(b.name)).map((x,i)=>({...x,rank:i+1}));return {athleteUserId:id,name:p.full_name||p.email||'Athlete',targets}});
 }
 
@@ -42,7 +42,7 @@ export async function POST(req:NextRequest){
   let body:any;try{body=await req.json()}catch{return NextResponse.json({error:'Invalid request.'},{status:400})}
   const order=Array.isArray(body?.order)?body.order.map(String):[];if(!order.length)return NextResponse.json({error:'Target order is required.'},{status:400});
   const admin=createAdminClient();const {data:rels,error}=await admin.from('athlete_colleges').select('id,athlete_user_id,archived_at').in('id',order);if(error)return NextResponse.json({error:error.message},{status:500});
-  if((rels||[]).some((r:any)=>String(r.athlete_user_id)!==user.id||r.archived_at))return NextResponse.json({error:'You can only rank your current college relationships.'},{status:403});
+  if((rels||[]).some((r:any)=>String(r.athlete_user_id)!==user.id||r.archived_at))return NextResponse.json({error:'You can only rank your current school relationships.'},{status:403});
   const validIds=new Set((rels||[]).map((r:any)=>String(r.id)));if(order.some((id:string)=>!validIds.has(id)))return NextResponse.json({error:'One or more target relationships are invalid.'},{status:400});
   const {data:member}=await admin.from('organization_members').select('organization_id').eq('user_id',user.id).eq('status','active').maybeSingle();
   const rows=order.map((id:string,i:number)=>({organization_id:member?.organization_id||null,actor_user_id:user.id,action:'target_rank_set',entity_type:ENTITY,entity_id:id,metadata:{rank:i+1}}));
