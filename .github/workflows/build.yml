@@ -33,6 +33,7 @@ jobs:
             ],
             'app/advisors/page.tsx': [
               ("collegeByRel.get(m.relationshipId)||'College'", "collegeByRel.get(m.relationshipId)||'School'"),
+              ("college?.name||'College'", "college?.name||'School'"),
             ],
           }
           changed = False
