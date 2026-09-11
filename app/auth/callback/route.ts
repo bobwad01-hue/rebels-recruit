@@ -29,6 +29,7 @@ export async function GET(request: Request) {
   const next = requestUrl.searchParams.get('next')
   const signupRole = requestUrl.searchParams.get('signup_role')
   const legalSignup = requestUrl.searchParams.get('legal_signup') === '1'
+  const age13Plus = requestUrl.searchParams.get('age_13_plus') === '1'
   const supabase = await createClient()
 
   if (code) await supabase.auth.exchangeCodeForSession(code)
@@ -39,6 +40,11 @@ export async function GET(request: Request) {
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.redirect(new URL('/login', requestUrl.origin))
+
+  if(legalSignup&&signupRole==='athlete'&&!age13Plus){
+    await supabase.auth.signOut()
+    return NextResponse.redirect(new URL('/signup?error=age_requirement',requestUrl.origin))
+  }
 
   const { data } = await supabase
     .from('profiles')
