@@ -15,6 +15,16 @@ Use this playbook before changing production data. Preserve athlete ownership of
 - Record material support/access changes in the audit trail.
 - Sole Owner protection remains in force.
 
+## Support case workflow
+
+1. Leave a newly reported case **Open** until an Owner/Admin begins reviewing it.
+2. Use **Start Investigation** when someone takes ownership of the diagnosis.
+3. Record a concise internal investigation note with what was checked, what was found, and any change made.
+4. Use **Mark Resolved** only after the user's access/data state is verified, not merely after a change is attempted.
+5. Use **Reopen Case** if the problem returns or the original fix did not hold.
+6. Every status or note change is recorded in `support_case_events` with the acting user and timestamp.
+7. Never paste passwords, OAuth tokens, access tokens, or unnecessary recruiting-message content into the internal note.
+
 ## "My daughter disappeared"
 
 1. Confirm the reporter is signed in to the expected Parent account.
