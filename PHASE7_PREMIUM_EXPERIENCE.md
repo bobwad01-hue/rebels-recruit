@@ -138,7 +138,7 @@ Every canonical screen is scored after implementation on:
 - Language /10
 - Progressive disclosure /10
 
-Anything below 8 is fixed before Phase 7 closes. Scores are evidence-based and are not inflated to avoid remediation.
+**Anything below 9.5/10 is fixed before Phase 7 closes.** A 9.5 is the minimum acceptance threshold, not a target to award automatically. Scores must be evidence-based, deliberately critical, and never inflated to avoid remediation. If a category cannot be credibly validated to 9.5, it remains open rather than being rounded up.
 
 ## Guardrails
 
@@ -163,7 +163,7 @@ Phase 7 closes when:
 5. Duplicate information/actions have been removed or justified.
 6. Meaningful caught-up and milestone states are implemented where appropriate.
 7. Existing data is used for contextual prioritization without black-box prediction.
-8. No rubric category is below 8.
+8. **Every rubric category on every canonical screen is at least 9.5/10 based on available evidence. Anything below 9.5 is remediated and rescored before closure.**
 9. Exact head commit builds successfully.
 10. Production deployment is confirmed before being called live.
 
