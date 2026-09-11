@@ -11,7 +11,7 @@ type Account={id:string;provider:string;username:string|null;display_name:string
 type Post={id:string;text:string|null;posted_at:string|null;post_url:string|null;like_count:number;reply_count:number;repost_count:number;view_count:number;is_recruiting_related:boolean;is_tournament_related:boolean};
 type Connection={id:string;username:string|null;display_name:string|null;profile_image_url:string|null;profile_url:string|null;follows_athlete:boolean;athlete_follows:boolean;category:string;college_id:string|null;coach_id:string|null};
 
-const categoryLabel=(value:string)=>({college_coach:'College Coach',college_program:'College Program',softball_organization:'Softball Organization',player:'Player',other:'Other'}[value]||'Other');
+const categoryLabel=(value:string)=>({college_coach:'School Coach',college_program:'School Program',softball_organization:'Softball Organization',player:'Player',other:'Other'}[value]||'Other');
 const formatDate=(value:string|null)=>value?new Date(value).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'—';
 const connectionMessage=(code:string|null)=>({x_config:'X connection is not configured yet. The Rebels Recruit X developer credentials need to be added to the production app.',x_oauth_state:'The X authorization session expired or was invalid. Please try Connect X again.',access_denied:'X authorization was cancelled. You can try again whenever you are ready.'}[code||'']||null);
 
