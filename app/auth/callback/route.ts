@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get('code')
   const next = requestUrl.searchParams.get('next')
   const signupRole = requestUrl.searchParams.get('signup_role')
+  const legalSignup = requestUrl.searchParams.get('legal_signup') === '1'
   const supabase = await createClient()
 
   if (code) await supabase.auth.exchangeCodeForSession(code)
@@ -38,6 +39,16 @@ export async function GET(request: Request) {
   if (!profile?.profile_completed_at && (signupRole === 'athlete' || signupRole === 'advisor' || signupRole === 'parent') && profile?.app_role !== signupRole) {
     await supabase.from('profiles').update({ app_role: signupRole }).eq('id', user.id)
     profile = { app_role: signupRole, profile_completed_at: profile?.profile_completed_at ?? null }
+  }
+
+  const {data:accepted,error:acceptError}=await supabase.rpc('has_current_legal_acceptance')
+  if(acceptError)return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
+  if(!accepted){
+    if(legalSignup){
+      const ua=request.headers.get('user-agent')||null
+      const {error}=await supabase.rpc('accept_current_legal_documents',{acceptance_context:'signup',acceptance_method:'clickwrap',client_user_agent:ua})
+      if(error)return NextResponse.redirect(new URL('/legal/accept?context=signup',requestUrl.origin))
+    }else return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
   }
 
   const role = profile?.app_role || 'athlete'
