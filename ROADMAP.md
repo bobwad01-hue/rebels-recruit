@@ -57,18 +57,8 @@ Status: ARCHITECTURE BUILT; REAL TWO-ORG PERSONA QA REMAINS.
 - Validate athlete simultaneously belongs to travel + high school organizations.
 - Both organizations see only permitted canonical player data.
 - Leaving one organization immediately removes only that organization's access/assignments/import access.
-- Athlete data, other organization memberships, schools, coaches, Journey, events, Next Moves and videos remain intact.
+- Athlete data, other organization memberships, schools, coaches, Journey, events, Next Steps and videos remain intact.
 - Exercise owner/advisor users who themselves belong to multiple organizations and eliminate remaining single-membership assumptions.
-
-## P1 - Product language / navigation
-
-### Next Move -> Next Step terminology
-Status: DECISION PENDING; NOT IMPLEMENTED.
-
-- Evaluate changing user-facing `Next Move / Next Moves` to `Next Step / Next Steps` across the athlete, parent, advisor, owner/admin experience and public index page.
-- Recommended direction as of 2026-09-11: `Next Step` is clearer and more universally understood, especially for athletes and parents new to recruiting; `Next Move` is more distinctive/strategic but slightly more branded and abstract.
-- If approved, change user-facing copy consistently while leaving internal database/table/route identifiers unchanged unless there is a technical reason to migrate them.
-- Audit headings, CTAs, reminders, advisor assignment language, reports/exports, public marketing copy, onboarding/help text and empty states in one coordinated sweep.
 
 ## P1 - Integrations
 
@@ -98,14 +88,14 @@ Status: DEFERRED.
 - Automatic activity suggestions from communication.
 - Meaningful-contact detection and cadence reminders.
 - Stronger relationship intelligence based on communication context without black-box claims.
-- Message Center enhancements: unread counts, previews, timestamps, search, archive/mute, task/Next Move creation and deep links.
+- Message Center enhancements: unread counts, previews, timestamps, search, archive/mute, task/Next Step creation and deep links.
 
 ## P2 - Product intelligence and workflow
 
-### Advisor-side Smart Next Moves
+### Advisor-side Smart Next Steps
 Status: DEFERRED.
 
-- Extend deterministic/explainable Smart Next Move logic to advisor workflows.
+- Extend deterministic/explainable Smart Next Step logic to advisor workflows.
 - Keep athlete ownership of recruiting decisions; advisor suggestions should support, not silently mutate, athlete Journey stage or decisions.
 
 ### Event intelligence expansion
@@ -138,9 +128,10 @@ Status: CORE FLOW BUILT; CONTINUE QA.
 - Parent Journey authorized feed and explicit failure state.
 - Multi-coach email CC relationship tracking.
 - Recruiting Health deterministic workflow score.
-- Event Prep workflow and event-linked Next Moves.
+- Event Prep workflow and event-linked Next Steps.
 - Athlete/Parent/Advisor/Owner navigation and Phase 7/7.5 language simplification.
 - Report Center structural failure isolation/date-precision work.
+- Global user-facing terminology changed from Next Move / Next Moves to Next Step / Next Steps. Internal identifiers and routes remain unchanged where useful for stability. Public Game Plan benefit message is "Know what to do next."
 
 ## Roadmap maintenance rule
 
