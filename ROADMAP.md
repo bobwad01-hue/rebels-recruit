@@ -37,17 +37,35 @@ Status: IN PROGRESS. See `RELEASE_CANDIDATE_AUDIT.md`.
 ## P1 - Reliability and scale hardening
 
 ### Reliability audit
-Status: ACTIVE HARDENING.
+Status: MAJOR SURFACES HARDENED; FORCED-FAILURE REGRESSION QA REMAINS.
 
 Completed in current pass:
-- Manage Access and Family Access now distinguish load failures, partial profile failures, mutation failures, permission/auth failure, and genuine empty states.
+- Manage Access and Family Access distinguish load failures, partial profile failures, mutation failures, permission/auth failure, and genuine empty states.
 - Legal Acceptance and Support Cases preserve useful partial data when supporting datasets fail.
 - Account deletion status distinguishes failure from no request.
-- Report Center and Parent Journey already use isolated/authorized failure-aware patterns.
+- Athlete Home, Advisor Home, Events, Activity, Connections, Recruiting Health, Messages, Videos, imports, School Fit Insights and Parent Journey now use explicit failure/partial-data states where applicable instead of silently presenting failed queries as empty data.
+- Report Center isolates dataset failures so unaffected reports remain usable.
+- Permanent CI language audit and synthetic scale guard run before every production build.
 
 Remaining:
-- Force-failure QA and hardening for Athlete Home, Advisor Home, Owner Command Center, Events, Messages, Videos, imports, and remaining Parent surfaces.
-- Convert remaining all-or-nothing `Promise.all` page loads to isolated results where a supporting dataset should not blank the page.
+- Force-failure regression QA across the hardened surfaces and remaining Parent/Owner edge paths.
+- Continue replacing all-or-nothing loads when future features add optional supporting datasets.
+
+### Spreadsheet import/export security
+Status: REMEDIATION BUILT; END-TO-END FILE QA REMAINS.
+
+Completed:
+- Removed the vulnerable `xlsx` / SheetJS dependency from application imports and exports.
+- Spreadsheet parsing and XLSX generation now use `exceljs-hardened`.
+- Athlete and organization recruiting-history imports accept `.xlsx` and `.csv`; legacy binary `.xls` is intentionally no longer accepted.
+- Added a 10 MB client-side upload limit before workbook parsing.
+- CSV parsing preserves quoted fields and embedded line breaks.
+- XLSX date cells continue to preserve exact/month/year/unknown recruiting-date semantics when imported.
+- Server-side interaction export cleans historical import keys and uses School terminology.
+
+Remaining:
+- Regression-test representative `.xlsx` and `.csv` imports, quoted CSV fields, Excel date cells, malformed files, 10 MB rejection, and every XLSX export in production.
+- Review remaining transitive npm audit findings separately; do not use `npm audit fix --force` without compatibility/security review.
 
 ### Exports / Report Center
 Status: STRUCTURAL HARDENING BUILT; LARGE-SCALE VALIDATION REMAINS.
@@ -61,6 +79,7 @@ Status: STRUCTURAL HARDENING BUILT; LARGE-SCALE VALIDATION REMAINS.
 Status: SYNTHETIC CI GUARD ADDED; REAL LOAD TESTING REMAINS.
 
 - CI now runs `npm run test:scale` with 100 athletes, 50,000 interactions, 2,000 athlete-school relationships, and 1,200 athlete-coach relationships.
+- Production query indexes were added for athlete reminders, parent access, organization advisor assignments, and athlete-event status (`20260911230500_release_candidate_query_indexes.sql`).
 - Test Advisor Home with 30+ real/safe fixture players and Owner/Admin with 100+.
 - Test athlete with 500+ interactions and large Report Center exports.
 - Advisor Home still loads up to 4,000 interactions and performs repeated browser-side filtering. Move expensive organization intelligence/history aggregation server/database-side before large-org scale is called proven.
@@ -158,6 +177,7 @@ Status: CORE FLOW BUILT; CONTINUE QA.
 - Athlete/Parent/Advisor/Owner navigation and Phase 7/7.5 language simplification.
 - Report Center structural failure isolation/date-precision work.
 - Global user-facing terminology changed to Next Step / Next Steps. Public benefit message: "Know what to do next."
+- Spreadsheet parser/export security migration away from SheetJS, with hardened XLSX handling and upload-size limits.
 
 ## Roadmap maintenance rule
 
