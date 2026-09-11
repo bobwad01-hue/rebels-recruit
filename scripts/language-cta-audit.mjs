@@ -3,18 +3,18 @@ import path from 'node:path';
 
 const roots=['app','components'];
 const banned=[
-  {text:'Next Move',reason:'Use Next Step / Next Steps in user-facing copy.'},
-  {text:'Open Context',reason:'Use a specific review/action label.'},
-  {text:'Take Action',reason:'Name the actual action.'},
-  {text:'exact-date',reason:'Avoid implementation language in user-facing copy.'},
-  {text:'exact date',reason:'Use plain recruiting language instead.'},
-  {text:'Open Messages',reason:'Use Message Player(s) or Review Messages.'},
-  {text:'Open Player 360°',reason:'Use Review Player 360°.'},
-  {text:'Open School',reason:'Use Review School.'},
-  {text:'Open Coach Relationship',reason:'Use Review Coach Relationship.'},
-  {text:'View Activity Details',reason:'Use Review Activity Details.'},
-  {text:'Open Recruiting Health',reason:'Use Review Recruiting Health.'},
-  {text:'Open Connections',reason:'Use Review Connections.'},
+  {label:'Next Move / Next Moves',pattern:/\bNext Moves?\b/i,reason:'Use Next Step / Next Steps in user-facing copy.'},
+  {label:'Open Context',pattern:/\bOpen Context\b/i,reason:'Use a specific review/action label.'},
+  {label:'Take Action',pattern:/\bTake Action\b/i,reason:'Name the actual action.'},
+  {label:'exact-date',pattern:/\bexact-date\b/i,reason:'Avoid implementation language in user-facing copy.'},
+  {label:'exact date',pattern:/\bexact date\b/i,reason:'Use plain recruiting language instead.'},
+  {label:'Open Messages',pattern:/\bOpen Messages\b/i,reason:'Use Message Player(s) or Review Messages.'},
+  {label:'Open Player 360°',pattern:/\bOpen Player 360°/i,reason:'Use Review Player 360°.'},
+  {label:'Open School',pattern:/\bOpen School\b/i,reason:'Use Review School.'},
+  {label:'Open Coach Relationship',pattern:/\bOpen Coach Relationship\b/i,reason:'Use Review Coach Relationship.'},
+  {label:'View Activity Details',pattern:/\bView Activity Details\b/i,reason:'Use Review Activity Details.'},
+  {label:'Open Recruiting Health',pattern:/\bOpen Recruiting Health\b/i,reason:'Use Review Recruiting Health.'},
+  {label:'Open Connections',pattern:/\bOpen Connections\b/i,reason:'Use Review Connections.'},
 ];
 
 function walk(dir){
@@ -33,16 +33,15 @@ for(const file of roots.flatMap(walk)){
   const source=fs.readFileSync(file,'utf8');
   const lines=source.split(/\r?\n/);
   for(let i=0;i<lines.length;i++){
-    const lower=lines[i].toLowerCase();
     for(const rule of banned){
-      if(lower.includes(rule.text.toLowerCase()))findings.push({file,line:i+1,...rule,snippet:lines[i].trim().slice(0,220)});
+      if(rule.pattern.test(lines[i]))findings.push({file,line:i+1,...rule,snippet:lines[i].trim().slice(0,220)});
     }
   }
 }
 
 if(findings.length){
   console.error('\nUser-facing language audit failed:\n');
-  for(const f of findings)console.error(`${f.file}:${f.line}  "${f.text}"  ${f.reason}\n  ${f.snippet}\n`);
+  for(const f of findings)console.error(`${f.file}:${f.line}  "${f.label}"  ${f.reason}\n  ${f.snippet}\n`);
   process.exit(1);
 }
 console.log('User-facing language audit passed.');
