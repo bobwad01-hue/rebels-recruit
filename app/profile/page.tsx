@@ -25,7 +25,7 @@ const organizationLabel = (m: any) => {
     ? m.organizations[0]
     : m?.organizations;
   return [
-    o?.brand_name || o?.name,
+    o?.name,
     o?.branch_name,
     [o?.city, o?.state].filter(Boolean).join(", "),
   ]
