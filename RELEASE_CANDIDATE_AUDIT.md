@@ -2,7 +2,14 @@
 
 Last updated: 2026-09-11
 
-This is the working release-candidate audit for reliability, language, multi-organization behavior, multi-athlete parent behavior, legal/account lifecycle, scale, and operational readiness. A feature is not marked production-proven solely because its source architecture is correct.
+This is the working release-candidate audit for reliability, language, multi-organization behavior, multi-athlete parent behavior, legal/account lifecycle, scale, and operational readiness. A feature is not marked production-proven solely because its source architecture or synthetic fixture is correct.
+
+## Current release state
+
+- `main` commit `0c18676c7d813acf25a4f7d22190549ddf873f6d` completed the full GitHub Actions pipeline successfully after the Support multi-organization type fix.
+- The latest code remains subject to Vercel Hobby build-rate limiting. Do not call a newer commit production-deployed until Vercel reports success for that exact commit or a newer equivalent.
+- Production currently has 1 organization, a maximum of 10 active athletes in an organization, 1 advisor, 0 athletes with multiple active organization memberships, 0 parents with two or more active athlete links, 123 interactions total, and a current maximum of 121 interactions for one athlete.
+- Because production does not yet contain the larger/multi-context personas, automated fixtures are used as regression guards while real/safe production fixture validation remains open.
 
 ## Reliability standard
 
@@ -21,24 +28,27 @@ Rules:
 - Support diagnostics should capture state, not sensitive message content.
 
 ### Reliability work completed in this pass
-- Report Center already isolates dataset failures.
-- Parent Journey already uses an authorized feed and distinguishes failure from empty.
-- Parent Connections already preserves successfully loaded school/coach data when the other relationship dataset fails.
+- Report Center isolates dataset failures.
+- Parent Journey uses an authorized feed and distinguishes failure from empty.
+- Parent Connections preserves successfully loaded school/coach data when the other relationship dataset fails.
 - Manage Access distinguishes authentication failure, advisor-request load failure, partial advisor-profile failure, family-access load failure, family-profile partial failure, and true empty states.
 - Family access mutations show explicit save failures rather than silently reloading stale state.
 - Account deletion status explicitly distinguishes a failed status check from no deletion request.
 - Legal Acceptance report preserves partial results and identifies unavailable supporting datasets.
-- Support Cases page distinguishes permission, roster failure, case-load failure, partial profile failure, and true empty states.
+- Support Cases distinguishes permission, case-load failure, partial profile/history failure, true empty states, and organization context.
 - Athlete Organizations distinguishes authentication, membership load failure, imported-history matching failure, true empty membership, and mutation failures.
 - Parent Athlete Switcher distinguishes parent-access failure from a true single/no-athlete state and only accepts active authorized athlete IDs.
 - Advisor Tasks isolates organization membership, roster, player-profile, saved-group, group-membership, task-load and mutation failures.
-- Athlete Activity now distinguishes signed-out/access failure, activity-load failure, partial timezone failure, true empty activity, and a 500-record display bound.
-- Advisor Activity now distinguishes no staff/player access, roster/assignment failure, partial player-profile failure, activity-load failure, true empty scope, and a 1,500-record display bound.
-- Connections now keeps existing athlete school/coach relationships usable when the supporting school or coach search catalog fails.
-- Recruiting Health now calculates from available datasets when supporting data is partially unavailable, warns that the score may be incomplete, and only blocks the page when all required recruiting datasets fail.
+- Athlete Activity distinguishes signed-out/access failure, activity-load failure, partial timezone failure, true empty activity, and a 500-record display bound.
+- Advisor Activity distinguishes no staff/player access, roster/assignment failure, partial player-profile failure, activity-load failure, true empty scope, and a 1,500-record display bound.
+- Connections keeps existing athlete school/coach relationships usable when the supporting school or coach search catalog fails.
+- Recruiting Health calculates from available datasets when supporting data is partially unavailable, warns that the score may be incomplete, and only blocks the page when all required recruiting datasets fail.
+- Athlete Home, Advisor Home, Events, Messages, Videos, imports, School Fit Insights, and Parent Journey have explicit partial/failure handling where supporting data can fail independently.
 
-### Reliability work still requiring page-by-page regression QA
-Athlete Home, Advisor Home, Owner Command Center, Events, Messages, Videos, imports, and remaining Parent pages should be exercised with forced query failures. Existing pages that use large `Promise.all` loads must be checked for all-or-nothing behavior and converted to isolated results where needed.
+### Reliability work still requiring regression QA
+- Force query failures across the hardened major surfaces and remaining Parent/Owner edge paths.
+- Continue replacing all-or-nothing loads whenever future features add optional supporting datasets.
+- Physically validate failure-state layout and recovery actions on mobile and desktop.
 
 ## Language and CTA standard
 
@@ -57,27 +67,45 @@ Avoid generic action labels such as `Open`, `View`, `Take Action`, and `Open Con
 
 The canonical user-facing term is **Next Step / Next Steps**. Internal identifiers such as `next_step`, `next_moves`, and legacy anchors may remain for stability.
 
-### CTA/language work completed in this pass
-- Athlete Activity now uses `Log Activity`, `Edit Activity`, and `Delete Activity`, and uses `School` rather than generic College labeling.
-- Advisor Activity now uses `Review Player 360°`, `Review School`, `Review Coach Relationship`, and `Review Activity Details` rather than generic Open/View labels.
-- Connections uses review-oriented relationship language and continues to use School terminology.
-- Recruiting Health now uses `Review My Next Steps`, `Review This Factor`, `Review Your Schools`, `Review Coach Relationships`, and `Prepare for Upcoming Events`.
+### CTA/language work completed
+- Athlete Activity uses `Log Activity`, `Edit Activity`, and `Delete Activity`, and uses `School` rather than generic College labeling.
+- Advisor Activity uses `Review Player 360°`, `Review School`, `Review Coach Relationship`, and `Review Activity Details` rather than generic Open/View labels.
+- Connections uses review-oriented relationship language and School terminology.
+- Recruiting Health uses `Review My Next Steps`, `Review This Factor`, `Review Your Schools`, `Review Coach Relationships`, and `Prepare for Upcoming Events`.
 - Advisor Tasks uses clearer mutation language such as `Save Player Group` and `Mark Next Steps Complete`.
+- A permanent CI language audit blocks known regressions including `Next Move`, `Open Context`, `Take Action`, `Open Messages`, and technical exact-date wording.
 
-The remaining CTA sweep should continue through Athlete Home, Advisor Home, Game Plan, Events, Messages, Videos, imports, and remaining organization/admin surfaces. Do not blind-replace internal status values such as `open`.
+Continue the CTA sweep whenever user-facing UI changes. Do not blind-replace internal status values such as `open`.
+
+## Persona and access validation
+
+`npm run test:fixtures` now exercises the following release personas on every CI run:
+
+- Athlete with simultaneous Travel + High School organization memberships.
+- Leave one organization while preserving the other organization and all canonical recruiting data.
+- Safe rejoin without duplicate membership identity or recruiting data.
+- Parent with two athletes, persistent Parent navigation context, unauthorized athlete-ID rejection, and immediate fallback after revocation.
+- Advisor with 30 assigned athletes and no organization-wide access.
+- Owner with 100 athletes in one organization.
+- Cross-organization access denial for Advisor and Owner personas.
+- Brand-new athlete true-empty state.
+- Imported-but-unclaimed athlete requiring exact verified-email match rather than name matching, with provenance preserved after claim.
+
+These are deterministic authorization/regression fixtures. They do not replace authenticated browser testing against a safe Supabase environment.
 
 ## Multi-organization pressure test
 
-### Verified architecture
+### Verified architecture and automated fixture
 - `organization_members` permits multiple organizations per user and uniquely constrains membership per `(organization_id,user_id)` rather than per user.
 - `can_access_athlete()` grants organization access only when both the viewer and athlete have active membership in the same organization, with role/organization-view rules applied.
 - Canonical athlete recruiting records are athlete-owned rather than organization-owned.
-- Leaving one organization therefore removes that shared-organization access without deleting the athlete's canonical schools, coaches, Journey, events, Next Steps, or videos.
+- Automated CI verifies Travel + High School membership, leave-one-org revocation, preservation of the other org, preservation of canonical data, and safe rejoin.
+- Support cases are now explicitly organization-scoped, including Parent-aware routing through organizations belonging to linked athletes.
 
 ### Production fixture limitation
-The current production dataset has no user with more than one active organization membership. A real travel + high-school persona therefore cannot yet be called production-proven.
+Production currently has no user with more than one active organization membership. A real authenticated Travel + High School persona therefore cannot yet be called production-proven.
 
-### Required fixture test before commercial launch
+### Real fixture test still required before commercial launch
 1. Athlete joins Travel Org A and High School Org B.
 2. Both memberships are active simultaneously.
 3. Owner/Admin A can access athlete while Owner/Admin B can access athlete.
@@ -87,18 +115,20 @@ The current production dataset has no user with more than one active organizatio
 7. Athlete retains canonical recruiting data.
 8. Organization-specific assignments/import permissions from A no longer grant access.
 9. Rejoining A does not duplicate canonical recruiting records.
+10. Support cases route only to the selected/authorized organization.
 
 ## Parent multi-athlete pressure test
 
-### Verified architecture
+### Verified architecture and automated fixture
 - Parent context only selects from active `parent_guardian_access` rows.
 - A requested athlete ID that is not in the parent's active rows is not accepted; context falls back to an authorized athlete.
 - The parent athlete switcher stores the selected authorized athlete and writes the athlete ID to the URL.
+- CI verifies two-athlete switching across Parent routes and immediate fallback after one athlete link is revoked.
 
 ### Production fixture limitation
-Production currently has zero `parent_guardian_access` rows, so a real parent-with-two-athletes fixture is not available.
+Production currently has no parent with two active athlete links, so a real authenticated two-athlete Parent fixture is not yet available.
 
-### Required fixture test
+### Real fixture test still required
 1. Parent has active access to Athlete A and Athlete B.
 2. Switch A -> B on Parent Home.
 3. Navigate Connections, Goals & Next Steps, Journey, Events, Find Schools, and Videos.
@@ -108,19 +138,38 @@ Production currently has zero `parent_guardian_access` rows, so a real parent-wi
 
 ## Scale and performance
 
-Current production data is too small to prove commercial scale: approximately 12 profiles, 123 interactions, 70 athlete-school relationships, and 74 athlete-coach relationships at the time of this audit.
+Current production data is too small to prove commercial scale: the largest organization currently has 10 active athletes, and the largest individual recruiting history currently has 121 interactions.
 
-A synthetic CI smoke test now creates:
+Synthetic CI creates:
 - 100 athletes
 - 50,000 interactions
 - 2,000 athlete-school relationships
 - 1,200 athlete-coach relationships
 
-It validates basic aggregation correctness, a 5-second aggregation budget, and a 512 MB heap budget. This is a regression guard, not a substitute for database/browser load testing.
+It validates basic aggregation correctness, a 5-second aggregation budget, and a 512 MB heap budget. The persona fixture additionally verifies 30-player Advisor and 100-player Owner access rules. These are regression guards, not substitutes for database/browser load testing.
 
 Known scale risk: Advisor Home currently loads up to 4,000 interactions into the browser and performs repeated in-memory filtering. This should move toward database/server-side aggregation before large organizations are considered fully scale-proven.
 
-Additional bounded-view warnings now exist on Athlete Activity (500 most recent records) and Advisor Activity (1,500 most recent records) so a limit cannot silently masquerade as complete history.
+Additional bounded-view warnings exist on Athlete Activity (500 most recent records) and Advisor Activity (1,500 most recent records) so a limit cannot silently masquerade as complete history.
+
+## Spreadsheet import/export validation
+
+Automated CI now validates:
+- XLSX write/read round trip.
+- CSV embedded quote escaping and quoted multiline notes.
+- month-only and year-only recruiting date preservation.
+- malformed XLSX rejection.
+- 5,000-row workbook generation/read performance.
+- the explicit 10 MB client-side import guard boundary.
+
+Real production UI tests are still required for athlete import, team import, every major Report Center CSV/XLSX export, malformed upload messaging, and 10 MB rejection behavior.
+
+## Dependency security
+
+- Production dependency CI fails at `npm audit --omit=dev --audit-level=high`.
+- The previous high-severity PostCSS finding was mitigated through a safe package override rather than a forced major Next.js upgrade.
+- Current remaining audit findings are moderate transitive findings under `exceljs-hardened`/`uuid`; npm reports no direct fix through that dependency path.
+- Do not use `npm audit fix --force` without compatibility and security review.
 
 ## Legal and account lifecycle
 
@@ -154,8 +203,30 @@ Users can create a diagnostic support case from Settings for:
 - account deletion
 - other issues
 
+Operational controls now include:
+- organization-scoped support-case routing rather than reporter-membership inference.
+- Parent-aware routing to organizations belonging to actively linked athletes.
+- Owner/Admin organization switcher for staff who support more than one organization.
+- Open -> Investigating -> Resolved workflow with reopen support.
+- internal investigation/resolution notes.
+- immutable support-case event history.
+- audit logging for organization-membership and Parent/Guardian-access changes.
+- tightened audit-log read policy so organization-null audit entries are not broadly readable.
+
 The support snapshot records limited diagnostic facts such as active organization memberships, relationship counts, parent-link counts, and Google connection state. It does not copy recruiting message/note content into the diagnostic snapshot.
 
 Owner/Admin support diagnostics are available at `/organization/support`. Legal acceptance audit is available at `/organization/legal-acceptance`.
 
 See `SUPPORT_PLAYBOOK.md` for the investigation sequence and safety rules.
+
+## Remaining human/device release gates
+
+- Real authenticated two-organization athlete.
+- Real authenticated Parent with two athletes.
+- Real/safe Advisor organization with ~30 athletes.
+- Real/safe Owner organization with 100+ athletes.
+- Athlete with 500+ real/safe interactions.
+- End-to-end spreadsheet imports/exports in deployed production.
+- Forced backend failure QA on hardened surfaces.
+- iPhone Safari, Android Chrome, desktop Chrome, and Edge.
+- Counsel approval of Terms, Privacy, minor policy, retention/deletion policy, and deletion SLA.
