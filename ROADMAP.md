@@ -17,23 +17,26 @@ Built:
 - Athlete self-service signup requires age-13-or-older affirmation; immutable age attestation evidence is stored.
 - Account deletion request/cancel workflow is available from Settings. Requests do not automatically destroy data.
 - Support/audit foundation for lifecycle issues.
+- Release QA found and fixed a signup trigger issue that automatically enrolled every new account into the oldest organization. New accounts are now organization-neutral until an explicit authorized join/import/invitation workflow occurs (`20260912002613_stop_automatic_default_organization_membership.sql`).
+- The same trigger fix now preserves password-based Parent signup as `app_role='parent'` rather than silently converting Parent accounts to Athlete.
+- Rollback-only production-schema lifecycle QA verified current legal acceptance, deletion-request idempotency/cancellation, Parent role creation, and zero automatic organization memberships for a new Parent test account.
 
 Before commercial launch:
 - Have counsel review/finalize Terms and Privacy.
 - Confirm 13+ self-service policy and review state minor/privacy requirements in addition to COPPA.
 - Define retention periods for account data, legal acceptance evidence, audit records, and completed deletion requests.
 - Define deletion SLA and exceptions required for legal/security obligations.
-- Test password signup, Google signup, existing-user reacceptance, policy-version update, age gate, deletion request/cancel, and legal export end-to-end in production.
+- Test password signup, Google signup, existing-user reacceptance, policy-version update, age gate, deletion request/cancel, and legal export end-to-end in deployed browser flows.
 
 ### Release-candidate QA
 Status: IN PROGRESS. See `RELEASE_CANDIDATE_AUDIT.md`.
 
-- Latest release-candidate documentation/test commit `6a2cb6bfdefdd0e299185fbee4434a4c2502dc54` passed GitHub Actions and Vercel deployment successfully. The deployed app therefore includes the preceding Support multi-organization type fix at `0c18676c7d813acf25a4f7d22190549ddf873f6d` and prior release-hardening work.
+- Commit `6a2cb6bfdefdd0e299185fbee4434a4c2502dc54` passed GitHub Actions and Vercel deployment successfully; later lifecycle migration mirrors must be verified individually before being called deployed.
 - Real-device/browser QA: iPhone Safari, Android Chrome, desktop Chrome/Edge.
 - Test widths 375, 430, 768, 1024, 1280, ~1500.
 - Persona flows: Maia athlete; Maia parent; advisor 3 players; advisor 30 players; Owner 100+ players; brand-new player; imported-but-unclaimed player; two-organization athlete; parent with two daughters.
 - CI fixtures continuously verify two-organization, two-athlete-parent, Advisor-30, Owner-100, brand-new, and imported-unclaimed authorization/data invariants.
-- A rollback-only transaction against the live production schema also verified two-organization access before/after leaving one org, two-athlete Parent authorization/revocation, Advisor access to 30 assigned athletes, and Owner access to 100 athletes. The transaction was rolled back and a follow-up check confirmed zero QA auth users and zero QA organizations remained.
+- Rollback-only transactions against the live production schema verify multi-org authorization, Parent authorization/revocation, Advisor-30 and Owner-100 access, legal acceptance, deletion request/cancel, support routing/resolution/reopen, and Parent support routing. Follow-up checks confirmed no QA auth users, organizations, or support cases remained.
 - Real authenticated browser personas are still required before those scenarios are called fully production-proven.
 - Force query failures across major surfaces and verify empty vs no-access vs failed vs partially-unavailable states.
 - Continue CTA/language audit whenever UI changes.
@@ -47,7 +50,7 @@ Completed in current pass:
 - Manage Access and Family Access distinguish load failures, partial profile failures, mutation failures, permission/auth failure, and genuine empty states.
 - Legal Acceptance and Support Cases preserve useful partial data when supporting datasets fail.
 - Account deletion status distinguishes failure from no request.
-- Athlete Home, Advisor Home, Events, Activity, Connections, Recruiting Health, Messages, Videos, imports, School Fit Insights and Parent Journey now use explicit failure/partial-data states where applicable instead of silently presenting failed queries as empty data.
+- Athlete Home, Advisor Home, Events, Activity, Connections, Recruiting Health, Messages, Videos, imports, School Fit Insights and Parent Journey use explicit failure/partial-data states where applicable instead of silently presenting failed queries as empty data.
 - Report Center isolates dataset failures so unaffected reports remain usable.
 - Permanent CI language audit, access/persona fixtures, spreadsheet tests, security audit gate, and synthetic scale guard run before every production build.
 
@@ -99,6 +102,7 @@ Status: ARCHITECTURE + CI FIXTURE + ROLLBACK LIVE-SCHEMA TEST VERIFIED; REAL AUT
 - Canonical athlete recruiting data is athlete-owned, so leaving one organization does not delete recruiting history.
 - CI fixture verifies simultaneous Travel + High School membership, access loss for only the organization left, preserved access for the other organization, canonical recruiting-data preservation, and safe rejoin behavior.
 - A rollback-only production-schema transaction verified both Owners had access before leave, only the left organization lost access after leave, and the other organization retained access.
+- New accounts are no longer silently enrolled in a default organization. This closes a cross-organization isolation risk discovered during release QA.
 - Organization membership mutations write audit events.
 - Support cases are explicitly organization-scoped.
 - Production currently has no real user with >1 active organization membership, so browser behavior is not yet called fully production-proven.
@@ -109,6 +113,7 @@ Status: AUTHORIZATION + CI FIXTURE + ROLLBACK LIVE-SCHEMA TEST VERIFIED; REAL AU
 - Parent context selects only active authorized athlete links; unauthorized requested athlete IDs are not accepted.
 - CI fixture verifies switching between two authorized athletes, context persistence through Parent navigation, unauthorized athlete-ID rejection, and safe fallback after access revocation.
 - A rollback-only production-schema transaction verified a Parent could access two active daughters, could not access an unrelated athlete, and immediately lost access to one daughter after revocation.
+- Parent password signup now remains a Parent profile at account creation.
 - Parent/guardian access mutations write audit events.
 - Production currently has no real parent with two active athlete links, so browser behavior is not yet called fully production-proven.
 
@@ -124,11 +129,12 @@ Built:
 - Parents can route organization-specific support through organizations belonging to athletes they are actively authorized to access.
 - Owner/Admin support page at `/organization/support` supports organization switching, Open, Investigating, Resolved, Reopen, internal investigation notes, and event history.
 - Support status/note changes are recorded in `support_case_events` with actor and timestamp.
+- Release QA found and fixed a PostgreSQL `min(uuid)` bug in the single-organization auto-routing branch (`20260912002423_fix_support_case_auto_routing.sql`). Rollback-only production-schema QA now confirms single-organization auto-routing works.
 - Access-change audit hardening records organization membership and parent-access changes and restricts audit-log visibility to the actor or relevant active Owner/Admin.
 - `SUPPORT_PLAYBOOK.md` defines investigation, resolution, and least-destructive repair procedures.
 
 Remaining:
-- Test every support scenario end-to-end with real/safe authenticated fixtures and verify the resulting audit trail.
+- Test every support scenario end-to-end with real/safe authenticated browser fixtures and verify the resulting audit trail.
 - Define external support contact, SLA, and escalation ownership before commercial launch.
 
 ## P1 - Integrations
@@ -196,7 +202,9 @@ Status: CORE FLOW BUILT; CONTINUE QA.
 - Global user-facing terminology changed to Next Step / Next Steps. Public benefit message: "Know what to do next."
 - Spreadsheet parser/export security migration away from SheetJS, with hardened XLSX handling and upload-size limits.
 - Synthetic multi-org, parent-context, Advisor-30, Owner-100, brand-new athlete, imported-unclaimed athlete, spreadsheet, language, dependency-security, and scale checks are enforced in CI.
-- Rollback-only production-schema authorization test completed successfully with no QA fixture rows retained.
+- Rollback-only production-schema authorization/lifecycle tests completed successfully with no QA fixture rows retained.
+- Default organization auto-enrollment removed from new-account trigger; Parent role preserved at creation.
+- Single-organization support auto-routing fixed and transactionally validated.
 
 ## Roadmap maintenance rule
 
