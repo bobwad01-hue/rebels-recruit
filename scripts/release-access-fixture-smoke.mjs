@@ -28,6 +28,25 @@ function selectParentAthlete(parentId,requestedId,currentId,links){
 }
 function parentHref(path,athleteId){return `${path}?athlete=${encodeURIComponent(athleteId)}`}
 
+function claimImportedPlayer(importRow,user){
+  if(importRow.status!=='pending')return {claimed:false,reason:'not-pending'};
+  const importedEmail=String(importRow.email||'').trim().toLowerCase();
+  const verifiedEmail=String(user.verified_email||'').trim().toLowerCase();
+  if(!importedEmail||!verifiedEmail||importedEmail!==verifiedEmail)return {claimed:false,reason:'verified-email-mismatch'};
+  return {claimed:true,athlete_user_id:user.id,source_organization_id:importRow.organization_id,provenance:importRow.provenance};
+}
+
+function dashboardState({schools=[],interactions=[],nextSteps=[]}={}){
+  return {
+    hasRecruitingData:schools.length>0||interactions.length>0||nextSteps.length>0,
+    empty:schools.length===0&&interactions.length===0&&nextSteps.length===0,
+    schoolCount:schools.length,
+    interactionCount:interactions.length,
+    nextStepCount:nextSteps.length,
+  };
+}
+
+// Multi-organization athlete: travel + high school.
 const orgA='travel-org',orgB='high-school-org',athlete='athlete-1',ownerA='owner-a',ownerB='owner-b';
 let memberships=[
   {organization_id:orgA,user_id:athlete,role:'athlete',status:'active'},
@@ -50,6 +69,7 @@ assert.equal(canAccessAthlete(ownerA,athlete,memberships),true,'Rejoining Travel
 assert.equal(new Set(memberships.filter(m=>m.user_id===athlete).map(m=>`${m.organization_id}:${m.user_id}`)).size,2,'Rejoin must not create duplicate membership identities');
 assert.equal(JSON.stringify(canonicalRecruiting),before,'Rejoin must not duplicate canonical recruiting data');
 
+// Parent with two athletes, persistent authorized context, and revocation safety.
 const parent='parent-1',athleteA='daughter-a',athleteB='daughter-b',outsider='not-authorized';
 let links=[
   {parent_user_id:parent,athlete_user_id:athleteA,status:'active'},
@@ -65,4 +85,52 @@ links=links.map(x=>x.athlete_user_id===athleteB?{...x,status:'revoked'}:x);
 assert.deepEqual(parentAuthorizedAthletes(parent,links),[athleteA],'Revoked athlete must disappear immediately');
 assert.equal(selectParentAthlete(parent,athleteB,athleteB,links),athleteA,'After revocation, context must fall back to an authorized athlete');
 
-console.log(JSON.stringify({multiOrg:'passed',parentMultiAthlete:'passed',canonicalDataPreserved:true,unauthorizedParentContextBlocked:true},null,2));
+// Advisor with 30 assigned athletes. Assignment must be organization-scoped.
+const advisorOrg='advisor-org',advisor='advisor-30';
+const advisorAthletes=Array.from({length:30},(_,i)=>`advisor-athlete-${i+1}`);
+const advisorMemberships=[
+  {organization_id:advisorOrg,user_id:advisor,role:'advisor',status:'active',organization_view_access:false},
+  ...advisorAthletes.map(user_id=>({organization_id:advisorOrg,user_id,role:'athlete',status:'active'})),
+  {organization_id:'other-org',user_id:'other-athlete',role:'athlete',status:'active'},
+];
+const advisorAssignments=advisorAthletes.map(athlete_user_id=>({organization_id:advisorOrg,advisor_user_id:advisor,athlete_user_id,status:'active'}));
+assert.equal(advisorAthletes.filter(id=>canAccessAthlete(advisor,id,advisorMemberships,advisorAssignments)).length,30,'Advisor should access all 30 assigned athletes');
+assert.equal(canAccessAthlete(advisor,'other-athlete',advisorMemberships,advisorAssignments),false,'Advisor must not access an athlete from another organization');
+const oneRemoved=advisorAssignments.map((a,i)=>i===0?{...a,status:'revoked'}:a);
+assert.equal(canAccessAthlete(advisor,advisorAthletes[0],advisorMemberships,oneRemoved),false,'Revoked assignment must remove advisor access without organization-wide permission');
+
+// Owner/Admin scale persona with 100 athletes in one organization.
+const ownerOrg='owner-100-org',owner='owner-100';
+const ownerAthletes=Array.from({length:100},(_,i)=>`owner-athlete-${i+1}`);
+const ownerMemberships=[
+  {organization_id:ownerOrg,user_id:owner,role:'owner',status:'active'},
+  ...ownerAthletes.map(user_id=>({organization_id:ownerOrg,user_id,role:'athlete',status:'active'})),
+  {organization_id:'outside-org',user_id:'outside-athlete',role:'athlete',status:'active'},
+];
+assert.equal(ownerAthletes.filter(id=>canAccessAthlete(owner,id,ownerMemberships)).length,100,'Owner should access all 100 active athletes in the organization');
+assert.equal(canAccessAthlete(owner,'outside-athlete',ownerMemberships),false,'Owner must not access athletes with no shared organization');
+
+// Brand-new athlete should be a true empty state, not an error or fabricated activity state.
+const brandNew=dashboardState();
+assert.equal(brandNew.empty,true,'Brand-new athlete should render a genuine empty recruiting state');
+assert.equal(brandNew.hasRecruitingData,false,'Brand-new athlete must not appear to have recruiting activity');
+
+// Imported-but-unclaimed athlete must never be claimed by name alone.
+const imported={status:'pending',email:'player@example.com',name:'Same Name',organization_id:'import-org',provenance:{source:'team_import',row:7}};
+assert.deepEqual(claimImportedPlayer(imported,{id:'wrong-user',verified_email:'different@example.com'}),{claimed:false,reason:'verified-email-mismatch'},'A name match or different email must never claim imported history');
+const claim=claimImportedPlayer(imported,{id:'claimed-user',verified_email:'Player@Example.com'});
+assert.equal(claim.claimed,true,'Exact verified email should allow the pending import to be claimed');
+assert.equal(claim.athlete_user_id,'claimed-user');
+assert.deepEqual(claim.provenance,imported.provenance,'Import provenance must survive claim');
+
+console.log(JSON.stringify({
+  multiOrg:'passed',
+  parentMultiAthlete:'passed',
+  advisor30:'passed',
+  owner100:'passed',
+  brandNewAthlete:'passed',
+  importedUnclaimed:'passed',
+  canonicalDataPreserved:true,
+  unauthorizedParentContextBlocked:true,
+  crossOrganizationAccessBlocked:true
+},null,2));
