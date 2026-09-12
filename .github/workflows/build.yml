@@ -4,6 +4,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,6 +15,17 @@ jobs:
         with:
           node-version: 22
       - run: npm install
+      - name: Migrate organization activity reliability
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          node scripts/migrate-organization-activity-feed.mjs
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add app/organization/OrganizationCommandCenter.tsx
+            git commit -m "Harden organization activity loading"
+            git push
+          fi
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run audit:language
       - run: npm run test:fixtures
