@@ -83,6 +83,7 @@ export async function GET() {
           .from("teams")
           .select("id,name,organization_id,age_group")
           .in("organization_id", orgIds)
+          .is("archived_at", null)
           .order("name")
       : { data: [], error: null };
     if (teamError) throw new Error(teamError.message);
