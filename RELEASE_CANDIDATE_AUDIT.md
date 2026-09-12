@@ -6,10 +6,10 @@ This is the working release-candidate audit for reliability, language, multi-org
 
 ## Current release state
 
-- `main` commit `0c18676c7d813acf25a4f7d22190549ddf873f6d` completed the full GitHub Actions pipeline successfully after the Support multi-organization type fix.
-- The latest code remains subject to Vercel Hobby build-rate limiting. Do not call a newer commit production-deployed until Vercel reports success for that exact commit or a newer equivalent.
+- `main` release-candidate code has completed the full GitHub Actions pipeline successfully after the Support multi-organization type fix.
+- Vercel successfully deployed commit `6a2cb6bfdefdd0e299185fbee4434a4c2502dc54`; later migration-mirror/doc commits must still be checked individually before they are called deployed.
 - Production currently has 1 organization, a maximum of 10 active athletes in an organization, 1 advisor, 0 athletes with multiple active organization memberships, 0 parents with two or more active athlete links, 123 interactions total, and a current maximum of 121 interactions for one athlete.
-- Because production does not yet contain the larger/multi-context personas, automated fixtures are used as regression guards while real/safe production fixture validation remains open.
+- Because production does not yet contain the larger/multi-context personas, automated fixtures and rollback-only production-schema transactions are used as regression guards while real authenticated browser fixture validation remains open.
 
 ## Reliability standard
 
@@ -93,48 +93,42 @@ Continue the CTA sweep whenever user-facing UI changes. Do not blind-replace int
 
 These are deterministic authorization/regression fixtures. They do not replace authenticated browser testing against a safe Supabase environment.
 
+### Rollback-only production-schema authorization test
+
+A transaction was run against the real production schema and rolled back completely. It verified:
+- both organization Owners could access a two-org athlete before one membership was left.
+- the left organization immediately lost access while the other retained access.
+- Parent access to two linked athletes succeeded and unrelated-athlete access failed.
+- revoking one Parent link immediately removed that athlete authorization.
+- an Advisor could access exactly 30 assigned athletes.
+- an Owner could access all 100 athletes in the test organization.
+
+A follow-up query confirmed zero QA auth users and zero QA organizations remained after rollback.
+
 ## Multi-organization pressure test
 
-### Verified architecture and automated fixture
+### Verified architecture and automated/schema fixtures
 - `organization_members` permits multiple organizations per user and uniquely constrains membership per `(organization_id,user_id)` rather than per user.
 - `can_access_athlete()` grants organization access only when both the viewer and athlete have active membership in the same organization, with role/organization-view rules applied.
 - Canonical athlete recruiting records are athlete-owned rather than organization-owned.
 - Automated CI verifies Travel + High School membership, leave-one-org revocation, preservation of the other org, preservation of canonical data, and safe rejoin.
-- Support cases are now explicitly organization-scoped, including Parent-aware routing through organizations belonging to linked athletes.
+- Rollback-only production-schema QA independently verifies the shared-organization authorization behavior.
+- Support cases are explicitly organization-scoped, including Parent-aware routing through organizations belonging to linked athletes.
 
 ### Production fixture limitation
-Production currently has no user with more than one active organization membership. A real authenticated Travel + High School persona therefore cannot yet be called production-proven.
-
-### Real fixture test still required before commercial launch
-1. Athlete joins Travel Org A and High School Org B.
-2. Both memberships are active simultaneously.
-3. Owner/Admin A can access athlete while Owner/Admin B can access athlete.
-4. Athlete leaves A.
-5. A immediately loses athlete access.
-6. B retains access.
-7. Athlete retains canonical recruiting data.
-8. Organization-specific assignments/import permissions from A no longer grant access.
-9. Rejoining A does not duplicate canonical recruiting records.
-10. Support cases route only to the selected/authorized organization.
+Production currently has no real user with more than one active organization membership. A real authenticated Travel + High School browser persona therefore cannot yet be called fully production-proven.
 
 ## Parent multi-athlete pressure test
 
-### Verified architecture and automated fixture
+### Verified architecture and automated/schema fixtures
 - Parent context only selects from active `parent_guardian_access` rows.
 - A requested athlete ID that is not in the parent's active rows is not accepted; context falls back to an authorized athlete.
 - The parent athlete switcher stores the selected authorized athlete and writes the athlete ID to the URL.
 - CI verifies two-athlete switching across Parent routes and immediate fallback after one athlete link is revoked.
+- Rollback-only production-schema QA independently verifies two active links, unrelated-athlete denial, and immediate revocation behavior.
 
 ### Production fixture limitation
-Production currently has no parent with two active athlete links, so a real authenticated two-athlete Parent fixture is not yet available.
-
-### Real fixture test still required
-1. Parent has active access to Athlete A and Athlete B.
-2. Switch A -> B on Parent Home.
-3. Navigate Connections, Goals & Next Steps, Journey, Events, Find Schools, and Videos.
-4. Confirm every page remains on B.
-5. Paste an unauthorized athlete ID into the URL and confirm no unauthorized data is shown.
-6. Revoke B access and confirm B disappears immediately while A remains usable.
+Production currently has no real parent with two active athlete links, so authenticated browser behavior is not yet fully production-proven.
 
 ## Scale and performance
 
@@ -146,7 +140,7 @@ Synthetic CI creates:
 - 2,000 athlete-school relationships
 - 1,200 athlete-coach relationships
 
-It validates basic aggregation correctness, a 5-second aggregation budget, and a 512 MB heap budget. The persona fixture additionally verifies 30-player Advisor and 100-player Owner access rules. These are regression guards, not substitutes for database/browser load testing.
+It validates basic aggregation correctness, a 5-second aggregation budget, and a 512 MB heap budget. The persona fixture additionally verifies 30-player Advisor and 100-player Owner access rules. A rollback-only production-schema test independently verified the same 30/100 authorization path through the real `can_access_athlete()` function. These are regression guards, not substitutes for browser load testing.
 
 Known scale risk: Advisor Home currently loads up to 4,000 interactions into the browser and performs repeated in-memory filtering. This should move toward database/server-side aggregation before large organizations are considered fully scale-proven.
 
@@ -154,7 +148,7 @@ Additional bounded-view warnings exist on Athlete Activity (500 most recent reco
 
 ## Spreadsheet import/export validation
 
-Automated CI now validates:
+Automated CI validates:
 - XLSX write/read round trip.
 - CSV embedded quote escaping and quoted multiline notes.
 - month-only and year-only recruiting date preservation.
@@ -182,6 +176,27 @@ Implemented foundation:
 - Account deletion request/cancel workflow. Submission does not immediately destroy data.
 - Owner/Admin Legal Acceptance report with CSV export.
 
+### Lifecycle bugs found and fixed during release QA
+
+**Default organization auto-enrollment:** the auth-user trigger previously inserted every new account into the oldest organization automatically. That violated player-owned multi-organization isolation and also meant newly created accounts were not organization-neutral. Migration `20260912002613_stop_automatic_default_organization_membership.sql` removes automatic organization membership. Organization access now requires an explicit join, approved import claim, invitation, or other authorized workflow.
+
+**Parent signup role:** the same trigger previously allowed only `athlete` or `advisor`, silently converting password-based Parent signup metadata to `athlete`. The migration now preserves `parent` as a valid profile role.
+
+Rollback-only production-schema QA confirmed a newly inserted Parent test account received `app_role='parent'` and zero automatic organization memberships.
+
+### Transactional lifecycle QA
+
+Rollback-only production-schema QA also verified:
+- current legal acceptance changes from false to true after acceptance.
+- repeated account-deletion requests are idempotent while one is active.
+- deletion cancellation succeeds once and does not falsely succeed a second time.
+- support cases auto-route when exactly one authorized organization exists.
+- Owner/Admin can move a support case through Investigating -> Resolved -> Open.
+- support status/note actions create immutable support-case events.
+- a Parent can route a support case through an organization belonging to an actively linked athlete.
+
+A follow-up query confirmed zero QA auth users, organizations, and support cases remained after rollback.
+
 Product policy for release candidate: athlete self-service signup is 13+. Under-13 athlete accounts are not supported unless a future counsel-reviewed COPPA parental-consent flow is intentionally built.
 
 Still requires counsel/business approval before commercial launch:
@@ -203,7 +218,7 @@ Users can create a diagnostic support case from Settings for:
 - account deletion
 - other issues
 
-Operational controls now include:
+Operational controls include:
 - organization-scoped support-case routing rather than reporter-membership inference.
 - Parent-aware routing to organizations belonging to actively linked athletes.
 - Owner/Admin organization switcher for staff who support more than one organization.
@@ -212,6 +227,8 @@ Operational controls now include:
 - immutable support-case event history.
 - audit logging for organization-membership and Parent/Guardian-access changes.
 - tightened audit-log read policy so organization-null audit entries are not broadly readable.
+
+Release QA found that the original single-organization auto-route branch used `min(uuid)`, which PostgreSQL does not support. Migration `20260912002423_fix_support_case_auto_routing.sql` replaces that branch with a count plus single-row selection. Rollback-only production-schema QA now confirms single-organization auto-routing succeeds.
 
 The support snapshot records limited diagnostic facts such as active organization memberships, relationship counts, parent-link counts, and Google connection state. It does not copy recruiting message/note content into the diagnostic snapshot.
 
