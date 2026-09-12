@@ -28,10 +28,13 @@ Before commercial launch:
 ### Release-candidate QA
 Status: IN PROGRESS. See `RELEASE_CANDIDATE_AUDIT.md`.
 
+- Latest release-candidate documentation/test commit `6a2cb6bfdefdd0e299185fbee4434a4c2502dc54` passed GitHub Actions and Vercel deployment successfully. The deployed app therefore includes the preceding Support multi-organization type fix at `0c18676c7d813acf25a4f7d22190549ddf873f6d` and prior release-hardening work.
 - Real-device/browser QA: iPhone Safari, Android Chrome, desktop Chrome/Edge.
 - Test widths 375, 430, 768, 1024, 1280, ~1500.
 - Persona flows: Maia athlete; Maia parent; advisor 3 players; advisor 30 players; Owner 100+ players; brand-new player; imported-but-unclaimed player; two-organization athlete; parent with two daughters.
-- Synthetic CI fixtures now continuously verify the core two-organization and two-athlete-parent authorization/context invariants, but real production personas are still required before those scenarios are called production-proven.
+- CI fixtures continuously verify two-organization, two-athlete-parent, Advisor-30, Owner-100, brand-new, and imported-unclaimed authorization/data invariants.
+- A rollback-only transaction against the live production schema also verified two-organization access before/after leaving one org, two-athlete Parent authorization/revocation, Advisor access to 30 assigned athletes, and Owner access to 100 athletes. The transaction was rolled back and a follow-up check confirmed zero QA auth users and zero QA organizations remained.
+- Real authenticated browser personas are still required before those scenarios are called fully production-proven.
 - Force query failures across major surfaces and verify empty vs no-access vs failed vs partially-unavailable states.
 - Continue CTA/language audit whenever UI changes.
 
@@ -46,7 +49,7 @@ Completed in current pass:
 - Account deletion status distinguishes failure from no request.
 - Athlete Home, Advisor Home, Events, Activity, Connections, Recruiting Health, Messages, Videos, imports, School Fit Insights and Parent Journey now use explicit failure/partial-data states where applicable instead of silently presenting failed queries as empty data.
 - Report Center isolates dataset failures so unaffected reports remain usable.
-- Permanent CI language audit, access fixture tests, spreadsheet round-trip tests, security audit gate, and synthetic scale guard run before every production build.
+- Permanent CI language audit, access/persona fixtures, spreadsheet tests, security audit gate, and synthetic scale guard run before every production build.
 
 Remaining:
 - Force-failure regression QA across the hardened surfaces and remaining Parent/Owner edge paths.
@@ -61,12 +64,12 @@ Completed:
 - Athlete and organization recruiting-history imports accept `.xlsx` and `.csv`; legacy binary `.xls` is intentionally no longer accepted.
 - Added a 10 MB client-side upload limit before workbook parsing.
 - CSV parsing preserves quoted fields and embedded line breaks.
-- Automated CI spreadsheet tests verify XLSX round-trip, quoted/multiline notes, and month/year historical date strings.
+- Automated CI spreadsheet tests verify XLSX round-trip, quoted/multiline notes, month/year historical date strings, malformed XLSX rejection, and a 5,000-row workbook workload.
 - Server-side interaction export cleans historical import keys and uses School terminology.
-- PostCSS is pinned/overridden to a patched release, and CI now blocks high-severity production dependency audit findings.
+- PostCSS is pinned/overridden to a patched release, and CI blocks high-severity production dependency audit findings.
 
 Remaining:
-- Regression-test representative real-world `.xlsx` and `.csv` imports, malformed files, 10 MB rejection, and every XLSX export in production.
+- Regression-test representative real-world `.xlsx` and `.csv` imports, malformed files, 10 MB rejection, and every XLSX export in production UI.
 - A moderate transitive `uuid` advisory remains under `exceljs-hardened`; keep it under review and do not use `npm audit fix --force` without compatibility/security review.
 
 ### Exports / Report Center
@@ -78,31 +81,36 @@ Status: STRUCTURAL HARDENING BUILT; LARGE-SCALE VALIDATION REMAINS.
 - Consider server/database-side report generation if browser generation becomes a bottleneck.
 
 ### Performance / scale
-Status: SYNTHETIC CI GUARD PASSING; REAL LOAD TESTING REMAINS.
+Status: SYNTHETIC + AUTHORIZATION-SCHEMA GUARDS PASSING; REAL BROWSER LOAD TESTING REMAINS.
 
 - CI runs `npm run test:scale` with 100 athletes, 50,000 interactions, 2,000 athlete-school relationships, and 1,200 athlete-coach relationships.
+- CI access fixtures validate Advisor 30-player and Owner 100-player authorization behavior.
+- A rollback-only live-schema transaction independently verified `can_access_athlete()` for 30 assigned Advisor athletes and 100 Owner athletes.
 - Production query indexes were added for athlete reminders, parent access, organization advisor assignments, and athlete-event status (`20260911230500_release_candidate_query_indexes.sql`).
-- Test Advisor Home with 30+ real/safe fixture players and Owner/Admin with 100+.
+- Test Advisor Home with 30+ real/safe browser fixture players and Owner/Admin with 100+.
 - Test athlete with 500+ interactions and large Report Center exports.
 - Advisor Home still loads up to 4,000 interactions and performs repeated browser-side filtering. Move expensive organization intelligence/history aggregation server/database-side before large-org scale is called proven.
 
 ### Multi-organization end-to-end validation
-Status: ARCHITECTURE + SYNTHETIC FIXTURE VERIFIED; REAL TWO-ORG PRODUCTION PERSONA REMAINS.
+Status: ARCHITECTURE + CI FIXTURE + ROLLBACK LIVE-SCHEMA TEST VERIFIED; REAL AUTHENTICATED BROWSER PERSONA REMAINS.
 
 - `organization_members` supports multiple active organizations per user.
 - `can_access_athlete()` requires active shared organization membership/authorized advisor access.
 - Canonical athlete recruiting data is athlete-owned, so leaving one organization does not delete recruiting history.
 - CI fixture verifies simultaneous Travel + High School membership, access loss for only the organization left, preserved access for the other organization, canonical recruiting-data preservation, and safe rejoin behavior.
-- Organization membership mutations now write audit events.
-- Production currently has no user with >1 active organization membership, so this is not yet called production-proven.
+- A rollback-only production-schema transaction verified both Owners had access before leave, only the left organization lost access after leave, and the other organization retained access.
+- Organization membership mutations write audit events.
+- Support cases are explicitly organization-scoped.
+- Production currently has no real user with >1 active organization membership, so browser behavior is not yet called fully production-proven.
 
 ### Parent multi-athlete validation
-Status: AUTHORIZATION + SYNTHETIC FIXTURE VERIFIED; REAL TWO-ATHLETE PRODUCTION PERSONA REMAINS.
+Status: AUTHORIZATION + CI FIXTURE + ROLLBACK LIVE-SCHEMA TEST VERIFIED; REAL AUTHENTICATED TWO-ATHLETE BROWSER PERSONA REMAINS.
 
 - Parent context selects only active authorized athlete links; unauthorized requested athlete IDs are not accepted.
 - CI fixture verifies switching between two authorized athletes, context persistence through Parent navigation, unauthorized athlete-ID rejection, and safe fallback after access revocation.
-- Parent/guardian access mutations now write audit events.
-- Production currently has zero active `parent_guardian_access` rows, so this is not yet called production-proven.
+- A rollback-only production-schema transaction verified a Parent could access two active daughters, could not access an unrelated athlete, and immediately lost access to one daughter after revocation.
+- Parent/guardian access mutations write audit events.
+- Production currently has no real parent with two active athlete links, so browser behavior is not yet called fully production-proven.
 
 ## P1 - Operational readiness
 
@@ -113,13 +121,14 @@ Built:
 - Diagnostic categories for missing athlete, wrong organization access, missing import history, Google disconnect, wrong team, parent access, account deletion, and other.
 - Limited diagnostic snapshots capture memberships/counts/connection state without copying recruiting-message content.
 - Multi-organization users can select the organization a support issue belongs to; organization-specific cases are stored with that organization and Owner/Admin diagnostics are scoped directly by `organization_id`.
-- Owner/Admin support page at `/organization/support` supports Open, Investigating, Resolved, Reopen, and internal investigation notes.
+- Parents can route organization-specific support through organizations belonging to athletes they are actively authorized to access.
+- Owner/Admin support page at `/organization/support` supports organization switching, Open, Investigating, Resolved, Reopen, internal investigation notes, and event history.
 - Support status/note changes are recorded in `support_case_events` with actor and timestamp.
 - Access-change audit hardening records organization membership and parent-access changes and restricts audit-log visibility to the actor or relevant active Owner/Admin.
 - `SUPPORT_PLAYBOOK.md` defines investigation, resolution, and least-destructive repair procedures.
 
 Remaining:
-- Test every support scenario end-to-end with real/safe fixtures and verify the resulting audit trail.
+- Test every support scenario end-to-end with real/safe authenticated fixtures and verify the resulting audit trail.
 - Define external support contact, SLA, and escalation ownership before commercial launch.
 
 ## P1 - Integrations
@@ -186,7 +195,8 @@ Status: CORE FLOW BUILT; CONTINUE QA.
 - Report Center structural failure isolation/date-precision work.
 - Global user-facing terminology changed to Next Step / Next Steps. Public benefit message: "Know what to do next."
 - Spreadsheet parser/export security migration away from SheetJS, with hardened XLSX handling and upload-size limits.
-- Synthetic multi-org, parent-context, spreadsheet round-trip, language, dependency-security, and scale checks are enforced in CI.
+- Synthetic multi-org, parent-context, Advisor-30, Owner-100, brand-new athlete, imported-unclaimed athlete, spreadsheet, language, dependency-security, and scale checks are enforced in CI.
+- Rollback-only production-schema authorization test completed successfully with no QA fixture rows retained.
 
 ## Roadmap maintenance rule
 
