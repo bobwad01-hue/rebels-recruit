@@ -113,7 +113,7 @@ export default async function Dashboard({
     admin
       .from("interactions")
       .select(
-        "id,athlete_user_id,coach_id,college_id,type,note,date,date_precision,date_year,date_month,created_at,initiated_by,colleges(name),college_coaches(first_name,last_name)",
+        "id,athlete_user_id,coach_id,college_id,type,note,date,date_precision,date_year,date_month,created_at,initiated_by",
       )
       .eq("athlete_user_id", uid)
       .order("date", { ascending: false, nullsFirst: false })
@@ -178,6 +178,19 @@ export default async function Dashboard({
     invitations.error && "advisor requests",
     milestoneRows.error && "Journey milestones",
   ].filter(Boolean) as string[];
+  if (interactions.error)
+    console.error(
+      JSON.stringify({
+        level: "error",
+        message: "Dashboard recruiting activity query failed",
+        route: "/dashboard",
+        source: "interactions",
+        code: interactions.error.code,
+        error: interactions.error.message,
+        details: interactions.error.details,
+        hint: interactions.error.hint,
+      }),
+    );
   if ((interactions.data || []).length === 200)
     sourceIssues.push(
       "older recruiting activity beyond the 200 most recent records used for this snapshot",
@@ -188,6 +201,23 @@ export default async function Dashboard({
     activeCoaches = (coachRelationships.data || []).filter(
       (x: any) => !x.archived_at,
     );
+  const interactionCollegeMap = new Map(
+    (colleges.data || []).map((row: any) => [
+      row.college_id,
+      one(row.colleges),
+    ]),
+  );
+  const interactionCoachMap = new Map(
+    (coachRelationships.data || []).map((row: any) => [
+      row.coach_id,
+      one(row.college_coaches),
+    ]),
+  );
+  const interactionRows = (interactions.data || []).map((row: any) => ({
+    ...row,
+    colleges: interactionCollegeMap.get(row.college_id) || null,
+    college_coaches: interactionCoachMap.get(row.coach_id) || null,
+  }));
   const eventRows = (athleteEvents.data || [])
     .map((r: any) => one(r.events))
     .filter(Boolean);
@@ -220,14 +250,14 @@ export default async function Dashboard({
   const intelligence = buildRecruitingIntelligence({
     colleges: activeColleges,
     coaches: activeCoaches,
-    interactions: interactions.data || [],
+    interactions: interactionRows,
     reminders: reminders.data || [],
     tasks: tasks.data || [],
     events: eventRows,
   });
   const insights = buildRelationshipInsights(
     activeCoaches,
-    interactions.data || [],
+    interactionRows,
   ).sort((a, b) => b.score - a.score);
   const today = new Date().toISOString().slice(0, 10);
   const personalUpcoming = eventRows.filter(
@@ -242,7 +272,7 @@ export default async function Dashboard({
   const name = profile.data?.full_name?.split(" ")[0];
   const timezone = profile.data?.timezone || DEFAULT_TIMEZONE;
   const greeting = getGreetingForTimezone(timezone);
-  const recent = (interactions.data || []).slice(0, 6);
+  const recent = interactionRows.slice(0, 6);
   const milestoneData = (milestoneRows.data || []).map((m: any) => ({
     ...m,
     stage: normalizeJourneyStage(m.metadata?.stage),
