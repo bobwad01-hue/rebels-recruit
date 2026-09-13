@@ -61,6 +61,8 @@ export default function CoachActionBar({
   const c = createClient(),
     params = useSearchParams(),
     opened = useRef(false),
+    draftReady = useRef(false),
+    draftKey = `rr-email-draft:${athleteUserId || "self"}:${coachId}`,
     requested = params.get("emailStarter") as EmailStarterId | null,
     requestedValid = EMAIL_STARTERS.some((s) => s.id === requested),
     effectiveStarter =
@@ -75,6 +77,7 @@ export default function CoachActionBar({
     [openingIndex, setOpeningIndex] = useState(0),
     [profile, setProfile] = useState<any>(null),
     [message, setMessage] = useState(""),
+    [draftNotice, setDraftNotice] = useState(""),
     [emailStatus, setEmailStatus] = useState<"idle" | "success" | "error">(
       "idle",
     ),
@@ -244,11 +247,31 @@ export default function CoachActionBar({
   function openEmail(id: EmailStarterId = effectiveStarter) {
     if (!email) return;
     setMessage("");
+    setDraftNotice("");
     setEmailStatus("idle");
     setAttachments([]);
     setCcCoachIds([]);
     setEmailOpen(true);
-    buildStarter(id);
+    let recovered = false;
+    try {
+      const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
+      if (saved?.subject && saved?.body) {
+        setSubject(String(saved.subject));
+        setBody(String(saved.body));
+        setBodyHtml(String(saved.bodyHtml || ""));
+        setStarter(
+          EMAIL_STARTERS.some((item) => item.id === saved.starter)
+            ? saved.starter
+            : id,
+        );
+        setOpeningIndex(Number(saved.openingIndex || 0));
+        setCcCoachIds(Array.isArray(saved.ccCoachIds) ? saved.ccCoachIds : []);
+        setDraftNotice("Your saved draft was recovered.");
+        recovered = true;
+      }
+    } catch {}
+    draftReady.current = true;
+    if (!recovered) buildStarter(id);
     loadSchoolCoaches();
     checkGmailConnection();
   }
@@ -258,6 +281,32 @@ export default function CoachActionBar({
       openEmail(effectiveStarter);
     }
   }, [shouldAutoOpen, email, effectiveStarter]);
+  useEffect(() => {
+    if (!emailOpen || !draftReady.current || (!subject && !body)) return;
+    try {
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          subject,
+          body,
+          bodyHtml,
+          starter,
+          openingIndex,
+          ccCoachIds,
+          savedAt: new Date().toISOString(),
+        }),
+      );
+    } catch {}
+  }, [
+    emailOpen,
+    draftKey,
+    subject,
+    body,
+    bodyHtml,
+    starter,
+    openingIndex,
+    ccCoachIds,
+  ]);
   async function sendEmail() {
     const ctx = await context();
     if (!ctx) {
@@ -317,6 +366,10 @@ export default function CoachActionBar({
         return;
       }
       setEmailStatus("success");
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {}
+      setDraftNotice("");
       setMessage(
         d.logged
           ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""} and logged in Activity.`
@@ -489,6 +542,11 @@ export default function CoachActionBar({
                     Use a Rebels starter, rewrite it, or write your own. You can
                     also include other known coaches from this school.
                   </p>
+                  {draftNotice && (
+                    <p className="mt-2 text-xs font-bold text-green-700">
+                      {draftNotice}
+                    </p>
+                  )}
                 </div>
                 <button
                   type="button"
