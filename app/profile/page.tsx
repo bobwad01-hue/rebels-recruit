@@ -52,7 +52,9 @@ export default function Profile() {
     [timezone, setTimezone] = useState(DEFAULT_TIMEZONE),
     [isOnboarding, setIsOnboarding] = useState(false),
     [msg, setMsg] = useState(""),
-    [saving, setSaving] = useState(false);
+    [saving, setSaving] = useState(false),
+    [loading, setLoading] = useState(true),
+    [loadError, setLoadError] = useState("");
   const [xTwitter, setXTwitter] = useState(""),
     [sportsRecruitsUrl, setSportsRecruitsUrl] = useState(""),
     [travelTeamCoachName, setTravelTeamCoachName] = useState(""),
@@ -70,9 +72,15 @@ export default function Profile() {
       const c = createClient();
       const {
         data: { user },
+        error: authError,
       } = await c.auth.getUser();
+      if (authError || !user) {
+        setLoadError("Your profile could not be loaded. Please try again.");
+        setLoading(false);
+        return;
+      }
       setEmail(user?.email || "");
-      const [{ data: p }, { data: a }, teamResRaw, sigResRaw] =
+      const [profileResult, athleteResult, teamResponse, signatureResponse] =
         await Promise.all([
           c
             .from("profiles")
@@ -84,11 +92,25 @@ export default function Profile() {
             .select("*")
             .eq("user_id", user?.id)
             .maybeSingle(),
-          fetch("/api/profile/team").then(async (r) => await r.json()),
-          fetch("/api/profile/email-signature").then(async (r) =>
-            r.ok ? await r.json() : {},
-          ),
+          fetch("/api/profile/team"),
+          fetch("/api/profile/email-signature"),
         ]);
+      if (
+        profileResult.error ||
+        athleteResult.error ||
+        !teamResponse.ok ||
+        !signatureResponse.ok
+      ) {
+        setLoadError(
+          "Your complete profile could not be loaded. No changes have been made. Please try again.",
+        );
+        setLoading(false);
+        return;
+      }
+      const p = profileResult.data,
+        a = athleteResult.data;
+      const teamResRaw = await teamResponse.json();
+      const sigResRaw = await signatureResponse.json();
       const teamRes = teamResRaw as {
         organizations?: any[];
         teams?: any[];
@@ -138,6 +160,7 @@ export default function Profile() {
         setBats(m[2].toUpperCase());
         setSlaps(/slap/i.test(s.throwBat));
       }
+      setLoading(false);
     })();
   }, []);
   function togglePosition(p: string) {
@@ -284,348 +307,368 @@ export default function Profile() {
             <ChevronRight size={18} />
           </Link>
         )}
-        <form onSubmit={save} className="space-y-5">
-          <section className="card p-5 sm:p-6">
-            <div className="mb-5">
-              <h2 className="font-black text-lg">Profile essentials</h2>
-              <p className="muted text-sm mt-1">
-                All fields below are required. These details drive
-                personalization, filtering and your recruiting identity.
-              </p>
-            </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <label>
-                <b className="text-sm">Full name *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
-              <label>
-                <b className="text-sm">Phone number *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </label>
-              <label>
-                <b className="text-sm">Class year *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  type="number"
-                  value={classYear}
-                  onChange={(e) => setClassYear(e.target.value)}
-                />
-              </label>
-              <label>
-                <b className="text-sm">Jersey number *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={jerseyNumber}
-                  onChange={(e) =>
-                    setJerseyNumber(e.target.value.replace(/^#/, ""))
-                  }
-                />
-              </label>
-              <label>
-                <b className="text-sm">Organization *</b>
-                <input
-                  required
-                  list="organization-options"
-                  className="input mt-1"
-                  value={organizationSearch}
-                  onChange={(e) => {
-                    setOrganizationSearch(e.target.value);
-                    const match = organizations.find(
-                      (m: any) =>
-                        organizationLabel(m) === e.target.value &&
-                        m.status === "active",
-                    );
-                    setOrganizationId(match?.organization_id || "");
-                    setTeamId("");
-                  }}
-                  placeholder="Search your organizations"
-                />
-                <datalist id="organization-options">
-                  {organizations
-                    .filter((m: any) => m.status === "active")
-                    .map((m: any) => (
-                      <option
-                        key={m.organization_id}
-                        value={organizationLabel(m)}
-                      />
-                    ))}
-                </datalist>
-                <span className="muted text-xs mt-1 block">
-                  Each branch is private to its own owners and staff.{" "}
-                  <Link href="/organizations" className="font-bold underline">
-                    Manage organization access
-                  </Link>
-                </span>
-              </label>
-              <label>
-                <b className="text-sm">Team *</b>
-                <select
-                  required
-                  className="input mt-1"
-                  value={teamId}
-                  onChange={(e) => setTeamId(e.target.value)}
-                  disabled={!organizationId}
-                >
-                  <option value="">
-                    {organizationId
-                      ? "Select team"
-                      : "Choose organization first"}
-                  </option>
-                  {teamOptions.map((t: any) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <b className="text-sm">High school *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={school}
-                  onChange={(e) => setSchool(e.target.value)}
-                />
-              </label>
-              <label>
-                <b className="text-sm">Home state *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                />
-              </label>
-              <label>
-                <b className="text-sm">Home ZIP *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={homeZip}
-                  onChange={(e) =>
-                    setHomeZip(e.target.value.replace(/[^0-9-]/g, ""))
-                  }
-                />
-              </label>
-              <div className="md:col-span-2">
-                <b className="text-sm">Positions *</b>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {SOFTBALL_POSITIONS.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => togglePosition(p)}
-                      aria-pressed={positions.includes(p)}
-                      className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-bold ${positions.includes(p) ? "bg-slate-950 text-white" : "bg-white"}`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label>
-                <b className="text-sm">Time zone *</b>
-                <select
-                  required
-                  className="input mt-1"
-                  value={timezone}
-                  onChange={(e) => setTimezone(e.target.value)}
-                >
-                  {US_TIMEZONES.map((z) => (
-                    <option key={z.value} value={z.value}>
-                      {z.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <b className="text-sm">GPA *</b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={gpa}
-                  onChange={(e) => setGpa(e.target.value)}
-                />
-              </label>
-              <label className="md:col-span-2">
-                <b className="text-sm">
-                  Academic interests / possible majors *
-                </b>
-                <input
-                  required
-                  className="input mt-1"
-                  value={majors}
-                  onChange={(e) => setMajors(e.target.value)}
-                />
-              </label>
-            </div>
-          </section>
-          {!isOnboarding && (
+        {loading && (
+          <StatePanel
+            title="Loading profile"
+            description="Loading your saved profile information..."
+          />
+        )}
+        {loadError && (
+          <StatePanel
+            title="Profile could not be loaded"
+            description={loadError}
+            tone="error"
+            action={
+              <button className="btn" onClick={() => location.reload()}>
+                Try Again
+              </button>
+            }
+          />
+        )}
+        {!loading && !loadError && (
+          <form onSubmit={save} className="space-y-5">
             <section className="card p-5 sm:p-6">
               <div className="mb-5">
-                <h2 className="font-black text-lg">
-                  Recruiting contact & email profile
-                </h2>
+                <h2 className="font-black text-lg">Profile essentials</h2>
                 <p className="muted text-sm mt-1">
-                  Optional information used in recruiting emails and profile
-                  summaries.
+                  All fields below are required. These details drive
+                  personalization, filtering and your recruiting identity.
                 </p>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <label>
-                  <b className="text-sm">Email</b>
+                  <b className="text-sm">Full name *</b>
                   <input
-                    className="input mt-1 bg-slate-50"
-                    value={email}
-                    readOnly
+                    required
+                    className="input mt-1"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                   />
                 </label>
                 <label>
-                  <b className="text-sm">X / Twitter</b>
+                  <b className="text-sm">Phone number *</b>
                   <input
+                    required
                     className="input mt-1"
-                    value={xTwitter}
-                    onChange={(e) => setXTwitter(e.target.value)}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <b className="text-sm">Class year *</b>
+                  <input
+                    required
+                    className="input mt-1"
+                    type="number"
+                    value={classYear}
+                    onChange={(e) => setClassYear(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <b className="text-sm">Jersey number *</b>
+                  <input
+                    required
+                    className="input mt-1"
+                    value={jerseyNumber}
+                    onChange={(e) =>
+                      setJerseyNumber(e.target.value.replace(/^#/, ""))
+                    }
+                  />
+                </label>
+                <label>
+                  <b className="text-sm">Organization *</b>
+                  <input
+                    required
+                    list="organization-options"
+                    className="input mt-1"
+                    value={organizationSearch}
+                    onChange={(e) => {
+                      setOrganizationSearch(e.target.value);
+                      const match = organizations.find(
+                        (m: any) =>
+                          organizationLabel(m) === e.target.value &&
+                          m.status === "active",
+                      );
+                      setOrganizationId(match?.organization_id || "");
+                      setTeamId("");
+                    }}
+                    placeholder="Search your organizations"
+                  />
+                  <datalist id="organization-options">
+                    {organizations
+                      .filter((m: any) => m.status === "active")
+                      .map((m: any) => (
+                        <option
+                          key={m.organization_id}
+                          value={organizationLabel(m)}
+                        />
+                      ))}
+                  </datalist>
+                  <span className="muted text-xs mt-1 block">
+                    Each branch is private to its own owners and staff.{" "}
+                    <Link href="/organizations" className="font-bold underline">
+                      Manage organization access
+                    </Link>
+                  </span>
+                </label>
+                <label>
+                  <b className="text-sm">Team *</b>
+                  <select
+                    required
+                    className="input mt-1"
+                    value={teamId}
+                    onChange={(e) => setTeamId(e.target.value)}
+                    disabled={!organizationId}
+                  >
+                    <option value="">
+                      {organizationId
+                        ? "Select team"
+                        : "Choose organization first"}
+                    </option>
+                    {teamOptions.map((t: any) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <b className="text-sm">High school *</b>
+                  <input
+                    required
+                    className="input mt-1"
+                    value={school}
+                    onChange={(e) => setSchool(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <b className="text-sm">Home state *</b>
+                  <input
+                    required
+                    className="input mt-1"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <b className="text-sm">Home ZIP *</b>
+                  <input
+                    required
+                    className="input mt-1"
+                    value={homeZip}
+                    onChange={(e) =>
+                      setHomeZip(e.target.value.replace(/[^0-9-]/g, ""))
+                    }
+                  />
+                </label>
+                <div className="md:col-span-2">
+                  <b className="text-sm">Positions *</b>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {SOFTBALL_POSITIONS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => togglePosition(p)}
+                        aria-pressed={positions.includes(p)}
+                        className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-bold ${positions.includes(p) ? "bg-slate-950 text-white" : "bg-white"}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label>
+                  <b className="text-sm">Time zone *</b>
+                  <select
+                    required
+                    className="input mt-1"
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                  >
+                    {US_TIMEZONES.map((z) => (
+                      <option key={z.value} value={z.value}>
+                        {z.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <b className="text-sm">GPA *</b>
+                  <input
+                    required
+                    className="input mt-1"
+                    value={gpa}
+                    onChange={(e) => setGpa(e.target.value)}
                   />
                 </label>
                 <label className="md:col-span-2">
-                  <b className="text-sm">SportsRecruits profile</b>
+                  <b className="text-sm">
+                    Academic interests / possible majors *
+                  </b>
                   <input
+                    required
                     className="input mt-1"
-                    value={sportsRecruitsUrl}
-                    onChange={(e) => setSportsRecruitsUrl(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">Team coach</b>
-                  <input
-                    className="input mt-1"
-                    value={travelTeamCoachName}
-                    onChange={(e) => setTravelTeamCoachName(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">Coach phone</b>
-                  <input
-                    className="input mt-1"
-                    value={travelTeamCoachPhone}
-                    onChange={(e) => setTravelTeamCoachPhone(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">High school city</b>
-                  <input
-                    className="input mt-1"
-                    value={highSchoolCity}
-                    onChange={(e) => setHighSchoolCity(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">High school state</b>
-                  <input
-                    className="input mt-1"
-                    value={highSchoolState}
-                    onChange={(e) => setHighSchoolState(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">High school coach</b>
-                  <input
-                    className="input mt-1"
-                    value={highSchoolCoachName}
-                    onChange={(e) => setHighSchoolCoachName(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">Coach phone</b>
-                  <input
-                    className="input mt-1"
-                    value={highSchoolCoachPhone}
-                    onChange={(e) => setHighSchoolCoachPhone(e.target.value)}
-                  />
-                </label>
-                <label>
-                  <b className="text-sm">Throws</b>
-                  <select
-                    className="input mt-1"
-                    value={throws}
-                    onChange={(e) => setThrows(e.target.value)}
-                  >
-                    <option value="">Select</option>
-                    <option value="R">Right</option>
-                    <option value="L">Left</option>
-                  </select>
-                </label>
-                <label>
-                  <b className="text-sm">Bats</b>
-                  <select
-                    className="input mt-1"
-                    value={bats}
-                    onChange={(e) => setBats(e.target.value)}
-                  >
-                    <option value="">Select</option>
-                    <option value="R">Right</option>
-                    <option value="L">Left</option>
-                  </select>
-                  {bats === "L" && (
-                    <span className="block mt-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={slaps}
-                        onChange={(e) => setSlaps(e.target.checked)}
-                      />{" "}
-                      Slap hitter
-                    </span>
-                  )}
-                </label>
-                <label>
-                  <b className="text-sm">NCAA #</b>
-                  <input
-                    className="input mt-1"
-                    value={ncaaNumber}
-                    onChange={(e) => setNcaaNumber(e.target.value)}
+                    value={majors}
+                    onChange={(e) => setMajors(e.target.value)}
                   />
                 </label>
               </div>
             </section>
-          )}
-          {msg && (
-            <StatePanel
-              title={
-                msg === "Profile saved." ? "Saved" : "Profile needs attention"
-              }
-              description={msg}
-              tone={msg === "Profile saved." ? "success" : "warning"}
-            />
-          )}
-          <button
-            className="btn btn-red w-full sm:w-auto sm:min-w-56"
-            disabled={saving}
-          >
-            {saving
-              ? "Saving..."
-              : isOnboarding
-                ? "Save Profile & Continue"
-                : "Save Profile"}
-          </button>
-          {isOnboarding && (
-            <p className="muted text-xs">
-              Every field marked * is required before continuing.
-            </p>
-          )}
-        </form>
+            {!isOnboarding && (
+              <section className="card p-5 sm:p-6">
+                <div className="mb-5">
+                  <h2 className="font-black text-lg">
+                    Recruiting contact & email profile
+                  </h2>
+                  <p className="muted text-sm mt-1">
+                    Optional information used in recruiting emails and profile
+                    summaries.
+                  </p>
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <label>
+                    <b className="text-sm">Email</b>
+                    <input
+                      className="input mt-1 bg-slate-50"
+                      value={email}
+                      readOnly
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">X / Twitter</b>
+                    <input
+                      className="input mt-1"
+                      value={xTwitter}
+                      onChange={(e) => setXTwitter(e.target.value)}
+                    />
+                  </label>
+                  <label className="md:col-span-2">
+                    <b className="text-sm">SportsRecruits profile</b>
+                    <input
+                      className="input mt-1"
+                      value={sportsRecruitsUrl}
+                      onChange={(e) => setSportsRecruitsUrl(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">Team coach</b>
+                    <input
+                      className="input mt-1"
+                      value={travelTeamCoachName}
+                      onChange={(e) => setTravelTeamCoachName(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">Coach phone</b>
+                    <input
+                      className="input mt-1"
+                      value={travelTeamCoachPhone}
+                      onChange={(e) => setTravelTeamCoachPhone(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">High school city</b>
+                    <input
+                      className="input mt-1"
+                      value={highSchoolCity}
+                      onChange={(e) => setHighSchoolCity(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">High school state</b>
+                    <input
+                      className="input mt-1"
+                      value={highSchoolState}
+                      onChange={(e) => setHighSchoolState(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">High school coach</b>
+                    <input
+                      className="input mt-1"
+                      value={highSchoolCoachName}
+                      onChange={(e) => setHighSchoolCoachName(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">Coach phone</b>
+                    <input
+                      className="input mt-1"
+                      value={highSchoolCoachPhone}
+                      onChange={(e) => setHighSchoolCoachPhone(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <b className="text-sm">Throws</b>
+                    <select
+                      className="input mt-1"
+                      value={throws}
+                      onChange={(e) => setThrows(e.target.value)}
+                    >
+                      <option value="">Select</option>
+                      <option value="R">Right</option>
+                      <option value="L">Left</option>
+                    </select>
+                  </label>
+                  <label>
+                    <b className="text-sm">Bats</b>
+                    <select
+                      className="input mt-1"
+                      value={bats}
+                      onChange={(e) => setBats(e.target.value)}
+                    >
+                      <option value="">Select</option>
+                      <option value="R">Right</option>
+                      <option value="L">Left</option>
+                    </select>
+                    {bats === "L" && (
+                      <span className="block mt-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={slaps}
+                          onChange={(e) => setSlaps(e.target.checked)}
+                        />{" "}
+                        Slap hitter
+                      </span>
+                    )}
+                  </label>
+                  <label>
+                    <b className="text-sm">NCAA #</b>
+                    <input
+                      className="input mt-1"
+                      value={ncaaNumber}
+                      onChange={(e) => setNcaaNumber(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </section>
+            )}
+            {msg && (
+              <StatePanel
+                title={
+                  msg === "Profile saved." ? "Saved" : "Profile needs attention"
+                }
+                description={msg}
+                tone={msg === "Profile saved." ? "success" : "warning"}
+              />
+            )}
+            <button
+              className="btn btn-red w-full sm:w-auto sm:min-w-56"
+              disabled={saving}
+            >
+              {saving
+                ? "Saving..."
+                : isOnboarding
+                  ? "Save Profile & Continue"
+                  : "Save Profile"}
+            </button>
+            {isOnboarding && (
+              <p className="muted text-xs">
+                Every field marked * is required before continuing.
+              </p>
+            )}
+          </form>
+        )}
       </PageFrame>
     </AppShell>
   );
