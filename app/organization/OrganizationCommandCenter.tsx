@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Activity,
   AlertTriangle,
@@ -37,6 +38,16 @@ const displayDate = (a: any) =>
         ? "Year known"
         : "Date unknown";
 
+type AccountAction = {
+  action: "suspend" | "restore" | "delete";
+  organizationId: string;
+  userId: string;
+  name: string;
+  email: string;
+  organization: string;
+  teams: string;
+};
+
 export default function OrganizationCommandCenter() {
   const c = createClient();
   const [me, setMe] = useState<any>(null),
@@ -68,7 +79,11 @@ export default function OrganizationCommandCenter() {
     [loading, setLoading] = useState(true),
     [loadError, setLoadError] = useState(""),
     [partialWarning, setPartialWarning] = useState(""),
-    [activityAvailable, setActivityAvailable] = useState(true);
+    [activityAvailable, setActivityAvailable] = useState(true),
+    [pendingAccountAction, setPendingAccountAction] =
+      useState<AccountAction | null>(null),
+    [accountActionBusy, setAccountActionBusy] = useState(false),
+    [accountActionError, setAccountActionError] = useState("");
   async function load() {
     setLoading(true);
     setLoadError("");
@@ -455,18 +470,36 @@ export default function OrganizationCommandCenter() {
       error ? error.message : on ? "Account suspended." : "Account restored.",
     );
     if (!error) await load();
+    return !error;
   }
-  async function remove(organizationId: string, userId: string, name: string) {
-    if (
-      !confirm(`Permanently delete ${name}'s account? This cannot be undone.`)
-    )
-      return;
+  async function remove(organizationId: string, userId: string) {
     const { error } = await c.rpc("delete_organization_account", {
       target_user: userId,
       target_organization: organizationId,
     });
     setMsg(error ? error.message : "Account permanently deleted.");
     if (!error) await load();
+    return !error;
+  }
+  async function confirmAccountAction() {
+    if (!pendingAccountAction || accountActionBusy) return;
+    setAccountActionBusy(true);
+    setAccountActionError("");
+    const action = pendingAccountAction;
+    const ok =
+      action.action === "delete"
+        ? await remove(action.organizationId, action.userId)
+        : await suspend(
+            action.organizationId,
+            action.userId,
+            action.action === "suspend",
+          );
+    setAccountActionBusy(false);
+    if (ok) setPendingAccountAction(null);
+    else
+      setAccountActionError(
+        "The account was not changed. Review the message above and try again.",
+      );
   }
   if (loading)
     return (
@@ -551,6 +584,82 @@ export default function OrganizationCommandCenter() {
           {msg}
         </div>
       )}
+      {pendingAccountAction &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="account-action-title"
+              className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+            >
+              <div className="rr-eyebrow">CONFIRM ACCOUNT ACTION</div>
+              <h2 id="account-action-title" className="mt-1 text-xl font-black">
+                {pendingAccountAction.action === "delete"
+                  ? "Permanently delete this account?"
+                  : pendingAccountAction.action === "suspend"
+                    ? "Suspend this account?"
+                    : "Restore this account?"}
+              </h2>
+              <dl className="mt-5 grid gap-3 rounded-xl border bg-slate-50 p-4 text-sm">
+                {[
+                  ["Name", pendingAccountAction.name],
+                  ["Email", pendingAccountAction.email],
+                  ["Organization", pendingAccountAction.organization],
+                  ["Team", pendingAccountAction.teams],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                      {label}
+                    </dt>
+                    <dd className="mt-0.5 font-semibold break-all">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+              {pendingAccountAction.action === "delete" && (
+                <p className="mt-4 text-sm font-semibold text-red-700">
+                  This cannot be undone.
+                </p>
+              )}
+              {accountActionError && (
+                <div
+                  role="alert"
+                  className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+                >
+                  {accountActionError}
+                </div>
+              )}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  className="btn"
+                  disabled={accountActionBusy}
+                  onClick={() => setPendingAccountAction(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={
+                    pendingAccountAction.action === "delete"
+                      ? "btn btn-red"
+                      : "btn bg-slate-900 text-white"
+                  }
+                  disabled={accountActionBusy}
+                  onClick={confirmAccountAction}
+                >
+                  {accountActionBusy
+                    ? "Working..."
+                    : pendingAccountAction.action === "delete"
+                      ? "Permanently Delete Account"
+                      : pendingAccountAction.action === "suspend"
+                        ? "Suspend Account"
+                        : "Restore Account"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
       {tab === "overview" && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -1129,25 +1238,46 @@ export default function OrganizationCommandCenter() {
                       <>
                         <button
                           className="btn"
-                          onClick={() =>
-                            suspend(
-                              m.organization_id,
-                              m.user_id,
-                              m.status === "active",
-                            )
-                          }
+                          onClick={() => {
+                            setAccountActionError("");
+                            setPendingAccountAction({
+                              action:
+                                m.status === "suspended"
+                                  ? "restore"
+                                  : "suspend",
+                              organizationId: m.organization_id,
+                              userId: m.user_id,
+                              name: p.full_name || p.email || m.user_id,
+                              email: p.email || "No email address on file",
+                              organization: `${organization?.name || "Organization not listed"}${organization?.branch_name ? ` · ${organization.branch_name}` : ""}`,
+                              teams: memberTeams.length
+                                ? memberTeams
+                                    .map((team) => team.name)
+                                    .join(", ")
+                                : "No team assigned",
+                            });
+                          }}
                         >
                           {m.status === "suspended" ? "Restore" : "Suspend"}
                         </button>
                         <button
                           className="btn border-red-300 text-red-700"
-                          onClick={() =>
-                            remove(
-                              m.organization_id,
-                              m.user_id,
-                              p.full_name || p.email || "this user",
-                            )
-                          }
+                          onClick={() => {
+                            setAccountActionError("");
+                            setPendingAccountAction({
+                              action: "delete",
+                              organizationId: m.organization_id,
+                              userId: m.user_id,
+                              name: p.full_name || p.email || m.user_id,
+                              email: p.email || "No email address on file",
+                              organization: `${organization?.name || "Organization not listed"}${organization?.branch_name ? ` · ${organization.branch_name}` : ""}`,
+                              teams: memberTeams.length
+                                ? memberTeams
+                                    .map((team) => team.name)
+                                    .join(", ")
+                                : "No team assigned",
+                            });
+                          }}
                         >
                           Delete
                         </button>
