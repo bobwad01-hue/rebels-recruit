@@ -1198,3 +1198,142 @@ function Header({
 function ActivityRows({ rows, pm }: { rows: any[]; pm: Map<any, any> }) {
   return (
     <div className="mt-4 divide-y">
+      {rows.map((a) => {
+        const p: any = pm.get(a.athlete_user_id) || {},
+          co = one(a.colleges),
+          ch = one(a.college_coaches);
+        return (
+          <div key={a.id} className="py-3">
+            <div className="flex flex-wrap gap-x-2 gap-y-1 items-center">
+              <Link
+                className="font-black hover:text-red-700 hover:underline"
+                href={`/players/${a.athlete_user_id}`}
+              >
+                {p.full_name || "Player"}
+              </Link>
+              <span className="muted">·</span>
+              <span className="font-semibold">{a.type}</span>
+              {co?.id && (
+                <>
+                  <span className="muted">·</span>
+                  <Link
+                    className="hover:text-red-700 hover:underline"
+                    href={`/colleges/${co.id}?athlete=${a.athlete_user_id}`}
+                  >
+                    {co.name}
+                  </Link>
+                </>
+              )}
+              {ch?.id && (
+                <>
+                  <span className="muted">·</span>
+                  <Link
+                    className="hover:text-red-700 hover:underline"
+                    href={`/coaches/${ch.id}?athlete=${a.athlete_user_id}`}
+                  >
+                    {ch.first_name} {ch.last_name}
+                  </Link>
+                </>
+              )}
+            </div>
+            <div className="muted text-xs mt-1">
+              {displayDate(a)}
+              {cleanDisplayNote(a.note) ? ` · ${cleanDisplayNote(a.note)}` : ""}
+            </div>
+          </div>
+        );
+      })}
+      {!rows.length && (
+        <div className="rr-empty-state py-8">
+          <div className="font-black">No activity matches this view.</div>
+          <p>Change the filters to review other recruiting activity.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+function RelationshipBreakdown({
+  kind,
+  rows,
+  activity,
+  pm,
+  csv,
+}: {
+  kind: "college" | "coach";
+  rows: any[];
+  activity: any[];
+  pm: Map<any, any>;
+  csv: (n: string, r: any[]) => void;
+}) {
+  const groups = new Map<string, any>();
+  for (const r of rows) {
+    const rel = kind === "college" ? one(r.colleges) : one(r.college_coaches);
+    const id = kind === "college" ? r.college_id : r.coach_id;
+    if (!id) continue;
+    const name =
+      kind === "college"
+        ? rel?.name
+        : [rel?.first_name, rel?.last_name].filter(Boolean).join(" ");
+    const g = groups.get(id) || {
+      id,
+      name: name || "Unknown",
+      players: new Set<string>(),
+      interactions: 0,
+    };
+    g.players.add(r.athlete_user_id);
+    groups.set(id, g);
+  }
+  for (const a of activity) {
+    const id = kind === "college" ? a.college_id : a.coach_id;
+    if (id && groups.has(id)) groups.get(id).interactions++;
+  }
+  const arr = [...groups.values()].sort(
+    (a, b) => b.players.size - a.players.size || a.name.localeCompare(b.name),
+  );
+  return (
+    <section className="card p-4 sm:p-5">
+      <Header
+        eyebrow="RELATIONSHIP COVERAGE"
+        title={kind === "college" ? "School Coverage" : "Coach Coverage"}
+        onExport={() =>
+          csv(
+            `organization-${kind === "college" ? "schools" : "coaches"}.csv`,
+            arr.map((x) => ({
+              name: x.name,
+              players: x.players.size,
+              recorded_activity: x.interactions,
+            })),
+          )
+        }
+      />
+      <p className="rr-section-subtitle mt-1">
+        See how many players are connected to each{" "}
+        {kind === "college" ? "school" : "coach"} and how much recruiting
+        activity has been recorded.
+      </p>
+      <div className="mt-4 divide-y">
+        {arr.map((g) => (
+          <div className="py-3" key={g.id}>
+            <div className="flex justify-between gap-3">
+              <b>{g.name}</b>
+              <span className="text-xs font-semibold">
+                {g.players.size} players · {g.interactions} recorded activities
+              </span>
+            </div>
+            <div className="text-sm mt-1">
+              {[...g.players].map((id: any) => (
+                <Link
+                  key={id}
+                  href={`/players/${id}`}
+                  className="mr-2 hover:text-red-700 hover:underline"
+                >
+                  {pm.get(id)?.full_name || "Player"}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
