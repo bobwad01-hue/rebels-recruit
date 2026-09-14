@@ -259,12 +259,6 @@ export default async function Dashboard({
     activeCoaches,
     interactionRows,
   ).sort((a, b) => b.score - a.score);
-  const today = new Date().toISOString().slice(0, 10);
-  const personalUpcoming = eventRows.filter(
-    (e: any) =>
-      e.date >= today &&
-      e.date <= new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-  );
   const stageCounts = Object.fromEntries(RECRUITING_JOURNEY.map((s) => [s, 0]));
   activeColleges.forEach((r: any) => {
     stageCounts[normalizeJourneyStage(r.status)]++;
@@ -287,8 +281,6 @@ export default async function Dashboard({
       one(r.colleges)?.name || "School",
     ]),
   );
-  const offers = stageCounts["Offer"] || 0,
-    committed = stageCounts["Committed"] || 0;
   return (
     <AppShell>
       <div className="w-full min-w-0 max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6">
@@ -312,9 +304,7 @@ export default async function Dashboard({
                 Where you stand right now
               </h2>
               <p className="muted text-sm mt-1">
-                Your current schools, coach relationships, recruiting activity,
-                Next Steps and events all work together to keep this view
-                current.
+                Your schools, coach relationships, Next Steps and events in one current view.
               </p>
             </div>
             <Link
@@ -415,54 +405,6 @@ export default async function Dashboard({
         <div className="mb-6 w-full min-w-0">
           <WeeklyRecruitingMomentum
             athleteId={preview.active ? uid : undefined}
-          />
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 min-w-0">
-          <Metric
-            icon={<School size={18} />}
-            label="Current Schools"
-            value={activeColleges.length}
-            detail="schools you are currently pursuing"
-            href={ph("/connections")}
-          />
-          <Metric
-            icon={<Users size={18} />}
-            label="Active Coaches"
-            value={activeCoaches.length}
-            detail="coach relationships you are tracking"
-            href={ph("/connections")}
-          />
-          <Metric
-            icon={<Flag size={18} />}
-            label={
-              committed
-                ? "Committed"
-                : offers
-                  ? "Active Offers"
-                  : "Journey Progress"
-            }
-            value={
-              committed ||
-              offers ||
-              stageCounts["Interested"] ||
-              stageCounts["Engaged"] ||
-              0
-            }
-            detail={
-              committed
-                ? "commitment recorded"
-                : offers
-                  ? "schools at Offer"
-                  : "schools moving forward"
-            }
-            href={ph("/journey")}
-          />
-          <Metric
-            icon={<CalendarDays size={18} />}
-            label="My Added Events"
-            value={personalUpcoming.length}
-            detail="coming up in the next 30 days"
-            href={ph("/events")}
           />
         </div>
         <div className="grid lg:grid-cols-3 gap-5 sm:gap-6 mt-6 min-w-0">
@@ -694,31 +636,6 @@ export default async function Dashboard({
         </section>
       </div>
     </AppShell>
-  );
-}
-function Metric({
-  icon,
-  label,
-  value,
-  detail,
-  href,
-}: {
-  icon: any;
-  label: string;
-  value: any;
-  detail: string;
-  href: string;
-}) {
-  return (
-    <Link href={href} className="card p-3 sm:p-4 min-w-0 rr-interactive-card">
-      <div className="flex items-center justify-between gap-2">
-        <span className="muted text-xs min-w-0">{label}</span>
-        {icon}
-      </div>
-      <div className="font-black text-2xl mt-2">{value}</div>
-      <div className="muted text-xs mt-1">{detail}</div>
-      <div className="text-xs font-black mt-2">Review {label} →</div>
-    </Link>
   );
 }
 function SnapshotMetric({
