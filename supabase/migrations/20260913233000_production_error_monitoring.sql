@@ -13,6 +13,8 @@ create table if not exists public.production_error_events (
 );
 
 alter table public.production_error_events enable row level security;
+revoke all on table public.production_error_events from anon, authenticated;
+grant select, insert on table public.production_error_events to service_role;
 
 create index if not exists production_error_events_created_at_idx
   on public.production_error_events (created_at desc);
