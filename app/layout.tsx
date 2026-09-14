@@ -1,4 +1,5 @@
 import './globals.css'
+import './polish.css'
 import EventLinkNormalizer from '@/components/EventLinkNormalizer'
 import NavigationEnhancer from '@/components/NavigationEnhancer'
 import ProductionErrorMonitor from '@/components/ProductionErrorMonitor'
