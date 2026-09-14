@@ -1,7 +1,7 @@
 import AppShell from '@/components/AppShell';
 import CollegesCoachesBoard from '@/components/CollegesCoachesBoard';
 import PageHeader from '@/components/PageHeader';
-import {PageFrame,StatePanel} from '@/components/ProductUI';
+import {EmptyState,PageFrame,StatePanel} from '@/components/ProductUI';
 import {createClient} from '@/lib/supabase-server';
 import {resolveOwnerPreview} from '@/lib/owner-preview';
 
@@ -29,6 +29,8 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
   supabase.from('athlete_coaches').select('id,relationship_rating,last_contact_date,next_step,created_at,college_id,archived_at,archived_reason,colleges(id,name,state,city,division,conference),college_coaches(id,first_name,last_name,title,email,phone)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false})
  ]);
  if(colleges.error||coaches.error){console.error('Connections relationship load failed',colleges.error||coaches.error);return <AppShell><PageFrame size="5xl"><StatePanel tone="error" title="Connections could not be loaded" description="We could not load your recruiting relationships. Your data has not been changed. Refresh the page and try again."/></PageFrame></AppShell>}
+ const noRelationships=(colleges.data||[]).length===0&&(coaches.data||[]).length===0;
+ if(noRelationships)return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Keep the schools you are pursuing and the coaches you know in one place."/><div className="mt-5"><EmptyState title="Start with one school" description="Add the first school you want to pursue. Once it is in Connections, you can add coaches, log conversations, and see what to do next." href="/colleges/new" actionLabel="Add Your First School"/></div></PageFrame></AppShell>;
  const [masterCollegesResult,masterCoachesResult]=await Promise.allSettled([
   loadAllColleges(supabase),
   supabase.from('college_coaches').select('id,college_id,first_name,last_name,title,email,phone').order('last_name').limit(5000)
@@ -36,5 +38,5 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
  let masterColleges:any[]=[];let masterCoaches:any[]=[];const unavailable:string[]=[];
  if(masterCollegesResult.status==='fulfilled')masterColleges=masterCollegesResult.value;else unavailable.push('school search catalog');
  if(masterCoachesResult.status==='fulfilled'&&!masterCoachesResult.value.error)masterCoaches=masterCoachesResult.value.data||[];else unavailable.push('coach search catalog');
- return <AppShell><div className="max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-6"><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Keep the schools you are pursuing and the coaches you know in one place. Review a school or coach relationship to see recent activity and what to do next."/><div className="mb-5 rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-700"><b>Why Connections matter:</b> Recruiting is built on relationships. Keeping each school and coach connected to your conversations helps you remember where things stand and follow up with purpose.</div>{unavailable.length>0&&<div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Some information is temporarily unavailable: {unavailable.join(' and ')}. Your existing school and coach relationships are still shown below.</div>}<div className="[&>div:first-child]:hidden [&>div:nth-child(2)>div:nth-child(3)]:hidden"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]} masterColleges={masterColleges} masterCoaches={masterCoaches}/></div></div></AppShell>;
+ return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="See where each school and coach relationship stands, then act on the one that needs attention."/>{unavailable.length>0&&<div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Some search information is temporarily unavailable: {unavailable.join(' and ')}. Your saved relationships are still available below.</div>}<div className="mt-5 [&>div:first-child]:hidden [&>div:nth-child(2)>div:nth-child(3)]:hidden"><CollegesCoachesBoard colleges={colleges.data||[]} coaches={coaches.data||[]} masterColleges={masterColleges} masterCoaches={masterCoaches}/></div></PageFrame></AppShell>;
 }
