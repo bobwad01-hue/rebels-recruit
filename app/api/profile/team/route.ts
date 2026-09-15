@@ -40,27 +40,19 @@ export async function GET() {
   try {
     const { data: memberships, error: membershipError } = await admin.from("organization_members").select("organization_id,status,role,organizations(id,name,brand_name,branch_name,city,state)").eq("user_id", user.id).eq("role", "athlete").in("status", ["active", "pending"]).order("joined_at", { ascending: true });
     if (membershipError) throw new Error(membershipError.message);
-
-    // Profile Essentials is also the first-run organization/team picker. New athletes
-    // do not have a membership yet, so return the active organization directory here.
     const { data: orgDirectory, error: orgError } = await admin.from("organizations").select("id,name,brand_name,branch_name,city,state").order("name");
     if (orgError) throw new Error(orgError.message);
-    const organizations = (orgDirectory || []).map((org: any) => ({ organization_id: org.id, status: "available", role: "athlete", organizations: org }));
-
+    // Profile currently filters picker rows to status=active. These rows represent
+    // selectable onboarding choices; actual membership is only created on POST/save.
+    const organizations = (orgDirectory || []).map((org: any) => ({ organization_id: org.id, status: "active", role: "athlete", organizations: org }));
     const orgIds = (orgDirectory || []).map((org: any) => org.id);
     const { data: teams, error: teamError } = orgIds.length ? await admin.from("teams").select("id,name,organization_id,age_group").in("organization_id", orgIds).is("archived_at", null).order("name") : { data: [], error: null };
     if (teamError) throw new Error(teamError.message);
-
     const existing = await listUserMemberships(admin, user.id);
     const { data: athlete } = await admin.from("athlete_profiles").select("primary_organization_id,primary_team_id").eq("user_id", user.id).maybeSingle();
     const firstCurrent = (existing || []).map((r: any) => Array.isArray(r.teams) ? r.teams[0] : r.teams).find(Boolean);
     const active = (memberships || []).filter((m: any) => m.status === "active");
-    return NextResponse.json({
-      organizations,
-      teams: teams || [],
-      currentOrganizationId: athlete?.primary_organization_id || firstCurrent?.organization_id || active[0]?.organization_id || "",
-      currentTeamId: athlete?.primary_team_id || firstCurrent?.id || "",
-    });
+    return NextResponse.json({ organizations, teams: teams || [], currentOrganizationId: athlete?.primary_organization_id || firstCurrent?.organization_id || active[0]?.organization_id || "", currentTeamId: athlete?.primary_team_id || firstCurrent?.id || "" });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load organizations and teams." }, { status: 500 });
   }
@@ -79,9 +71,6 @@ export async function POST(req: NextRequest) {
     const { data: team, error: teamError } = await admin.from("teams").select("id,name,organization_id").eq("id", teamId).eq("organization_id", organizationId).is("archived_at", null).maybeSingle();
     if (teamError) throw new Error(teamError.message);
     if (!team) return NextResponse.json({ error: "Please choose a team from the selected organization." }, { status: 400 });
-
-    // Selecting an organization/team during first-run onboarding establishes the
-    // athlete's membership. Existing memberships are preserved/upgraded to active.
     const { data: existingMember, error: existingMemberError } = await admin.from("organization_members").select("organization_id").eq("organization_id", organizationId).eq("user_id", user.id).eq("role", "athlete").maybeSingle();
     if (existingMemberError) throw new Error(existingMemberError.message);
     if (existingMember) {
@@ -91,7 +80,6 @@ export async function POST(req: NextRequest) {
       const { error } = await admin.from("organization_members").insert({ organization_id: organizationId, user_id: user.id, role: "athlete", status: "active" });
       if (error) throw new Error(error.message);
     }
-
     const { data: orgTeams, error: orgTeamsError } = await admin.from("teams").select("id").eq("organization_id", organizationId);
     if (orgTeamsError) throw new Error(orgTeamsError.message);
     const orgTeamIds = (orgTeams || []).map((t: any) => t.id);
