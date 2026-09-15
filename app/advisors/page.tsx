@@ -79,7 +79,7 @@ export default function AdvisorHome(){
  const recentMilestones=milestones.filter((m:any)=>visibleIds.has(m.athleteUserId)).sort((a:any,b:any)=>String(b.milestoneDate).localeCompare(String(a.milestoneDate))).slice(0,4);
  const profileMap=new Map(profiles.map((p:any)=>[p.id,p]));const collegeMap=new Map(acs.map((r:any)=>[r.id,one(r.colleges)?.name||'School']));
 
- if(loading)return <AppShell><PageFrame><LoadingPanel label="Building your Advisor dashboard…"/></PageFrame></AppShell>;
+ if(loading)return <AppShell><PageFrame><LoadingPanel rows={5}/></PageFrame></AppShell>;
  if(error)return <AppShell><PageFrame><div role="alert" className="card p-6"><h1 className="font-black text-xl">Advisor dashboard unavailable</h1><p className="muted mt-2">{error}</p><Link href="/dashboard" className="btn mt-4">Return Home</Link></div></PageFrame></AppShell>;
 
  return <AppShell><PageFrame>
@@ -87,10 +87,10 @@ export default function AdvisorHome(){
   {warning&&<div className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{warning}</div>}
   {orgAccess&&<div className="mt-5 inline-flex rounded-xl bg-slate-100 p-1"><button className={`px-4 py-2 rounded-lg text-sm font-bold ${scope==='mine'?'bg-white shadow-sm':''}`} onClick={()=>setScope('mine')}>My Athletes</button><button className={`px-4 py-2 rounded-lg text-sm font-bold ${scope==='org'?'bg-white shadow-sm':''}`} onClick={()=>setScope('org')}>Organization</button></div>}
 
-  {!rows.length?<div className="mt-6"><EmptyState title="No athletes in this view" description={scope==='mine'?'Athletes assigned to you will appear here with their recruiting priorities.':'Active organization athletes will appear here.'} action={role==='owner'||role==='admin'?<Link href="/advisors/access" className="btn btn-red">Manage Advisor Access</Link>:undefined}/></div>:<>
+  {!rows.length?<div className="mt-6"><EmptyState title="No athletes in this view" description={scope==='mine'?'Athletes assigned to you will appear here with their recruiting priorities.':'Active organization athletes will appear here.'}>{(role==='owner'||role==='admin')&&<Link href="/advisors/access" className="btn btn-red mt-4">Manage Advisor Access</Link>}</EmptyState></div>:<>
    <section className="mt-6">
     <div className="flex items-end justify-between gap-4"><div><div className="text-xs font-black uppercase tracking-widest text-red-600">Priority Queue</div><h2 className="text-2xl font-black mt-1">Start here</h2></div><div className="muted text-sm">{actionQueue.length} need attention</div></div>
-    {actionQueue.length?<div className="mt-4 grid gap-3">{actionQueue.slice(0,5).map((p:any,i:number)=><PriorityCard key={p.id} eyebrow={i===0?'Highest Priority':'Needs Attention'} title={p.name} description={p.reason} action={<Link href={`/advisors/player/${p.id}`} className="btn btn-red">Review Athlete <ArrowRight size={15}/></Link>}/>)}</div>:<div className="mt-4 rounded-xl bg-emerald-50 px-4 py-4 text-sm text-emerald-900"><b>No urgent recruiting gaps.</b> Your current athletes are caught up based on their dated activity, relationships and Next Steps.</div>}
+    {actionQueue.length?<div className="mt-4 grid gap-3">{actionQueue.slice(0,5).map((p:any,i:number)=><PriorityCard key={p.id} eyebrow={i===0?'Highest Priority':'Needs Attention'} title={p.name} description={p.reason} href={`/advisors/player/${p.id}`} actionLabel="Review Athlete"/>)}</div>:<div className="mt-4 rounded-xl bg-emerald-50 px-4 py-4 text-sm text-emerald-900"><b>No urgent recruiting gaps.</b> Your current athletes are caught up based on their dated activity, relationships and Next Steps.</div>}
    </section>
 
    <section className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-3">
