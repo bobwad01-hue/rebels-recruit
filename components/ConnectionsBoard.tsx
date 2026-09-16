@@ -1,10 +1,10 @@
 'use client';
 import Link from 'next/link';
-import {useMemo,useState} from 'react';
+import {useEffect,useMemo,useState} from 'react';
 import {Archive,Plus,RotateCcw,School,Search,Users} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {RECRUITING_JOURNEY,normalizeJourneyStage} from '@/lib/recruiting-journey';
-import {announceSuccess} from '@/lib/feedback';
+import {announceSuccess,DATA_CHANGED_EVENT} from '@/lib/feedback';
 import {emitDataChanged} from '@/lib/data-events';
 const one=(v:any)=>Array.isArray(v)?v[0]:v;
 const fmt=(d?:string|null)=>d?new Date(`${String(d).slice(0,10)}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
@@ -12,6 +12,7 @@ type Props={initialColleges:any[];initialCoaches:any[]};
 type PendingArchive={kind:'college'|'coach';row:any;name:string}|null;
 export default function ConnectionsBoard({initialColleges,initialCoaches}:Props){
  const c=createClient();const[colleges,setColleges]=useState(initialColleges),[coaches,setCoaches]=useState(initialCoaches),[mode,setMode]=useState<'current'|'all'>('current'),[search,setSearch]=useState(''),[busy,setBusy]=useState(''),[pending,setPending]=useState<PendingArchive>(null),[error,setError]=useState('');
+ useEffect(()=>{let active=true;async function sync(){const{data:{user}}=await c.auth.getUser();if(!user||!active)return;const[schools,staff]=await Promise.all([c.from('athlete_colleges').select('id,college_id,status,archived_at,archived_reason,created_at,colleges(id,name,division,state,city,conference)').eq('athlete_user_id',user.id),c.from('athlete_coaches').select('id,coach_id,college_id,archived_at,archived_reason,last_contact_date,colleges(id,name),college_coaches(id,first_name,last_name,title,email)').eq('athlete_user_id',user.id)]);if(!active)return;if(!schools.error)setColleges(schools.data||[]);if(!staff.error)setCoaches(staff.data||[])}function changed(e:Event){const d=(e as CustomEvent).detail||{};if(['connection','coach','athlete_colleges','athlete_coaches','interaction'].includes(d.entity))void sync()}window.addEventListener(DATA_CHANGED_EVENT,changed);return()=>{active=false;window.removeEventListener(DATA_CHANGED_EVENT,changed)}},[]);
  const q=search.trim().toLowerCase();
  const visibleColleges=useMemo(()=>colleges.filter(r=>(mode==='all'||!r.archived_at)&&(!q||[one(r.colleges)?.name,one(r.colleges)?.division,one(r.colleges)?.state,one(r.colleges)?.conference,normalizeJourneyStage(r.status)].filter(Boolean).join(' ').toLowerCase().includes(q))),[colleges,mode,q]);
  const visibleCoaches=useMemo(()=>coaches.filter(r=>(mode==='all'||!r.archived_at)&&(!q||[one(r.college_coaches)?.first_name,one(r.college_coaches)?.last_name,one(r.college_coaches)?.title,one(r.college_coaches)?.email,one(r.colleges)?.name].filter(Boolean).join(' ').toLowerCase().includes(q))),[coaches,mode,q]);
