@@ -33,7 +33,7 @@ export async function GET() {
         .from("athlete_colleges")
         .select("college_id,status,archived_at")
         .eq("athlete_user_id", user.id),
-      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject").eq("athlete_user_id", user.id),
+      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject,received_at").eq("athlete_user_id", user.id),
     ],
   );
 
@@ -114,6 +114,7 @@ export async function GET() {
           ? collegeMap.get(row.college_id) || null
           : null,
         gmail_intelligence: gmailMap.get(row.id) || null,
+        gmail_received_at: gmailMap.get(row.id)?.received_at || null,
         college_coaches: row.coach_id
           ? coachMap.get(row.coach_id) || null
           : null,
