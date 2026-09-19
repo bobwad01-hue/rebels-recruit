@@ -17,7 +17,7 @@ export async function GET() {
     );
 
   const admin = createAdminClient();
-  const [activityResult, profileResult, relationshipResult] = await Promise.all(
+  const [activityResult, profileResult, relationshipResult, gmailResult] = await Promise.all(
     [
       admin
         .from("interactions")
@@ -33,11 +33,12 @@ export async function GET() {
         .from("athlete_colleges")
         .select("college_id,status,archived_at")
         .eq("athlete_user_id", user.id),
+      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject").eq("athlete_user_id", user.id),
     ],
   );
 
   const initialError =
-    activityResult.error || profileResult.error || relationshipResult.error;
+    activityResult.error || profileResult.error || relationshipResult.error || gmailResult.error;
   if (initialError) {
     console.error(
       JSON.stringify({
@@ -57,6 +58,7 @@ export async function GET() {
   }
 
   const activity = activityResult.data || [];
+  const gmailMap = new Map((gmailResult.data || []).filter(row=>row.interaction_id).map(row=>[row.interaction_id,row]));
   const relationships = relationshipResult.data || [];
   const collegeIds = [
     ...new Set(
@@ -111,6 +113,7 @@ export async function GET() {
         colleges: row.college_id
           ? collegeMap.get(row.college_id) || null
           : null,
+        gmail_intelligence: gmailMap.get(row.id) || null,
         college_coaches: row.coach_id
           ? coachMap.get(row.coach_id) || null
           : null,
