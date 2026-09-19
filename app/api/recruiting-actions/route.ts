@@ -6,7 +6,9 @@ const NEXT:Record<string,Record<string,{state:string;next:string;decision:string
  camp_invitation:{
   interested:{state:'reply',next:'Reply to coach about the camp',decision:'interested'},
   cannot_attend:{state:'reply',next:'Thank coach and let them know you cannot attend',decision:'cannot_attend'},
-  decide_later:{state:'deferred',next:'Revisit camp invitation',decision:'decide_later'}
+  decide_later:{state:'deferred',next:'Revisit camp invitation',decision:'decide_later'},
+  registered:{state:'prepare',next:'Prepare for the camp and plan a post-camp follow-up',decision:'registered'},
+  not_registering:{state:'closed',next:'Continue building the relationship',decision:'not_registering'}
  }
 };
 export async function POST(req:NextRequest){
