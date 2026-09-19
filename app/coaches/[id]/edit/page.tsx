@@ -67,7 +67,7 @@ export default function EditCoach(){
     e.preventDefault();
     setBusy(true);
     setMsg('');
-    const {error}=await c.from('college_coaches').update({
+    const {data:saved,error}=await c.from('college_coaches').update({
       college_id:collegeId,
       first_name:first.trim(),
       last_name:last.trim(),
@@ -78,8 +78,11 @@ export default function EditCoach(){
       instagram_url:instagram||null,
       updated_by_user_id:userId,
       source_note:'Community-updated in Rebels Recruit'
-    }).eq('id',id);
+    }).eq('id',id).select('id,title,college_id').maybeSingle();
     if(error){setMsg(error.message);setBusy(false);return;}
+    if(!saved){setMsg('Coach information could not be saved. Please try again.');setBusy(false);return;}
+    setTitle(saved.title||'');
+    setCollegeId(saved.college_id||collegeId);
     setMsg('Coach information updated for the Rebels Recruit community.');
     setBusy(false);
   }
