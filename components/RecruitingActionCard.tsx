@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';import {useState} from 'react';import {ExternalLink,Mail,Clock3} from 'lucide-react';
+import Link from 'next/link';import {useState} from 'react';import {ExternalLink,Mail,Clock3,CheckCircle2} from 'lucide-react';
 type Intel={recruiting_intent:string;next_action:string|null;action_state?:string|null;action_decision?:string|null;action_due_date?:string|null;extracted_data?:{urls?:string[]}|null};
 export default function RecruitingActionCard({interactionId,coachId,intel,onChanged}:{interactionId:string;coachId?:string|null;intel:Intel;onChanged?:()=>void}){
  const [busy,setBusy]=useState(''),[error,setError]=useState('');const state=intel.action_state||'review';const url=intel.extracted_data?.urls?.[0];
@@ -8,6 +8,9 @@ export default function RecruitingActionCard({interactionId,coachId,intel,onChan
  return <div className="mt-3 rounded-xl border bg-slate-50 p-3" onClick={e=>e.stopPropagation()}><div className="text-sm"><span className="font-black">Next step:</span> {intel.next_action||'Review the camp invitation'}</div>
  {state==='review'&&<><div className="flex flex-wrap gap-2 mt-3">{url&&<a href={url} target="_blank" rel="noreferrer" className="btn py-2 px-3 text-sm"><ExternalLink size={14}/>View Camp Details</a>}<button className="btn py-2 px-3 text-sm" disabled={!!busy} onClick={()=>choose('interested')}>I'm Interested</button><button className="btn py-2 px-3 text-sm" disabled={!!busy} onClick={()=>choose('cannot_attend')}>Can't Attend</button><button className="btn py-2 px-3 text-sm" disabled={!!busy} onClick={()=>choose('decide_later')}>Decide Later</button></div></>}
  {state==='reply'&&coachId&&<div className="mt-3"><Link href={`/coaches/${coachId}?action=camp-reply&interaction=${interactionId}`} className="btn btn-red py-2 px-3 text-sm"><Mail size={14}/>Reply to Coach</Link></div>}
+ {state==='registration'&&<div className="flex flex-wrap gap-2 mt-3">{url&&<a href={url} target="_blank" rel="noreferrer" className="btn py-2 px-3 text-sm"><ExternalLink size={14}/>View Camp Details</a>}<button className="btn py-2 px-3 text-sm" disabled={!!busy} onClick={()=>choose('registered')}>I've Registered</button><button className="btn py-2 px-3 text-sm" disabled={!!busy} onClick={()=>choose('not_registering')}>Not Registering</button></div>}
+ {state==='prepare'&&<div className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-600"><CheckCircle2 size={14}/>Registration recorded. Prepare for the camp and plan your follow-up afterward.</div>}
+ {state==='closed'&&<div className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-600"><CheckCircle2 size={14}/>Camp decision recorded. Keep building the relationship through your normal recruiting plan.</div>}
  {state==='deferred'&&<div className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-slate-600"><Clock3 size={14}/>Reminder set{intel.action_due_date?` for ${intel.action_due_date}`:''}</div>}
  {error&&<div className="text-xs text-red-700 mt-2">{error}</div>}</div>
 }
