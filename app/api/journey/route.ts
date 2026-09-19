@@ -22,7 +22,7 @@ export async function GET() {
       admin
         .from("interactions")
         .select(
-          "id,type,date,date_precision,date_year,date_month,created_at,note,initiated_by,follow_up_due_date,follow_up_completed_at,college_id,coach_id",
+          "id,type,date,date_precision,date_year,date_month,created_at,note,initiated_by,source,email_subject,email_type,email_content,follow_up_due_date,follow_up_completed_at,college_id,coach_id",
         )
         .eq("athlete_user_id", user.id)
         .order("date", { ascending: false, nullsFirst: false })
