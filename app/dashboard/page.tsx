@@ -20,6 +20,7 @@ import SmartNextMoves, {
 import HomeUpcomingEvents from "@/components/HomeUpcomingEvents";
 import HomeTopTargets from "@/components/HomeTopTargets";
 import QuickAddMenu from "@/components/QuickAddMenu";
+import ReminderStickyBoard from "@/components/ReminderStickyBoard";
 import WeeklyRecruitingMomentum from "@/components/WeeklyRecruitingMomentum";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
@@ -122,11 +123,12 @@ export default async function Dashboard({
     supabase
       .from("reminders")
       .select(
-        "id,title,due_date,status,coach_id,college_id,colleges(id,name),college_coaches(id,first_name,last_name)",
+        "id,title,note,due_date,status,coach_id,college_id,color,sort_order,reminder_kind,colleges(id,name),college_coaches(id,first_name,last_name)",
       )
       .eq("athlete_user_id", uid)
       .in("status", ["open", "snoozed"])
-      .order("due_date")
+      .order("sort_order", { ascending: true, nullsFirst: false })
+      .order("due_date", { ascending: true, nullsFirst: false })
       .limit(50),
     supabase
       .from("profiles")
@@ -296,7 +298,7 @@ export default async function Dashboard({
           subtitle="Here is your recruiting picture and what deserves your attention next."
           action={preview.active ? undefined : <QuickAddMenu />}
         />
-        <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_230px] gap-6 items-start"><div className="min-w-0"><section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
             <div className="min-w-0">
               <div className="rr-eyebrow">MY RECRUITING SNAPSHOT</div>
@@ -402,6 +404,7 @@ export default async function Dashboard({
             </span>
           </div>
         </section>
+        </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
         <div className="mb-6 w-full min-w-0">
           <WeeklyRecruitingMomentum
             athleteId={preview.active ? uid : undefined}
