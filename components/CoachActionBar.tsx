@@ -42,6 +42,7 @@ type Props = {
   primaryAction?: PrimaryAction;
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
+  contextualReply?: {interactionId:string;kind:"camp"};
 };
 export default function CoachActionBar({
   coachId,
@@ -57,6 +58,7 @@ export default function CoachActionBar({
   primaryAction = null,
   initialEmailStarter = "introduction",
   autoOpenEmail = false,
+  contextualReply,
 }: Props) {
   const c = createClient(),
     params = useSearchParams(),
@@ -67,7 +69,7 @@ export default function CoachActionBar({
     requestedValid = EMAIL_STARTERS.some((s) => s.id === requested),
     effectiveStarter =
       requestedValid && requested ? requested : initialEmailStarter,
-    shouldAutoOpen = autoOpenEmail || !!requestedValid;
+    shouldAutoOpen = autoOpenEmail || !!requestedValid || !!contextualReply;
   const [emailOpen, setEmailOpen] = useState(false),
     [subject, setSubject] = useState(""),
     [body, setBody] = useState(""),
@@ -271,7 +273,11 @@ export default function CoachActionBar({
       }
     } catch {}
     draftReady.current = true;
-    if (!recovered) buildStarter(id);
+    if (!recovered) {
+      if (contextualReply?.kind === "camp") {
+        (async()=>{const p=profile || (await loadProfile());const v=values(p);const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);setStarter("custom");setSubject(`Re: ${collegeName || "Camp information"}`);setBody(`Hello Coach ${lastName},\n\nThank you for sending me the information about ${collegeName || "your program"}'s camp. I'm interested and will take a look at the details. I appreciate you reaching out!${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
+      } else buildStarter(id);
+    }
     loadSchoolCoaches();
     checkGmailConnection();
   }
@@ -354,6 +360,7 @@ export default function CoachActionBar({
           bodyHtml,
           emailPurpose: starter,
           attachments,
+          recruitingInteractionId: contextualReply?.interactionId || null,
         }),
       });
       let d: any = {};
