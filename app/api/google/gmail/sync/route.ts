@@ -24,7 +24,9 @@ function classify(subject:string,body:string){
  else if(/phone call|zoom|facetime|call you|set up a call/.test(t)){intent='call_request';nextAction='Respond to call request'}
  else if(/visit|campus/.test(t)){intent='visit_invitation';nextAction='Review visit invitation'}
  else if(/we('ll| will) (be|watch)|coming to watch|plan to watch/.test(t)){intent='event_attendance';nextAction='Confirm event details'}
- else if(/offer|scholarship/.test(t)){intent='offer_related';nextAction='Review coach message'}
+ else if(/questionnaire|recruiting form|prospective student-athlete form|prospect form/.test(t)){intent='questionnaire';nextAction='Complete recruiting questionnaire'}
+ else if(/offer|scholarship/.test(t)){intent='offer_related';nextAction='Review offer conversation'}
+ else if(/follow up|following up|checking in|circle back/.test(t)){intent='follow_up';nextAction='Review coach follow-up'}
  else if(/roster (is )?full|no roster|not recruiting|no need/.test(t)){intent='roster_status';nextAction='Review recruiting status'}
  else if(/send (me|us)|please send|can you send/.test(t)){intent='information_request';nextAction='Send requested information'}
  const clean=cleanMessage(body,subject);
