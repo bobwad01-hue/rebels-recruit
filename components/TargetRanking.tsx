@@ -6,8 +6,7 @@ import {
   ChevronUp,
   ChevronDown,
   Target,
-  CheckCircle2,
-  Sparkles,
+  CheckCircle2
 } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
 
@@ -116,45 +115,6 @@ export default function TargetRanking({
     [rows],
   );
   const visibleRows = expanded ? ordered : ordered.slice(0, 5);
-  const suggestions = useMemo(
-    () =>
-      ordered
-        .map((r) => {
-          const ints = interactions.filter((i) => i.college_id === r.collegeId);
-          const responses = ints.filter(
-            (i) =>
-              /coach/.test(lower(i.initiated_by)) ||
-              /reply|replied|respond|interested|invited/.test(
-                `${lower(i.type)} ${lower(i.note)}`,
-              ),
-          );
-          const current = String(r.status || "Researching");
-          let suggested = "";
-          let why = "";
-          if (
-            current === "Researching" &&
-            ints.length >= 3 &&
-            responses.length >= 1
-          ) {
-            suggested = "High Interest";
-            why = `${ints.length} interactions and ${responses.length} coach-response signal${responses.length === 1 ? "" : "s"}`;
-          } else if (
-            current === "High Interest" &&
-            ints.length >= 5 &&
-            responses.length >= 2
-          ) {
-            suggested = "Recruiting Interest";
-            why = `${ints.length} interactions and ${responses.length} coach-response signals`;
-          }
-          return suggested ? { row: r, suggested, why } : null;
-        })
-        .filter(Boolean) as {
-        row: TargetRow;
-        suggested: string;
-        why: string;
-      }[],
-    [ordered, interactions],
-  );
   async function save(next: TargetRow[]) {
     setRows(next.map((r, i) => ({ ...r, rank: i + 1 })));
     setBusy(true);
@@ -196,25 +156,6 @@ export default function TargetRanking({
     next.splice(to, 0, item);
     setDragged(null);
     save(next);
-  }
-  async function applyStatus(r: TargetRow, status: string) {
-    setBusy(true);
-    setMsg("");
-    const { error } = await c
-      .from("athlete_colleges")
-      .update({ status })
-      .eq("id", r.relationshipId);
-    if (error) setMsg(error.message);
-    else {
-      setRows((x) =>
-        x.map((v) =>
-          v.relationshipId === r.relationshipId ? { ...v, status } : v,
-        ),
-      );
-      setMsg("Status updated");
-      setTimeout(() => setMsg(""), 1800);
-    }
-    setBusy(false);
   }
   if (compact)
     return (
@@ -376,45 +317,6 @@ export default function TargetRanking({
           </div>
         )}
       </section>
-      {suggestions.length > 0 && (
-        <section className="card p-5 mb-7 border-amber-200">
-          <div>
-            <h3 className="font-black flex items-center gap-2">
-              <Sparkles size={18} />
-              Suggested Status Updates
-            </h3>
-            <p className="muted text-sm mt-1">
-              These are directional suggestions based on your logged activity.
-              Rebels Recruit never changes your pipeline status automatically.
-            </p>
-          </div>
-          <div className="mt-4 space-y-3">
-            {suggestions.slice(0, 4).map((s) => (
-              <div
-                key={s.row.relationshipId}
-                className="border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3"
-              >
-                <div className="flex-1">
-                  <div className="text-sm">
-                    <SchoolName row={s.row} className="font-bold" />
-                  </div>
-                  <div className="muted text-xs mt-1">
-                    Consider moving from {s.row.status} to <b>{s.suggested}</b>{" "}
-                    — {s.why}.
-                  </div>
-                </div>
-                <button
-                  className="btn btn-red text-xs"
-                  disabled={busy}
-                  onClick={() => applyStatus(s.row, s.suggested)}
-                >
-                  Update to {s.suggested}
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </>
   );
 }
