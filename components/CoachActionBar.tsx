@@ -256,6 +256,7 @@ export default function CoachActionBar({
     setEmailOpen(true);
     let recovered = false;
     try {
+      if (contextualReply) throw new Error('contextual reply takes precedence');
       const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
       if (saved?.subject && saved?.body) {
         setSubject(String(saved.subject));
@@ -272,6 +273,12 @@ export default function CoachActionBar({
         recovered = true;
       }
     } catch {}
+    if (contextualReply) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
+        if (saved?.subject && saved?.body) setDraftNotice("A previous saved draft is available. This recruiting reply uses the current coach message context.");
+      } catch {}
+    }
     draftReady.current = true;
     if (!recovered) {
       if (contextualReply?.kind === "camp") {
