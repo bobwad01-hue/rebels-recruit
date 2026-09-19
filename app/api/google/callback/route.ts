@@ -5,7 +5,7 @@ import {encryptGoogleToken} from '@/lib/google-token-crypto';
 
 const STATE_COOKIE='rr_google_oauth_state';
 const SCOPES={
-  gmail:'https://www.googleapis.com/auth/gmail.send',
+  gmail:['https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/gmail.readonly'].join(' '),
   calendar:[
     'https://www.googleapis.com/auth/calendar.events.owned',
     'https://www.googleapis.com/auth/calendar.events.readonly',
