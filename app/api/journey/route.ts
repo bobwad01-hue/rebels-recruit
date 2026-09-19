@@ -33,7 +33,7 @@ export async function GET() {
         .from("athlete_colleges")
         .select("college_id,status,archived_at")
         .eq("athlete_user_id", user.id),
-      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject,received_at").eq("athlete_user_id", user.id),
+      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject,received_at,extracted_data,action_state,action_decision,action_updated_at").eq("athlete_user_id", user.id),
     ],
   );
 
