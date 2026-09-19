@@ -9,11 +9,8 @@ function header(headers:Header[]|undefined,name:string){return headers?.find(h=>
 function emailFrom(value:string){return (value.match(/<([^>]+)>/)?.[1]||value).trim().toLowerCase()}
 function decode(data?:string){if(!data)return '';try{return Buffer.from(data.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8')}catch{return ''}}
 function bodyText(p:GmailPart|undefined):string{if(!p)return '';if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);for(const x of p.parts||[]){const v=bodyText(x);if(v)return v}return ''}
-function cleanMessage(body:string,subject:string){
- const raw=(body||subject).replace(/\r/g,'');
- const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];
- return cut.replace(/\s+/g,' ').trim();
-}
+function cleanMessage(body:string,subject:string){const raw=(body||subject).replace(/\r/g,'');const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];return cut.replace(/\n{3,}/g,'\n\n').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim()}
+function summaryText(v:string){return v.replace(/\s+/g,' ').trim().slice(0,500)}
 function extractUrls(v:string){return [...new Set((v.match(/https?:\/\/[^\s<>]+/gi)||[]).map(x=>x.replace(/[),.;]+$/,'')))]}
 function normalizeForMatch(v:string){return v.toLowerCase().replace(/https?:\/\/\S+/g,'').replace(/[^a-z0-9]+/g,' ').trim().slice(0,240)}
 function classify(subject:string,body:string){
@@ -30,7 +27,7 @@ function classify(subject:string,body:string){
  else if(/roster (is )?full|no roster|not recruiting|no need/.test(t)){intent='roster_status';nextAction='Review recruiting status'}
  else if(/send (me|us)|please send|can you send/.test(t)){intent='information_request';nextAction='Send requested information'}
  const clean=cleanMessage(body,subject);
- const summary=clean.replace(/https?:\/\/[^\s<>]+/gi,'').replace(/\s+(Coach|Thanks|Thank you|Best|Sincerely)[ ,].*$/i,'').replace(/\s+/g,' ').trim().slice(0,500);
+ const summary=summaryText(clean.replace(/https?:\/\/[^\s<>]+/gi,'').replace(/\s+(Coach|Thanks|Thank you|Best|Sincerely)[ ,].*$/i,''));
  return {intent,summary,nextAction,actionRequired:!!nextAction,confidence:nextAction?0.8:0.55};
 }
 export async function POST(req:NextRequest){
@@ -58,7 +55,7 @@ export async function POST(req:NextRequest){
    const sameDay=await admin.from('interactions').select('id,note,created_at').eq('athlete_user_id',userId).eq('coach_id',coach.id).eq('type','Email Received').eq('date',receivedAt.slice(0,10)).limit(20);
    const target=normalizeForMatch(intel.summary); const duplicate=(sameDay.data||[]).find((x:any)=>{const n=normalizeForMatch(x.note||'');return n&&target&&(n.includes(target.slice(0,120))||target.includes(n.slice(0,120))) });
    if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls}});continue}
-   const interaction=await admin.from('interactions').insert({athlete_user_id:userId,actor_user_id:userId,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),source:'automatic',email_subject:subject||null,email_type:intel.intent,email_content:intel.summary,note:intel.summary}).select('id').single();
+   const interaction=await admin.from('interactions').insert({athlete_user_id:userId,actor_user_id:userId,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),source:'automatic',email_subject:subject||null,email_type:intel.intent,email_content:cleanMessage(text,subject),note:intel.summary}).select('id').single();
    if(interaction.error)continue;
    const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls}});
    if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
