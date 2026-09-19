@@ -14,7 +14,8 @@ function cleanMessage(body:string,subject:string){
  const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];
  return cut.replace(/\s+/g,' ').trim();
 }
-function extractUrls(v:string){return [...new Set((v.match(/https?:\/\/[^\s<>]+/gi)||[]).map(x=>x.replace(/[),.;]+$/,'')))]}\nfunction normalizeForMatch(v:string){return v.toLowerCase().replace(/https?:\/\/\S+/g,'').replace(/[^a-z0-9]+/g,' ').trim().slice(0,240)}
+function extractUrls(v:string){return [...new Set((v.match(/https?:\/\/[^\s<>]+/gi)||[]).map(x=>x.replace(/[),.;]+$/,'')))]}
+function normalizeForMatch(v:string){return v.toLowerCase().replace(/https?:\/\/\S+/g,'').replace(/[^a-z0-9]+/g,' ').trim().slice(0,240)}
 function classify(subject:string,body:string){
  const t=(subject+'\n'+body).toLowerCase();
  let intent='general_response',nextAction:string|null=null;
