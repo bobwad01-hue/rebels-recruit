@@ -14,7 +14,7 @@ function cleanMessage(body:string,subject:string){
  const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];
  return cut.replace(/\s+/g,' ').trim();
 }
-function normalizeForMatch(v:string){return v.toLowerCase().replace(/https?:\/\/\S+/g,'').replace(/[^a-z0-9]+/g,' ').trim().slice(0,240)}
+function extractUrls(v:string){return [...new Set((v.match(/https?:\/\/[^\s<>]+/gi)||[]).map(x=>x.replace(/[),.;]+$/,'')))]}\nfunction normalizeForMatch(v:string){return v.toLowerCase().replace(/https?:\/\/\S+/g,'').replace(/[^a-z0-9]+/g,' ').trim().slice(0,240)}
 function classify(subject:string,body:string){
  const t=(subject+'\n'+body).toLowerCase();
  let intent='general_response',nextAction:string|null=null;
@@ -26,8 +26,7 @@ function classify(subject:string,body:string){
  else if(/offer|scholarship/.test(t)){intent='offer_related';nextAction='Review coach message'}
  else if(/roster (is )?full|no roster|not recruiting|no need/.test(t)){intent='roster_status';nextAction='Review recruiting status'}
  else if(/send (me|us)|please send|can you send/.test(t)){intent='information_request';nextAction='Send requested information'}
- const clean=cleanMessage(body,subject);
- const summary=clean.slice(0,500);
+ const clean=cleanMessage(body,subject);\n const summary=clean.replace(/https?:\/\/[^\s<>]+/gi,'').replace(/\s+(Coach|Thanks|Thank you|Best|Sincerely)[ ,].*$/i,'').replace(/\s+/g,' ').trim().slice(0,500);
  return {intent,summary,nextAction,actionRequired:!!nextAction,confidence:nextAction?0.8:0.55};
 }
 export async function POST(req:NextRequest){
@@ -48,18 +47,17 @@ export async function POST(req:NextRequest){
    const from=emailFrom(header(m.payload?.headers,'From')); if(!from)continue;
    const coachRes=await admin.from('college_coaches').select('id,college_id,first_name,last_name,email').ilike('email',from).limit(2);
    if(!coachRes.data?.length)continue; const coach=coachRes.data[0]; matched++;
-   const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000);
+   const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text);
    if(/^\s*(fwd|fw):/i.test(subject)||/^\s*-{2,}\s*forwarded message/i.test(text))continue;
    const intel=classify(subject,text); if(!intel.summary)continue;
    const receivedAt=m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString();
    const coachName=[coach.first_name,coach.last_name].filter(Boolean).join(' ')||'Coach';
    const sameDay=await admin.from('interactions').select('id,note,created_at').eq('athlete_user_id',user.id).eq('coach_id',coach.id).eq('type','Email Received').eq('date',receivedAt.slice(0,10)).limit(20);
    const target=normalizeForMatch(intel.summary); const duplicate=(sameDay.data||[]).find((x:any)=>{const n=normalizeForMatch(x.note||'');return n&&target&&(n.includes(target.slice(0,120))||target.includes(n.slice(0,120))) });
-   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:user.id,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence});continue}
+   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:user.id,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls}});continue}
    const interaction=await admin.from('interactions').insert({athlete_user_id:user.id,actor_user_id:user.id,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),note:intel.summary}).select('id').single();
    if(interaction.error)continue;
-   const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:user.id,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence});
-   if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
+   const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:user.id,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls}});\n   if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
    if(intel.nextAction){
     await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',user.id).eq('coach_id',coach.id);
    }
