@@ -282,7 +282,7 @@ export default function CoachActionBar({
     draftReady.current = true;
     if (!recovered) {
       if (contextualReply?.kind === "camp") {
-        (async()=>{const p=profile || (await loadProfile());const v=values(p);const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);setStarter("custom");setSubject("Re: Fall Exposure Camp");setBody(`Hello Coach ${lastName},\n\nThank you for sending me the information about ${collegeName || "your program"}'s camp. I'm interested and will take a look at the details. I appreciate you reaching out!${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
+        (async()=>{const p=profile || (await loadProfile());const v=values(p);const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);setStarter("custom");setSubject("Re: Fall Exposure Camp");setBody(`Hello Coach ${lastName},\n\nThank you for sending me the information about ${collegeName || "your program"}'s Fall Exposure Camp in November. I'm definitely interested and will take a look at the registration details. I really appreciate you reaching out!${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
       } else buildStarter(id);
     }
     loadSchoolCoaches();
