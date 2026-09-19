@@ -76,7 +76,7 @@ export async function GET(req:NextRequest){
     statusUpdate[`${saved.service}_scope`]=tokens.scope||SCOPES[saved.service];
     const {error:statusError}=await c.from('google_workspace_connections').upsert(statusUpdate,{onConflict:'user_id'});
     if(statusError)return redirect(req,'status-update-failed');
-
+    if(saved.service==='gmail'&&process.env.GOOGLE_GMAIL_PUBSUB_TOPIC){try{const {startGmailWatch}=await import('@/lib/gmail-inbound');await startGmailWatch(user.id)}catch(error){console.error('Gmail watch setup failed',error)}}
     return redirect(req,`${saved.service}-connected`);
   }catch{
     return redirect(req,'connection-failed');
