@@ -20,7 +20,8 @@ function classify(subject:string,body:string){
  else if(/offer|scholarship/.test(t)){intent='offer_related';nextAction='Review coach message'}
  else if(/roster (is )?full|no roster|not recruiting|no need/.test(t)){intent='roster_status';nextAction='Review recruiting status'}
  else if(/send (me|us)|please send|can you send/.test(t)){intent='information_request';nextAction='Send requested information'}
- const summary=(body||subject).replace(/\s+/g,' ').trim().slice(0,500);
+ const clean=(body||subject).replace(/\r/g,'').split(/\n(?:On .+wrote:|From:|>)/i)[0].replace(/\s+/g,' ').trim();
+ const summary=clean.slice(0,500);
  return {intent,summary,nextAction,actionRequired:!!nextAction,confidence:nextAction?0.8:0.55};
 }
 export async function POST(req:NextRequest){
@@ -44,7 +45,7 @@ export async function POST(req:NextRequest){
    const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const intel=classify(subject,text);
    const receivedAt=m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString();
    const coachName=[coach.first_name,coach.last_name].filter(Boolean).join(' ')||'Coach';
-   const interaction=await admin.from('interactions').insert({athlete_user_id:user.id,actor_user_id:user.id,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),note:`Email received from ${coachName}: ${subject||'(no subject)'} — ${intel.summary}`}).select('id').single();
+   const interaction=await admin.from('interactions').insert({athlete_user_id:user.id,actor_user_id:user.id,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),note:intel.summary}).select('id').single();
    if(interaction.error)continue;
    const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:user.id,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence});
    if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
