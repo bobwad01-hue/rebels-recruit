@@ -123,7 +123,7 @@ export default async function Dashboard({
     supabase
       .from("reminders")
       .select(
-        "id,title,note,due_date,status,coach_id,college_id,color,sort_order,reminder_kind,colleges(id,name),college_coaches(id,first_name,last_name)",
+        "id,title,note,due_date,status,coach_id,college_id,color,sort_order,reminder_kind,interaction_id,colleges(id,name),college_coaches(id,first_name,last_name)",
       )
       .eq("athlete_user_id", uid)
       .in("status", ["open", "snoozed"])
