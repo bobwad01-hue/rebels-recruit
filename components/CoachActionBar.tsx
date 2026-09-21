@@ -42,7 +42,7 @@ type Props = {
   primaryAction?: PrimaryAction;
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
-  contextualReply?: {interactionId:string;kind:"camp"};
+  contextualReply?: {interactionId:string;kind:string;choice?:string};
 };
 export default function CoachActionBar({
   coachId,
@@ -281,8 +281,18 @@ export default function CoachActionBar({
     }
     draftReady.current = true;
     if (!recovered) {
-      if (contextualReply?.kind === "camp") {
-        (async()=>{const p=profile || (await loadProfile());const v=values(p);const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);setStarter("custom");setSubject("Re: Fall Exposure Camp");setBody(`Hello Coach ${lastName},\n\nThank you for sending me the information about ${collegeName || "your program"}'s Fall Exposure Camp in November. I'm definitely interested and will take a look at the registration details. I really appreciate you reaching out!${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
+      if (contextualReply) {
+        (async()=>{const p=profile || (await loadProfile());const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);const kind=contextualReply.kind,choice=contextualReply.choice||"";const drafts:Record<string,{subject:string;body:string}>={
+          camp_invitation:{subject:"Re: Camp Invitation",body:choice==="cannot_attend"?"Thank you for thinking of me and for the invitation. Unfortunately, I won't be able to attend, but I really appreciate you reaching out.": "Thank you for sending me the camp information. I'm definitely interested and will take a look at the details. I really appreciate you reaching out!"},
+          call_request:{subject:"Re: Call",body:choice==="need_time"?"Thank you for reaching out. I'd really like to talk. The suggested time doesn't work for me, but I'd be happy to find another time that works for both of us.":"Thank you for reaching out. I'd be happy to set up a call and look forward to talking with you."},
+          visit_invitation:{subject:"Re: Visit",body:choice==="cannot_attend"?"Thank you very much for the invitation. Unfortunately, I won't be able to make that date, but I really appreciate you thinking of me.":"Thank you for the invitation. I'm very interested in visiting and would love to work out the details."},
+          schedule_request:{subject:"Re: Schedule",body:"Thank you for reaching out. I'm happy to send my upcoming game schedule. I've included the details below."},
+          event_attendance:{subject:"Re: Game Details",body:"Thank you for letting me know. I really appreciate you planning to come watch me play. Here are the game details:"},
+          information_request:{subject:"Re: Requested Information",body:"Thank you for reaching out. I'm happy to send the information you requested. I've included it below."},
+          questionnaire:{subject:"Re: Recruiting Questionnaire",body:"Thank you for sending the recruiting questionnaire. I've completed it and wanted to let you know. I appreciate you staying in touch."},
+          offer_related:{subject:"Re: Recruiting Conversation",body:"Thank you for reaching out. I appreciate the opportunity and would like to set up a time to talk through the details and next steps."},
+          follow_up:{subject:"Re: Checking In",body:"Thank you for checking in. I really appreciate you staying in touch. I wanted to send you a quick update."}
+        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
       } else buildStarter(id);
     }
     loadSchoolCoaches();
