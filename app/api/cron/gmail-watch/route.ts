@@ -4,7 +4,8 @@ import {startGmailWatch} from '@/lib/gmail-inbound';
 export const dynamic='force-dynamic';
 export async function GET(req:NextRequest){
  const secret=process.env.CRON_SECRET;
- if(secret&&req.headers.get('authorization')!==`Bearer ${secret}`)return NextResponse.json({error:'Unauthorized'},{status:401});
+ if(!secret)return NextResponse.json({error:'Cron secret is not configured.'},{status:503});
+ if(req.headers.get('authorization')!==`Bearer ${secret}`)return NextResponse.json({error:'Unauthorized'},{status:401});
  if(!process.env.GOOGLE_GMAIL_PUBSUB_TOPIC)return NextResponse.json({error:'Gmail push topic is not configured.'},{status:503});
  const admin=createAdminClient(),cutoff=new Date(Date.now()+48*60*60*1000).toISOString();
  const {data,error}=await admin.from('google_workspace_connections').select('user_id,gmail_watch_expiration').eq('gmail_connected',true).or(`gmail_watch_expiration.is.null,gmail_watch_expiration.lt.${cutoff}`).limit(500);
