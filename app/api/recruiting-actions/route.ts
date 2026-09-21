@@ -24,8 +24,6 @@ export async function POST(req:NextRequest){
  const rule=NEXT[msg.recruiting_intent]?.[choice];if(!rule)return NextResponse.json({error:'That action is not available.'},{status:400});
  let due:string|null=null;
  if(rule.remindDays){const d=new Date();d.setDate(d.getDate()+rule.remindDays);due=d.toISOString().slice(0,10);
-  await admin.from('reminders').delete().eq('athlete_user_id',user.id).eq('interaction_id',interactionId).eq('reminder_kind','recruiting_action');
-  await admin.from('reminders').insert({owner_user_id:user.id,athlete_user_id:user.id,college_id:msg.college_id,coach_id:msg.coach_id,title:rule.next,due_date:due,interaction_id:interactionId,reminder_kind:'recruiting_action'});
  }
  const {error}=await admin.from('gmail_recruiting_messages').update({action_state:rule.state,action_decision:rule.decision,action_updated_at:new Date().toISOString(),next_action:rule.next,action_due_date:due,action_required:true}).eq('id',msg.id);
  if(error)return NextResponse.json({error:'Could not update the recruiting action.'},{status:500});
