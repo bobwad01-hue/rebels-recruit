@@ -333,7 +333,8 @@ export default function EventPrep() {
       (r: any) =>
         r.reminder_kind === "event_prearrival_email" ||
         /email coaches before/i.test(r.title || ""),
-    );
+    ),
+    followupReminder = eventReminders.find((r:any)=>r.reminder_kind==="event_followup");
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
@@ -356,6 +357,7 @@ export default function EventPrep() {
           emailReminder={emailReminder}
           debrief={debrief}
           preparation={prep}
+          followupReminder={followupReminder}
         />
         {!past && (
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
@@ -442,8 +444,7 @@ export default function EventPrep() {
             )}
           </section>
         )}
-        <div className="grid lg:grid-cols-3 gap-5 mt-5">
-          <section id="get-ready" className="card p-5 lg:col-span-2 scroll-mt-6">
+        {past ? <details className="card mt-5"><summary className="p-5 cursor-pointer font-black">View Event Prep</summary><div className="grid lg:grid-cols-3 gap-5 px-5 pb-5"><section id="get-ready" className="border rounded-xl p-5 lg:col-span-2 scroll-mt-6">
             <div className="rr-eyebrow">EVENT PREP WORKSPACE</div>
             <h2 className="font-black text-lg">Get ready to make the event count</h2>
             <p className="muted text-sm mt-1">Choose who you want to meet, review the relationship, prepare your questions, and decide what you want to accomplish.</p>
@@ -468,9 +469,23 @@ export default function EventPrep() {
               </Link>
             )}
           </section>
-        </div>
+        </div></details> : <div className="grid lg:grid-cols-3 gap-5 mt-5">
+          <section id="get-ready" className="card p-5 lg:col-span-2 scroll-mt-6">
+            <div className="rr-eyebrow">EVENT PREP WORKSPACE</div>
+            <h2 className="font-black text-lg">Get ready to make the event count</h2>
+            <p className="muted text-sm mt-1">Choose who you want to meet, review the relationship, prepare your questions, and decide what you want to accomplish.</p>
+            <div className="text-sm mt-4"><a href="#get-ready-editor" className="btn">Open Event Prep</a></div>
+          </section>
+          <section className="card p-5"><div className="rr-eyebrow">RELATIONSHIP CONTEXT</div><div className="text-3xl font-black">{history.length}</div><div className="muted text-sm">recent recorded interactions</div>{school?.id&&<Link href={`/colleges/${school.id}`} className="btn w-full mt-5"><School size={16}/>Open Playbook</Link>}</section>
+        </div>}
+        <section id="follow-up-action" className="card p-5 mt-5 scroll-mt-6">
+          <div className="rr-eyebrow">FOLLOW-UP</div>
+          <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-up complete":"Close the loop"}</h2>
+          <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
+          {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed"}:r));setSaveMessage("Follow-up completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>}
+        </section>
         <section id="debrief" className="card p-5 mt-5 scroll-mt-6">
-          <div id="follow-up" className="rr-eyebrow scroll-mt-6">AFTER THE EVENT</div>
+          <div className="rr-eyebrow">AFTER THE EVENT</div>
           <h2 className="font-black text-xl">
             Capture what happened, then close the loop
           </h2>
