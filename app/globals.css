@@ -62,3 +62,7 @@ img,svg{max-width:100%}button,a,input,select,textarea{touch-action:manipulation}
   .btn{max-width:100%}
   .rr-filter-bar{padding:10px}
 }
+
+/* Make in-page Playbook destinations unmistakable after a CTA jump. */
+.rr-coach-action-target:target{border-color:#ef4444;background:#fffafa;box-shadow:0 0 0 3px rgba(198,40,40,.10),0 5px 16px rgba(16,24,40,.08);animation:rr-target-pulse 1.2s ease-out 1}
+@keyframes rr-target-pulse{0%{box-shadow:0 0 0 8px rgba(198,40,40,.16),0 5px 16px rgba(16,24,40,.08)}100%{box-shadow:0 0 0 3px rgba(198,40,40,.10),0 5px 16px rgba(16,24,40,.08)}}
