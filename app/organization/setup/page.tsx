@@ -352,7 +352,7 @@ export default function OrganizationSetup() {
                     Teams are visible only inside this organization. Team names
                     do not need to repeat the organization name.
                   </p>
-                  <div className="grid sm:grid-cols-[1fr_160px_auto] gap-3 mt-5">
+                  <div className="grid lg:grid-cols-[1fr_160px_auto] gap-3 mt-5">
                     <input
                       className="input"
                       value={teamName}
