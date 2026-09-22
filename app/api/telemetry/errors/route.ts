@@ -1,5 +1,6 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createAdminClient} from '@/lib/supabase-admin';
+import {createClient} from '@/lib/supabase-server';
 
 const clean=(value:unknown,max:number)=>String(value||'').replace(/[\r\n\t]+/g,' ').slice(0,max);
 const ALERT_TIMEOUT_MS=3500;
@@ -29,6 +30,8 @@ async function deliverEmail(summary:string,event:{error_name:string;path:string;
 }
 
 export async function POST(req:NextRequest){
+  const c=await createClient();const {data:{user}}=await c.auth.getUser();
+  if(!user)return NextResponse.json({ok:false},{status:401});
   let body:any;
   try{body=await req.json()}catch{return NextResponse.json({ok:false},{status:400})}
   const event={
@@ -40,7 +43,7 @@ export async function POST(req:NextRequest){
     error_digest:clean(body?.digest||'',160)||null,
     user_agent:clean(req.headers.get('user-agent')||'',500)||null,
     release:clean(process.env.VERCEL_GIT_COMMIT_SHA||'',80)||null,
-    metadata:{online:body?.online!==false},
+    metadata:{online:body?.online!==false,user_id:user.id},
   };
   try{
     const admin=createAdminClient();
