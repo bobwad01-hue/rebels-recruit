@@ -74,7 +74,7 @@ export default function EventPrep() {
         const [historyResult, coachResult, directoryResult] = await Promise.all([
           c
             .from("interactions")
-            .select("id,coach_id,type,date,note,initiated_by,email_subject,email_type")
+            .select("id,coach_id,type,date,note,initiated_by,email_subject,email_type,interaction_recipients(coach_id,recipient_type)")
             .eq("athlete_user_id", user.id)
             .eq("college_id", e.college_id)
             .order("date", { ascending: false })
@@ -177,6 +177,12 @@ export default function EventPrep() {
     setSaveMessage(`${x.first_name || "Coach"} is now in your Connections. You can email them below.`);
     setSaving(false);
     setTimeout(()=>document.getElementById("email-coaches")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+  }
+  async function markRelationshipReviewed(){
+    const {data:{user}}=await c.auth.getUser(); if(!user)return;
+    const payload={athlete_user_id:user.id,event_id:id,target_coach_ids:prep.target_coach_ids||[],questions:(prep.questions||[]).map((q:string)=>q.trim()).filter(Boolean),personal_goal:prep.personal_goal?.trim()||null,conversation_reviewed:true,video_ready:!!prep.video_ready,updated_at:new Date().toISOString()};
+    const {data,error}=await c.from("event_preparations").upsert(payload,{onConflict:"athlete_user_id,event_id"}).select("*").single();
+    if(!error&&data)setPrep({...data,questions:[...(data.questions||[]),"",""].slice(0,3)});
   }
   async function savePrep(){
     const {data:{user}}=await c.auth.getUser(); if(!user)return;
@@ -338,11 +344,12 @@ export default function EventPrep() {
   const eventDate=String(event.date||"").slice(0,10);
   const preEventContactByCoach=new Map<string,any>();
   history.forEach((h:any)=>{
-    if(!h?.coach_id)return;
     const d=String(h.date||"").slice(0,10);
     const athleteInitiated=String(h.initiated_by||"").toLowerCase()==="athlete";
     const communication=/email sent|text sent|call/i.test(String(h.type||""));
-    if(athleteInitiated&&communication&&(!eventDate||!d||d<=eventDate)&&!preEventContactByCoach.has(h.coach_id))preEventContactByCoach.set(h.coach_id,h);
+    if(!athleteInitiated||!communication||(eventDate&&d&&d>eventDate))return;
+    const recipientIds=[h.coach_id,...(h.interaction_recipients||[]).map((r:any)=>r.coach_id)].filter(Boolean);
+    [...new Set(recipientIds)].forEach((coachId:any)=>{if(!preEventContactByCoach.has(coachId))preEventContactByCoach.set(coachId,h)});
   });
   const contactedCoachCount=coaches.filter((r:any)=>preEventContactByCoach.has(r.coach_id)).length;
   const allTrackedCoachesContacted=coaches.length>0&&contactedCoachCount===coaches.length;
@@ -371,6 +378,8 @@ export default function EventPrep() {
           followupReminder={followupReminder}
           trackedCoachCount={coaches.length}
           contactedCoachCount={contactedCoachCount}
+          relationshipInteractionCount={history.length}
+          onRelationshipReview={markRelationshipReviewed}
         />
         {!past && (
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
