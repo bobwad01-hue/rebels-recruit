@@ -29,6 +29,7 @@ export default function EventPrep() {
     c = createClient();
   const [event, setEvent] = useState<any>(null),
     [history, setHistory] = useState<any[]>([]),
+    [relationshipInteractionCount,setRelationshipInteractionCount]=useState(0),
     [coaches, setCoaches] = useState<any[]>([]),
     [directoryCoaches, setDirectoryCoaches] = useState<any[]>([]),
     [prep, setPrep] = useState<any>({target_coach_ids:[],questions:["","",""],personal_goal:"",conversation_reviewed:false,video_ready:false}),
@@ -71,7 +72,7 @@ export default function EventPrep() {
       }
       setEvent(e);
       if (e?.college_id) {
-        const [historyResult, coachResult, directoryResult] = await Promise.all([
+        const [historyResult, interactionCountResult, coachResult, directoryResult] = await Promise.all([
           c
             .from("interactions")
             .select("id,coach_id,type,date,note,initiated_by,email_subject,email_type,interaction_recipients(coach_id,recipient_type)")
@@ -79,6 +80,11 @@ export default function EventPrep() {
             .eq("college_id", e.college_id)
             .order("date", { ascending: false })
             .limit(8),
+          c
+            .from("interactions")
+            .select("id",{count:"exact",head:true})
+            .eq("athlete_user_id",user.id)
+            .eq("college_id",e.college_id),
           c
             .from("athlete_coaches")
             .select(
@@ -91,7 +97,7 @@ export default function EventPrep() {
             .select("id,first_name,last_name,title,email,phone,source_note")
             .eq("college_id", e.college_id),
         ]);
-        if (historyResult.error || coachResult.error || directoryResult.error) {
+        if (historyResult.error || interactionCountResult.error || coachResult.error || directoryResult.error) {
           setLoadError(
             "The event loaded, but its coach and activity context could not be loaded.",
           );
@@ -110,6 +116,7 @@ export default function EventPrep() {
             college_coaches: coachMap.get(row.coach_id) || null,
           })),
         );
+        setRelationshipInteractionCount(interactionCountResult.count||0);
         setCoaches(
           (cr || []).sort((a: any, b: any) => {
             const ta = String(
@@ -349,6 +356,8 @@ export default function EventPrep() {
     const communication=/email sent|text sent|call/i.test(String(h.type||""));
     if(!athleteInitiated||!communication||(eventDate&&d&&d>eventDate))return;
     const recipientIds=[h.coach_id,...(h.interaction_recipients||[]).map((r:any)=>r.coach_id)].filter(Boolean);
+    const searchable=String([h.note,h.email_subject].filter(Boolean).join(" ")).toLowerCase();
+    coaches.forEach((r:any)=>{const x=one(r.college_coaches);if(x?.email&&searchable.includes(String(x.email).toLowerCase()))recipientIds.push(r.coach_id)});
     [...new Set(recipientIds)].forEach((coachId:any)=>{if(!preEventContactByCoach.has(coachId))preEventContactByCoach.set(coachId,h)});
   });
   const contactedCoachCount=coaches.filter((r:any)=>preEventContactByCoach.has(r.coach_id)).length;
@@ -378,7 +387,7 @@ export default function EventPrep() {
           followupReminder={followupReminder}
           trackedCoachCount={coaches.length}
           contactedCoachCount={contactedCoachCount}
-          relationshipInteractionCount={history.length}
+          relationshipInteractionCount={relationshipInteractionCount}
           onRelationshipReview={markRelationshipReviewed}
         />
         {!past && (
@@ -484,7 +493,7 @@ export default function EventPrep() {
           </section>
           <section className="card p-5">
             <div className="rr-eyebrow">RELATIONSHIP CONTEXT</div>
-            <div className="text-3xl font-black">{history.length}</div>
+            <div className="text-3xl font-black">{relationshipInteractionCount}</div>
             <div className="muted text-sm">recent recorded interactions</div>
             {school?.id && (
               <Link href={`/colleges/${school.id}`} className="btn w-full mt-5">
