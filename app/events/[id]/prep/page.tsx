@@ -319,7 +319,7 @@ export default function EventPrep() {
           debrief={debrief}
         />
         {!past && (
-          <section className="card p-5 mt-5 border-2 border-red-200 bg-red-50">
+          <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
             <div className="flex items-start gap-3">
               <div className="h-10 w-10 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0">
                 <Mail size={19} />
@@ -404,7 +404,7 @@ export default function EventPrep() {
           </section>
         )}
         <div className="grid lg:grid-cols-3 gap-5 mt-5">
-          <section className="card p-5 lg:col-span-2">
+          <section id="get-ready" className="card p-5 lg:col-span-2 scroll-mt-6">
             <div className="rr-eyebrow">EVENT CONTEXT</div>
             <h2 className="font-black text-lg">
               Know the relationship before you arrive
@@ -463,8 +463,8 @@ export default function EventPrep() {
             )}
           </section>
         </div>
-        <section className="card p-5 mt-5">
-          <div className="rr-eyebrow">AFTER THE EVENT</div>
+        <section id="debrief" className="card p-5 mt-5 scroll-mt-6">
+          <div id="follow-up" className="rr-eyebrow scroll-mt-6">AFTER THE EVENT</div>
           <h2 className="font-black text-xl">
             Capture what happened, then close the loop
           </h2>
