@@ -486,7 +486,7 @@ export default function EventPrep() {
         </section>
         {debrief ? <details className="card mt-5">
           <summary className="p-5 cursor-pointer font-black flex items-center justify-between gap-3">
-            <span>View / Edit Debrief</span>
+            <span>▸&nbsp; View / Edit Debrief</span>
             <span className="text-sm font-semibold text-slate-500">Saved</span>
           </summary>
           <div className="px-5 pb-5">
