@@ -156,9 +156,9 @@ export default function EventPrep() {
       if (d) {
         setDebrief(d);
         setForm({
-          coaches_spoken_to: d.coaches_spoken_to || "",
-          what_happened: d.what_happened || "",
-          interest_signal: d.interest_signal || "unclear",
+          coaches_spoken_to: Array.isArray(d.coaches_spoken_to) ? d.coaches_spoken_to.join(", ") : (d.coaches_spoken_to || ""),
+          what_happened: d.what_happened || d.meaningful_notes || "",
+          interest_signal: d.interest_signal || d.interest_change || "unclear",
           follow_up_needed: d.follow_up_needed,
           follow_up_notes: d.follow_up_notes || "",
         });
@@ -202,7 +202,13 @@ export default function EventPrep() {
         {
           athlete_user_id: user.id,
           event_id: id,
-          ...form,
+          coaches_spoken_to: form.coaches_spoken_to.split(",").map((x:string)=>x.trim()).filter(Boolean),
+          what_happened: form.what_happened,
+          meaningful_notes: form.what_happened,
+          interest_signal: form.interest_signal,
+          interest_change: form.interest_signal,
+          follow_up_needed: form.follow_up_needed,
+          follow_up_notes: form.follow_up_notes,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "athlete_user_id,event_id" },
