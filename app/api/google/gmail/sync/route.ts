@@ -17,6 +17,7 @@ function classify(subject:string,body:string){
  const t=(subject+'\n'+body).toLowerCase();
  let intent='general_response',nextAction:string|null=null;
  if(/send (me|us).*(schedule|game times)|your schedule/.test(t)){intent='schedule_request';nextAction='Send game schedule'}
+ else if(/(?:excited|looking forward|glad|happy).*(?:come|coming|visit|campus)|(?:see you|seeing you).*(?:friday|monday|tuesday|wednesday|thursday|saturday|sunday|soon|campus)|(?:visit|campus).*(?:confirmed|scheduled|see you)/.test(t)){intent='visit_confirmation';nextAction='Prepare for visit'}
  else if(/camp|prospect day|clinic/.test(t)){intent='camp_invitation';nextAction='Review camp or clinic invitation'}
  else if(/phone call|zoom|facetime|call you|set up a call/.test(t)){intent='call_request';nextAction='Respond to call request'}
  else if(/visit|campus/.test(t)){intent='visit_invitation';nextAction='Review visit invitation'}
