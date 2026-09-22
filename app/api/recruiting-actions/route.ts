@@ -25,8 +25,10 @@ export async function POST(req:NextRequest){
  let due:string|null=null;
  if(rule.remindDays){const d=new Date();d.setDate(d.getDate()+rule.remindDays);due=d.toISOString().slice(0,10);
  }
- const {error}=await admin.from('gmail_recruiting_messages').update({action_state:rule.state,action_decision:rule.decision,action_updated_at:new Date().toISOString(),next_action:rule.next,action_due_date:due,action_required:true}).eq('id',msg.id);
- if(error)return NextResponse.json({error:'Could not update the recruiting action.'},{status:500});
- await admin.from('athlete_coaches').update({next_step:rule.next}).eq('athlete_user_id',user.id).eq('coach_id',msg.coach_id);
+ const updatedAt=new Date().toISOString();
+ const {data:updated,error}=await admin.from('gmail_recruiting_messages').update({action_state:rule.state,action_decision:rule.decision,action_updated_at:updatedAt,next_action:rule.next,action_due_date:due,action_required:true}).eq('id',msg.id).select('id').maybeSingle();
+ if(error||!updated){console.error('Recruiting action update failed',error);return NextResponse.json({error:'Could not update the recruiting action. Please try again.'},{status:500});}
+ const {error:relationshipError}=await admin.from('athlete_coaches').update({next_step:rule.next}).eq('athlete_user_id',user.id).eq('coach_id',msg.coach_id);
+ if(relationshipError){console.error('Recruiting relationship next step update failed',relationshipError);await admin.from('gmail_recruiting_messages').update({action_state:'review',action_decision:null,action_updated_at:updatedAt,next_action:'Review this recruiting message',action_due_date:null,action_required:true}).eq('id',msg.id);return NextResponse.json({error:'The action could not be fully saved. Nothing was lost. Please try again.'},{status:500});}
  return NextResponse.json({ok:true,state:rule.state,nextAction:rule.next,dueDate:due});
 }
