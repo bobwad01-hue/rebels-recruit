@@ -27,6 +27,7 @@ const fmt = (d: any) =>
 export default function EventPrep() {
   const { id } = useParams<{ id: string }>(),
     c = createClient();
+  // Deployment sync marker: event prep relationship/outreach fix.
   const [event, setEvent] = useState<any>(null),
     [history, setHistory] = useState<any[]>([]),
     [relationshipInteractionCount,setRelationshipInteractionCount]=useState(0),
