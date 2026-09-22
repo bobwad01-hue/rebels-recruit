@@ -13,3 +13,25 @@ img,svg{max-width:100%}button,a,input,select,textarea{touch-action:manipulation}
 @media(min-width:641px) and (max-width:1024px){.rr-section-title{font-size:clamp(1.9rem,4vw,2.35rem)}.rr-section-head{gap:12px}.card{min-width:0}}
 @media(min-width:1280px){.rr-section-title{max-width:24ch}.rr-section-subtitle{max-width:60rem}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}.rr-interactive-card:hover,[data-auto-navigable="true"]:hover{transform:none}}
+/* Responsive product polish */
+.rr-break-anywhere{overflow-wrap:anywhere;word-break:break-word}
+[role="dialog"]{max-width:calc(100vw - 1rem)}
+@media(max-width:1023px){
+  html{scroll-padding-top:68px}
+  [data-rr-page-header]{margin-bottom:1.25rem}
+  main#main-content{min-width:0}
+  .card,.rr-accent-card,.rr-priority-card,.rr-metric-card{min-width:0}
+}
+@media(max-width:767px){
+  .rr-section-subtitle{font-size:.925rem;line-height:1.45}
+  .rr-section-title{overflow-wrap:anywhere}
+  .pill,.status-pill{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  [role="dialog"]{max-height:calc(100dvh - 1rem)}
+}
+@media(max-width:480px){
+  .rr-section-title{font-size:1.6rem}
+  .rr-eyebrow{font-size:10.5px;letter-spacing:.14em}
+  .card{border-radius:14px}
+  .btn{max-width:100%}
+  .rr-filter-bar{padding:10px}
+}
