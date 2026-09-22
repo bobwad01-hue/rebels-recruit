@@ -340,7 +340,7 @@ export default function Player360() {
   if (loading)
     return (
       <AppShell>
-        <div className="max-w-7xl mx-auto px-5 md:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-6 sm:py-8">
           <div className="card p-10 text-center muted">
             Building Player 360°...
           </div>
@@ -351,7 +351,7 @@ export default function Player360() {
     return (
       <AppShell>
         <div className="max-w-3xl mx-auto px-5 py-8">
-          <div className="card p-8">
+          <div className="card p-5 sm:p-8">
             <h1 className="text-2xl font-black">Access unavailable</h1>
             <p className="muted mt-2">{error}</p>
           </div>
@@ -373,7 +373,7 @@ export default function Player360() {
           title={player?.full_name || "Player"}
           subtitle={`${player?.class_year || "Class year not set"}${player?.positions?.length ? " · " + player.positions.join(" / ") : ""}${player?.school_name ? " · " + player.school_name : ""}`}
         />
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
           {[
             ["Recruiting Health", `${intelligence.score}`, intelligence.health],
             ["Active Schools", intelligence.activeSchools, ""],
@@ -391,7 +391,7 @@ export default function Player360() {
             />
           ))}
         </div>
-        <div className="grid lg:grid-cols-3 gap-6 mt-6">
+        <div className="grid xl:grid-cols-3 gap-6 mt-6">
           <section
             id="recruiting-intelligence"
             className="card p-5 lg:col-span-2 scroll-mt-24"
@@ -550,7 +550,7 @@ export default function Player360() {
             </div>
           </section>
         )}
-        <div className="grid lg:grid-cols-2 gap-6 mt-6">
+        <div className="grid xl:grid-cols-2 gap-6 mt-6">
           {can("view_connections") && (
             <section className="card p-5">
               <div className="flex items-center justify-between gap-3">
