@@ -410,7 +410,7 @@ export default async function Dashboard({
             athleteId={preview.active ? uid : undefined}
           />
         </div>
-        <div className="grid lg:grid-cols-3 gap-5 sm:gap-6 mt-6 min-w-0">
+        <div className="grid xl:grid-cols-3 gap-5 sm:gap-6 mt-6 min-w-0">
           <section className="card w-full min-w-0 p-4 sm:p-5 lg:col-span-2">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
               <div className="min-w-0">
