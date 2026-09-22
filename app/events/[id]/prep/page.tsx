@@ -349,6 +349,7 @@ export default function EventPrep() {
           event={event}
           emailReminder={emailReminder}
           debrief={debrief}
+          preparation={prep}
         />
         {!past && (
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
