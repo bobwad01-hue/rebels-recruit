@@ -31,6 +31,9 @@ export default function EventPrep() {
     [history, setHistory] = useState<any[]>([]),
     [coaches, setCoaches] = useState<any[]>([]),
     [directoryCoaches, setDirectoryCoaches] = useState<any[]>([]),
+    [prep, setPrep] = useState<any>({target_coach_ids:[],questions:["","",""],personal_goal:"",conversation_reviewed:false,video_ready:false}),
+    [prepSaving,setPrepSaving]=useState(false),
+    [prepMessage,setPrepMessage]=useState(""),
     [debrief, setDebrief] = useState<any>(null),
     [eventReminders, setEventReminders] = useState<any[]>([]),
     [form, setForm] = useState({
@@ -125,7 +128,7 @@ export default function EventPrep() {
           }),
         );
       }
-      const [debriefResult, reminderResult] = await Promise.all([
+      const [debriefResult, reminderResult, prepResult] = await Promise.all([
         c
           .from("event_debriefs")
           .select("*")
@@ -137,8 +140,9 @@ export default function EventPrep() {
           .select("id,title,due_date,status,reminder_kind,event_id")
           .eq("athlete_user_id", user.id)
           .eq("event_id", id),
+        c.from("event_preparations").select("*").eq("athlete_user_id",user.id).eq("event_id",id).maybeSingle(),
       ]);
-      if (debriefResult.error || reminderResult.error) {
+      if (debriefResult.error || reminderResult.error || prepResult.error) {
         setLoadError(
           "The event loaded, but its debrief or reminders could not be loaded.",
         );
@@ -147,6 +151,7 @@ export default function EventPrep() {
       }
       const d = debriefResult.data;
       const r = reminderResult.data;
+      if(prepResult.data)setPrep({...prepResult.data,questions:[...(prepResult.data.questions||[]),"","",""].slice(0,3)});
       setEventReminders(r || []);
       if (d) {
         setDebrief(d);
@@ -172,6 +177,14 @@ export default function EventPrep() {
     setSaveMessage(`${x.first_name || "Coach"} is now in your Connections. You can email them below.`);
     setSaving(false);
     setTimeout(()=>document.getElementById("email-coaches")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+  }
+  async function savePrep(){
+    const {data:{user}}=await c.auth.getUser(); if(!user)return;
+    setPrepSaving(true);setPrepMessage("");
+    const payload={athlete_user_id:user.id,event_id:id,target_coach_ids:prep.target_coach_ids||[],questions:(prep.questions||[]).map((q:string)=>q.trim()).filter(Boolean),personal_goal:prep.personal_goal?.trim()||null,conversation_reviewed:!!prep.conversation_reviewed,video_ready:!!prep.video_ready,updated_at:new Date().toISOString()};
+    const {data,error}=await c.from("event_preparations").upsert(payload,{onConflict:"athlete_user_id,event_id"}).select("*").single();
+    if(error){setPrepMessage("Your event prep could not be saved. Please try again.");setPrepSaving(false);return}
+    setPrep({...data,questions:[...(data.questions||[]),"",""].slice(0,3)});setPrepMessage("Event prep saved.");setPrepSaving(false);setTimeout(()=>setPrepMessage(""),3000);
   }
   async function save() {
     const {
@@ -424,51 +437,18 @@ export default function EventPrep() {
         )}
         <div className="grid lg:grid-cols-3 gap-5 mt-5">
           <section id="get-ready" className="card p-5 lg:col-span-2 scroll-mt-6">
-            <div className="rr-eyebrow">EVENT CONTEXT</div>
-            <h2 className="font-black text-lg">
-              Know the relationship before you arrive
-            </h2>
+            <div className="rr-eyebrow">EVENT PREP WORKSPACE</div>
+            <h2 className="font-black text-lg">Get ready to make the event count</h2>
+            <p className="muted text-sm mt-1">Choose who you want to meet, review the relationship, prepare your questions, and decide what you want to accomplish.</p>
             <div className="grid sm:grid-cols-2 gap-3 mt-4">
-              {[
-                "Review your last conversation",
-                "Know who you want to speak with",
-                "Prepare 3 questions",
-                "Have an updated video ready",
-              ].map((x) => (
-                <div
-                  key={x}
-                  className="border rounded-xl p-3 flex gap-2 text-sm font-semibold"
-                >
-                  <CheckCircle2 size={17} />
-                  {x}
-                </div>
-              ))}
+              <label className="border rounded-xl p-3 flex gap-2 text-sm font-semibold"><input type="checkbox" checked={!!prep.conversation_reviewed} onChange={e=>setPrep({...prep,conversation_reviewed:e.target.checked})}/>I reviewed my last conversation</label>
+              <label className="border rounded-xl p-3 flex gap-2 text-sm font-semibold"><input type="checkbox" checked={!!prep.video_ready} onChange={e=>setPrep({...prep,video_ready:e.target.checked})}/>My recruiting video/profile is ready</label>
             </div>
-            {coaches.length > 0 && (
-              <>
-                <h3 className="font-black mt-6">Coaches you already track</h3>
-                <div className="mt-3 space-y-2">
-                  {coaches.map((r: any, i) => {
-                    const x = one(r.college_coaches);
-                    return (
-                      <Link
-                        href={x?.id ? `/coaches/${x.id}` : "#"}
-                        key={i}
-                        className="block border rounded-xl p-3 hover:bg-slate-50"
-                      >
-                        <b>
-                          {x?.first_name} {x?.last_name}
-                        </b>
-                        <div className="muted text-xs">
-                          {x?.title || "Coach"}
-                          {x?.email ? ` · ${x.email}` : ""}
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </>
-            )}
+            {coaches.length>0&&<><h3 className="font-black mt-5">Who do you want to connect with?</h3><div className="mt-2 space-y-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches),checked=(prep.target_coach_ids||[]).includes(x?.id);return <label key={x?.id||i} className="border rounded-xl p-3 flex gap-3 cursor-pointer"><input type="checkbox" checked={checked} onChange={e=>setPrep({...prep,target_coach_ids:e.target.checked?[...(prep.target_coach_ids||[]),x.id]:(prep.target_coach_ids||[]).filter((v:string)=>v!==x.id)})}/><span><b>{x?.first_name} {x?.last_name}</b><span className="block muted text-xs">{x?.title||"Coach"}{x?.email?` · ${x.email}`:""}</span></span></label>})}</div></>}
+            <h3 className="font-black mt-5">Prepare 3 questions</h3>
+            <div className="space-y-2 mt-2">{[0,1,2].map(i=><input key={i} className="input w-full" value={prep.questions?.[i]||""} onChange={e=>{const qs=[...(prep.questions||[])];qs[i]=e.target.value;setPrep({...prep,questions:qs})}} placeholder={`Question ${i+1}`}/>)}</div>
+            <label className="text-sm font-bold block mt-5">What do you want to accomplish at this event?<textarea className="input w-full mt-1 min-h-20" value={prep.personal_goal||""} onChange={e=>setPrep({...prep,personal_goal:e.target.value})} placeholder="Example: Introduce myself to Coach Anderson after the hitting session."/></label>
+            <div className="flex flex-wrap items-center gap-3 mt-5"><button className="btn btn-red" disabled={prepSaving} onClick={savePrep}>{prepSaving?"Saving...":"Save Event Prep"}</button>{prepMessage&&<span className="text-sm font-bold text-slate-700">{prepMessage}</span>}</div>
           </section>
           <section className="card p-5">
             <div className="rr-eyebrow">RELATIONSHIP CONTEXT</div>
