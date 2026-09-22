@@ -369,6 +369,8 @@ export default function EventPrep() {
           debrief={debrief}
           preparation={prep}
           followupReminder={followupReminder}
+          trackedCoachCount={coaches.length}
+          contactedCoachCount={contactedCoachCount}
         />
         {!past && (
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
