@@ -484,7 +484,13 @@ export default function EventPrep() {
           <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
           {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed"}:r));setSaveMessage("Follow-up completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>}
         </section>
-        <section id="debrief" className="card p-5 mt-5 scroll-mt-6">
+        {debrief ? <details className="card mt-5">
+          <summary className="p-5 cursor-pointer font-black flex items-center justify-between gap-3">
+            <span>View / Edit Debrief</span>
+            <span className="text-sm font-semibold text-slate-500">Saved</span>
+          </summary>
+          <div className="px-5 pb-5">
+<section id="debrief" className="card p-5 scroll-mt-6">
           <div className="rr-eyebrow">AFTER THE EVENT</div>
           <h2 className="font-black text-xl">
             Capture what happened, then close the loop
@@ -569,6 +575,96 @@ export default function EventPrep() {
             )}
           </div>
         </section>
+
+          </div>
+        </details> : <>
+        <section id="debrief" className="card p-5 scroll-mt-6">
+          <div className="rr-eyebrow">AFTER THE EVENT</div>
+          <h2 className="font-black text-xl">
+            Capture what happened, then close the loop
+          </h2>
+          <p className="muted text-sm mt-1">
+            Your first saved debrief adds an dated Journey entry. If follow-up
+            is needed, Rebels Recruit creates a Next Step for the next day
+            instead of leaving the event as a dead-end calendar item.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4 mt-5">
+            <label className="text-sm font-bold">
+              Coaches you spoke with
+              <input
+                className="input w-full mt-1"
+                value={form.coaches_spoken_to}
+                onChange={(e) =>
+                  setForm({ ...form, coaches_spoken_to: e.target.value })
+                }
+              />
+            </label>
+            <label className="text-sm font-bold">
+              Interest signal
+              <select
+                className="input w-full mt-1"
+                value={form.interest_signal}
+                onChange={(e) =>
+                  setForm({ ...form, interest_signal: e.target.value })
+                }
+              >
+                <option value="strong">Strong</option>
+                <option value="positive">Positive</option>
+                <option value="neutral">Neutral</option>
+                <option value="unclear">Unclear</option>
+                <option value="negative">Negative</option>
+              </select>
+            </label>
+          </div>
+          <label className="text-sm font-bold block mt-4">
+            What happened?
+            <textarea
+              className="input w-full mt-1 min-h-28"
+              value={form.what_happened}
+              onChange={(e) =>
+                setForm({ ...form, what_happened: e.target.value })
+              }
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-bold mt-4">
+            <input
+              type="checkbox"
+              checked={form.follow_up_needed}
+              onChange={(e) =>
+                setForm({ ...form, follow_up_needed: e.target.checked })
+              }
+            />
+            Follow-up needed
+          </label>
+          {form.follow_up_needed && (
+            <label className="text-sm font-bold block mt-3">
+              Follow-up plan
+              <input
+                className="input w-full mt-1"
+                value={form.follow_up_notes}
+                onChange={(e) =>
+                  setForm({ ...form, follow_up_notes: e.target.value })
+                }
+                placeholder="Thank coach, send video, answer a question..."
+              />
+            </label>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-5">
+            <button onClick={save} disabled={saving} className="btn btn-red">
+              <MessageSquare size={17} />
+              {saving ? "Saving..." : "Save Debrief & Next Step"}
+            </button>
+            {saveMessage && (
+              <span
+                className={`text-sm font-bold ${saved ? "text-slate-700" : "text-red-700"}`}
+              >
+                {saveMessage}
+              </span>
+            )}
+          </div>
+        </section>
+
+        </>}
       </div>
     </AppShell>
   );
