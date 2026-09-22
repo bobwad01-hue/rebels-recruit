@@ -74,7 +74,7 @@ export default function EventPrep() {
         const [historyResult, coachResult, directoryResult] = await Promise.all([
           c
             .from("interactions")
-            .select("id,coach_id,type,date,note,initiated_by")
+            .select("id,coach_id,type,date,note,initiated_by,email_subject,email_type")
             .eq("athlete_user_id", user.id)
             .eq("college_id", e.college_id)
             .order("date", { ascending: false })
@@ -335,6 +335,17 @@ export default function EventPrep() {
         /email coaches before/i.test(r.title || ""),
     ),
     followupReminder = eventReminders.find((r:any)=>r.reminder_kind==="event_followup");
+  const eventDate=String(event.date||"").slice(0,10);
+  const preEventContactByCoach=new Map<string,any>();
+  history.forEach((h:any)=>{
+    if(!h?.coach_id)return;
+    const d=String(h.date||"").slice(0,10);
+    const athleteInitiated=String(h.initiated_by||"").toLowerCase()==="athlete";
+    const communication=/email sent|text sent|call/i.test(String(h.type||""));
+    if(athleteInitiated&&communication&&(!eventDate||!d||d<=eventDate)&&!preEventContactByCoach.has(h.coach_id))preEventContactByCoach.set(h.coach_id,h);
+  });
+  const contactedCoachCount=coaches.filter((r:any)=>preEventContactByCoach.has(r.coach_id)).length;
+  const allTrackedCoachesContacted=coaches.length>0&&contactedCoachCount===coaches.length;
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
@@ -368,12 +379,12 @@ export default function EventPrep() {
               <div>
                 <div className="rr-eyebrow">HIGH-PRIORITY PREP STEP</div>
                 <h2 className="text-xl font-black">
-                  Email the coaches before you go
+                  {allTrackedCoachesContacted ? "Pre-event outreach complete" : "Email the coaches before you go"}
                 </h2>
                 <p className="text-sm text-slate-700 mt-1 max-w-3xl">
-                  Let the staff know you will be at the camp or on campus. For
-                  most events, 2–5 days beforehand is a strong window. Marking
-                  an event <b>Going</b> automatically creates this Next Step.
+                  {allTrackedCoachesContacted
+                    ? "You have already contacted the coaches you are tracking for this event. No duplicate outreach is needed."
+                    : "Contact the coaches you still need to notify before the event. Rebels Recruit will not ask you to re-email a coach when your outreach is already recorded."}
                 </p>
               </div>
             </div>
@@ -384,6 +395,7 @@ export default function EventPrep() {
                     name =
                       [x?.first_name, x?.last_name].filter(Boolean).join(" ") ||
                       "Coach";
+                  const priorContact=x?.id?preEventContactByCoach.get(x.id):null;
                   return (
                     <div
                       key={x?.id || i}
@@ -402,11 +414,11 @@ export default function EventPrep() {
                             {x?.email ? ` · ${x.email}` : ""}
                           </div>
                         </div>
-                        <div className="text-xs font-bold text-red-700">
-                          Send before the event
+                        <div className={`text-xs font-bold ${priorContact?"text-green-700":"text-red-700"}`}>
+                          {priorContact ? `Already contacted${priorContact.date ? ` · ${fmt(priorContact.date)}` : ""}` : "Send before the event"}
                         </div>
                       </div>
-                      {x?.id && (
+                      {x?.id && !priorContact && (
                         <div className="mt-3">
                           <CoachActionBar
                             coachId={x.id}
@@ -422,6 +434,7 @@ export default function EventPrep() {
                           />
                         </div>
                       )}
+                      {priorContact && <div className="mt-3 text-sm text-slate-600">Your pre-event outreach to this coach is already in the Journey.</div>}
                     </div>
                   );
                 })}
