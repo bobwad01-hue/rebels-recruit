@@ -45,8 +45,13 @@ export async function POST(req:NextRequest){
    const mr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(item.id)}?format=full`,{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
    if(!mr.ok)continue; const m=await mr.json() as any;
    const from=emailFrom(header(m.payload?.headers,'From')); if(!from)continue;
-   const coachRes=await admin.from('college_coaches').select('id,college_id,first_name,last_name,email').ilike('email',from).limit(2);
-   if(!coachRes.data?.length)continue; const coach=coachRes.data[0]; matched++;
+   const coachRes=await admin.from('college_coaches').select('id,college_id,first_name,last_name,email').ilike('email',from).limit(20);
+   if(!coachRes.data?.length)continue;
+   const coachIds=coachRes.data.map((x:any)=>x.id);
+   const tracked=await admin.from('athlete_coaches').select('coach_id').eq('athlete_user_id',userId).in('coach_id',coachIds);
+   const trackedIds=new Set((tracked.data||[]).map((x:any)=>x.coach_id));
+   const coach=coachRes.data.find((x:any)=>trackedIds.has(x.id));
+   if(!coach)continue; matched++;
    const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text);
    if(/^\s*(fwd|fw):/i.test(subject)||/^\s*-{2,}\s*forwarded message/i.test(text))continue;
    const intel=classify(subject,text); if(!intel.summary)continue;
