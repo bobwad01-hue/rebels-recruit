@@ -5,6 +5,7 @@ export default function RecruitingActionCard({interactionId,coachId,intel,onChan
  const [busy,setBusy]=useState(''),[error,setError]=useState('');const state=intel.action_state||'review';const url=intel.extracted_data?.urls?.[0];
  async function choose(choice:string){setBusy(choice);setError('');try{const r=await fetch('/api/recruiting-actions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({interactionId,choice})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Could not update next step.');window.dispatchEvent(new CustomEvent('rebels:data-changed',{detail:{entity:'interaction',action:'updated',id:interactionId}}));onChanged?.()}catch(e){setError(e instanceof Error?e.message:'Could not update next step.')}finally{setBusy('')}}
  const configs:any={
+ visit_confirmation:{review:[['prepare_visit','Prepare for Visit']]},
  call_request:{review:[['accept','Confirm Call'],['need_time','Suggest Another Time'],['decline',"Can't Do It"]],prepare:[['completed','Call Completed']]},
  visit_invitation:{review:[['interested',"I'm Interested"],['cannot_attend',"Can't Attend"],['decide_later','Decide Later']],prepare:[['completed','Visit Completed']]},
  schedule_request:{review:[['send','Send Schedule'],['later','Do This Later']],waiting:[]},
