@@ -549,7 +549,7 @@ export default function OrganizationCommandCenter() {
       onClick={() => setTab(dest)}
       className="rr-metric-card p-3 sm:p-4 text-left group hover:border-slate-400 hover:bg-white transition"
     >
-      <div className="flex justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
         <div className="rr-metric-label">{label}</div>
         <ArrowRight size={14} className="opacity-40 group-hover:opacity-100" />
       </div>
@@ -662,7 +662,7 @@ export default function OrganizationCommandCenter() {
         )}
       {tab === "overview" && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
             {metric("Players", athletes.length, "players")}
             {metric(
               "Schools",
@@ -696,7 +696,7 @@ export default function OrganizationCommandCenter() {
               "players",
             )}
           </div>
-          <div className="grid lg:grid-cols-2 gap-5 sm:gap-6 mt-6">
+          <div className="grid xl:grid-cols-2 gap-5 sm:gap-6 mt-6">
             <section className="card p-4 sm:p-5">
               <div className="rr-eyebrow">PRIORITY</div>
               <h2 className="rr-section-title flex items-center gap-2">
@@ -1202,7 +1202,7 @@ export default function OrganizationCommandCenter() {
               return (
                 <div
                   key={m.id}
-                  className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                  className="py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
                 >
                   <div>
                     <b>{p.full_name || p.email || m.user_id}</b>
