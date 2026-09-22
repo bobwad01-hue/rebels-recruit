@@ -30,6 +30,7 @@ export default function EventPrep() {
   const [event, setEvent] = useState<any>(null),
     [history, setHistory] = useState<any[]>([]),
     [coaches, setCoaches] = useState<any[]>([]),
+    [directoryCoaches, setDirectoryCoaches] = useState<any[]>([]),
     [debrief, setDebrief] = useState<any>(null),
     [eventReminders, setEventReminders] = useState<any[]>([]),
     [form, setForm] = useState({
@@ -67,7 +68,7 @@ export default function EventPrep() {
       }
       setEvent(e);
       if (e?.college_id) {
-        const [historyResult, coachResult] = await Promise.all([
+        const [historyResult, coachResult, directoryResult] = await Promise.all([
           c
             .from("interactions")
             .select("id,coach_id,type,date,note,initiated_by")
@@ -82,8 +83,12 @@ export default function EventPrep() {
             )
             .eq("athlete_user_id", user.id)
             .eq("college_id", e.college_id),
+          c
+            .from("college_coaches")
+            .select("id,first_name,last_name,title,email,phone,source_note")
+            .eq("college_id", e.college_id),
         ]);
-        if (historyResult.error || coachResult.error) {
+        if (historyResult.error || coachResult.error || directoryResult.error) {
           setLoadError(
             "The event loaded, but its coach and activity context could not be loaded.",
           );
@@ -91,6 +96,8 @@ export default function EventPrep() {
           return;
         }
         const cr = coachResult.data || [];
+        const trackedIds = new Set(cr.map((row:any)=>row.coach_id));
+        setDirectoryCoaches((directoryResult.data || []).filter((x:any)=>!trackedIds.has(x.id)));
         const coachMap = new Map(
           cr.map((row: any) => [row.coach_id, one(row.college_coaches)]),
         );
@@ -154,6 +161,18 @@ export default function EventPrep() {
       setLoading(false);
     })();
   }, [id]);
+  async function trackCoach(x:any) {
+    const { data: { user } } = await c.auth.getUser();
+    if (!user || !event?.college_id || !x?.id) return;
+    setSaving(true); setSaveMessage("");
+    const { error } = await c.from("athlete_coaches").insert({athlete_user_id:user.id,college_id:event.college_id,coach_id:x.id,archived_at:null,archived_reason:null});
+    if (error) { setSaveMessage("We found the coach, but could not add them to your Connections. Please try again."); setSaving(false); return; }
+    setCoaches(v=>[...v,{coach_id:x.id,college_coaches:x}]);
+    setDirectoryCoaches(v=>v.filter(y=>y.id!==x.id));
+    setSaveMessage(`${x.first_name || "Coach"} is now in your Connections. You can email them below.`);
+    setSaving(false);
+    setTimeout(()=>document.getElementById("email-coaches")?.scrollIntoView({behavior:"smooth",block:"start"}),50);
+  }
   async function save() {
     const {
       data: { user },
@@ -385,20 +404,20 @@ export default function EventPrep() {
                   );
                 })}
               </div>
+            ) : directoryCoaches.length > 0 ? (
+              <div className="rounded-xl border bg-white p-4 mt-4">
+                <div className="font-black">We found coaches for {school?.name || "this school"}</div>
+                <p className="muted text-sm mt-1">They are in the shared Rebels Recruit directory but not in your Connections yet. Choose who you want to contact.</p>
+                <div className="mt-3 space-y-2">{directoryCoaches.map((x:any)=><div key={x.id} className="border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1"><div className="font-black">{[x.first_name,x.last_name].filter(Boolean).join(" ")}</div><div className="muted text-xs">{x.title || "Coach"}{x.email?` · ${x.email}`:""}</div>{x.source_note&&<div className="text-[11px] text-green-700 font-bold mt-1">Verified from official athletics source</div>}</div><button className="btn btn-red self-start" disabled={saving} onClick={()=>trackCoach(x)}>Add to My Connections →</button></div>)}</div>
+              </div>
             ) : (
               <div className="rounded-xl border bg-white p-4 mt-4">
-                <div className="font-bold">
-                  No coach relationship is linked yet.
+                <div className="font-black">We don't have this school's softball coaches yet.</div>
+                <p className="muted text-sm mt-1">Use the school's official athletics site as the source of truth, then add the coach you want to contact. Rebels Recruit will keep that coach in the shared directory for the next athlete too.</p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <a href={`https://www.google.com/search?q=${encodeURIComponent((school?.name || "") + " softball coaching staff official athletics")}`} target="_blank" rel="noreferrer" className="btn">Find Official Coaching Staff →</a>
+                  {school?.id&&<Link href={`/coaches/new?college=${school.id}&returnTo=${encodeURIComponent(`/events/${id}/prep#email-coaches`)}`} className="btn btn-red">+ Add Coach</Link>}
                 </div>
-                <p className="muted text-sm mt-1">
-                  Add the coaching staff you expect to meet so you can contact
-                  them before the event.
-                </p>
-                {school?.id && (
-                  <Link href={`/colleges/${school.id}`} className="btn mt-3">
-                    Review School Playbook
-                  </Link>
-                )}
               </div>
             )}
           </section>
