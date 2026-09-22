@@ -55,7 +55,16 @@ export async function POST(req:NextRequest){
    if(!coach)continue; matched++;
    const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text);
    if(/^\s*(fwd|fw):/i.test(subject)||/^\s*-{2,}\s*forwarded message/i.test(text))continue;
-   const intel=classify(subject,text); if(!intel.summary)continue;
+   let intel=classify(subject,text); if(!intel.summary)continue;
+   // Use the existing relationship history to avoid treating an acknowledgement as a brand-new invitation.
+   if(intel.intent==='camp_invitation'||intel.intent==='visit_invitation'){
+    const prior=await admin.from('interactions').select('id,type,email_subject,email_type,note,date,created_at').eq('athlete_user_id',userId).eq('coach_id',coach.id).lt('created_at',new Date(Number(m.internalDate||Date.now())).toISOString()).order('created_at',{ascending:false}).limit(12);
+    const context=(prior.data||[]).map((x:any)=>`${x.type||''} ${x.email_subject||''} ${x.email_type||''} ${x.note||''}`).join('\n').toLowerCase();
+    const current=(subject+'\n'+text).toLowerCase();
+    const acknowledgement=/(excited|looking forward|glad|happy).*(come|coming|visit|campus|camp)|see you|can't wait|looking forward to seeing/.test(current);
+    const alreadyPlanned=/(pre.?camp|pre.?visit|upcoming visit|attend|attending|registered|registration|coming to|visit|camp)/.test(context);
+    if(acknowledgement&&alreadyPlanned)intel={...intel,intent:'visit_confirmation',nextAction:'Prepare for visit',actionRequired:true,confidence:0.9};
+   }
    const receivedAt=m.internalDate?new Date(Number(m.internalDate)).toISOString():new Date().toISOString();
    const coachName=[coach.first_name,coach.last_name].filter(Boolean).join(' ')||'Coach';
    const sameDay=await admin.from('interactions').select('id,note,email_subject,created_at').eq('athlete_user_id',userId).eq('coach_id',coach.id).eq('type','Email Received').eq('date',receivedAt.slice(0,10)).limit(20);
