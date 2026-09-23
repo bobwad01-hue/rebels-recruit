@@ -27,20 +27,6 @@ const fmt = (d: any) =>
 export default function EventPrep() {
   const { id } = useParams<{ id: string }>(),
     c = createClient();
-  // Keep same-page workflow links useful even when Next.js only updates the hash.
-  useEffect(() => {
-    const scrollToHash = () => {
-      const hash = window.location.hash.slice(1);
-      if (!hash) return;
-      window.requestAnimationFrame(() => {
-        document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    };
-    scrollToHash();
-    window.addEventListener("hashchange", scrollToHash);
-    return () => window.removeEventListener("hashchange", scrollToHash);
-  }, [event, debrief]);
-
   // Deployment sync marker: event prep relationship/outreach fix.
   const [event, setEvent] = useState<any>(null),
     [history, setHistory] = useState<any[]>([]),
@@ -67,6 +53,20 @@ export default function EventPrep() {
     [saveMessage, setSaveMessage] = useState(""),
     [loading, setLoading] = useState(true),
     [loadError, setLoadError] = useState("");
+  // Keep same-page workflow links useful even when Next.js only updates the hash.
+  useEffect(() => {
+    const scrollToHash = () => {
+      const hash = window.location.hash.slice(1);
+      if (!hash) return;
+      window.requestAnimationFrame(() => {
+        document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    };
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => window.removeEventListener("hashchange", scrollToHash);
+  }, [event, debrief]);
+
   useEffect(() => {
     (async () => {
       const {
