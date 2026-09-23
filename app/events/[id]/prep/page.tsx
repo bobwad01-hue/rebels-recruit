@@ -53,18 +53,32 @@ export default function EventPrep() {
     [saveMessage, setSaveMessage] = useState(""),
     [loading, setLoading] = useState(true),
     [loadError, setLoadError] = useState("");
-  // Keep same-page workflow links useful even when Next.js only updates the hash.
+  // Make same-page workflow CTAs work even when only the URL hash changes.
+  // Next.js does not reliably fire a native hashchange event for client-side Link navigation,
+  // so also observe history changes and the current URL after clicks.
   useEffect(() => {
+    let frame = 0;
     const scrollToHash = () => {
-      const hash = window.location.hash.slice(1);
-      if (!hash) return;
-      window.requestAnimationFrame(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const hash = window.location.hash.slice(1);
+        if (!hash) return;
         document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     };
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target instanceof Element ? e.target.closest('a[href*="#"]') : null;
+      if (!target) return;
+      window.setTimeout(scrollToHash, 0);
+    };
     scrollToHash();
     window.addEventListener("hashchange", scrollToHash);
-    return () => window.removeEventListener("hashchange", scrollToHash);
+    document.addEventListener("click", handleClick);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("hashchange", scrollToHash);
+      document.removeEventListener("click", handleClick);
+    };
   }, [event, debrief]);
 
   useEffect(() => {
