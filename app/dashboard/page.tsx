@@ -335,8 +335,8 @@ export default async function Dashboard({
               href={ph("/connections")}
             />
             <SnapshotMetric
-              label="Coach Relationships"
-              value={intelligence.coachRelationships}
+              label="Needs Follow-Up"
+              value={needsFollowUp}
               href={ph("/connections")}
             />
             <SnapshotMetric
@@ -420,9 +420,8 @@ function SnapshotMetric({
       href={href}
       className="px-4 py-4 min-w-0 hover:bg-white transition-colors"
     >
-      <div className="rr-metric-label break-words">{label}</div>
-      <div className="rr-metric-value !text-xl">{value}</div>
-      <div className="text-[11px] font-black mt-2">Review {label} →</div>
+      <div className="rr-metric-value !text-2xl">{value}</div>
+      <div className="rr-metric-label break-words mt-1">{label}</div>
     </Link>
   );
 }
