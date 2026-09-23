@@ -312,7 +312,7 @@ export default async function Dashboard({
             </div>
             <Link
               href={ph("/health")}
-              className="rr-metric-card rr-interactive-card px-4 py-3 w-full min-w-0 lg:w-auto lg:min-w-[160px] block"
+              className="rounded-xl border bg-slate-50 px-4 py-3 w-full min-w-0 lg:w-auto lg:min-w-[160px] block hover:bg-slate-100 transition-colors"
             >
               <div className="rr-metric-label">Recruiting Health</div>
               <div className="rr-metric-value !text-3xl">
@@ -363,7 +363,7 @@ export default async function Dashboard({
                     {intelligence.topPriority.title}
                   </div>
                   <p className="text-sm mt-1">
-                    {intelligence.topPriority.detail}
+                    {intelligence.topPriority.dueDate ? `Due ${new Date(`${intelligence.topPriority.dueDate}T12:00:00`).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : intelligence.topPriority.detail}
                   </p>
                   <div className="btn btn-red mt-4">
                     Do This Next <ArrowRight size={15} />
