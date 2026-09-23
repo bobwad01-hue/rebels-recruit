@@ -299,23 +299,6 @@ export default async function Dashboard({
           action={preview.active ? undefined : <QuickAddMenu />}
         />
         <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">
-        <section className="mb-6">
-          <div className="rr-eyebrow">YOUR NEXT MOVE</div>
-          {intelligence.topPriority ? (
-            <Link href={ph(intelligence.topPriority.href || "/game-plan#next-moves")} className="mt-2 rr-priority-card p-4 sm:p-5 block rr-interactive-card min-w-0">
-              <div className="flex items-start gap-3 min-w-0">
-                <div className="h-9 w-9 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0"><Target size={18} /></div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-black text-xl">{intelligence.topPriority.title}</div>
-                  <p className="text-sm mt-1">{intelligence.topPriority.detail}</p>
-                  <div className="btn btn-red mt-4">Do This Next <ArrowRight size={15} /></div>
-                </div>
-              </div>
-            </Link>
-          ) : (
-            <div className="card mt-2 p-4 sm:p-5"><div className="font-black">You’re caught up.</div><div className="muted text-sm mt-1">Nothing urgent needs your attention right now.</div></div>
-          )}
-        </section>
         <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
             <div className="min-w-0">
@@ -399,21 +382,6 @@ export default async function Dashboard({
               </div>
             </div>
           )}
-          {intelligence.signals.length > 1 && (
-            <div className="grid md:grid-cols-2 gap-3 mt-4 min-w-0">
-              {intelligence.signals.slice(1, 3).map((s) => (
-                <Link
-                  key={s.id}
-                  href={ph(s.href || "/game-plan")}
-                  className="border rounded-xl p-3 hover:bg-slate-50 rr-interactive-card min-w-0"
-                >
-                  <div className="font-bold text-sm">{s.title}</div>
-                  <div className="muted text-xs mt-1">{s.detail}</div>
-                  <div className="text-xs font-black mt-2">Review this →</div>
-                </Link>
-              ))}
-            </div>
-          )}
           <div className="mt-4 text-xs muted flex items-start gap-1.5 min-w-0">
             <Clock3 size={13} className="shrink-0 mt-0.5" />
             <span>
@@ -423,60 +391,10 @@ export default async function Dashboard({
           </div>
         </section>
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
-        <div className="grid lg:grid-cols-2 gap-5 sm:gap-6 mt-6 min-w-0">
-          <section className="card w-full min-w-0 p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <div className="rr-eyebrow">RELATIONSHIPS</div>
-                <h2 className="font-black text-lg">Coach Relationships</h2>
-                <p className="muted text-sm">
-                  Your strongest current coach relationships and which ones may
-                  need a follow-up.
-                </p>
-              </div>
-              <TrendingUp size={19} className="shrink-0" />
-            </div>
-            <div className="mt-4 divide-y min-w-0">
-              {insights.slice(0, 4).map((r) => (
-                <Link
-                  key={r.id}
-                  href={ph(
-                    r.coachId ? `/coaches/${r.coachId}` : "/connections",
-                  )}
-                  className="py-3 flex items-center gap-3 min-w-0"
-                >
-                  <div className="flex-1 min-w-0">
-                    <b className="text-sm">{r.coach}</b>
-                    <div className="muted text-xs break-words">
-                      {r.college} ·{" "}
-                      {r.daysSinceContact === 999
-                        ? "No contact recorded yet"
-                        : `${r.daysSinceContact}d since contact`}
-                    </div>
-                  </div>
-                  <span className="status-pill shrink-0">
-                    {r.momentum === "Rising" ? (
-                      <span className="inline-flex gap-1">
-                        <TrendingUp size={13} />
-                        Getting stronger
-                      </span>
-                    ) : r.momentum === "Cooling" ? (
-                      <span className="inline-flex gap-1">
-                        <TrendingDown size={13} />
-                        Needs follow-up
-                      </span>
-                    ) : (
-                      "Steady"
-                    )}
-                  </span>
-                  <ArrowRight size={13} className="shrink-0" />
-                </Link>
-              ))}
-              {!insights.length && (
-                <Empty text="Log coach interactions to see how your relationships are developing." />
-              )}
-            </div>
-          </section>
+        <div className="mb-6 w-full min-w-0">
+          <WeeklyRecruitingMomentum athleteId={preview.active ? uid : undefined} />
+        </div>
+        <div className="mt-6 w-full min-w-0">
           <HomeUpcomingEvents personalEvents={eventRows} />
         </div>
      </div>
