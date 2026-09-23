@@ -15,7 +15,7 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  const exactActivity=interactions.filter(x=>exact(x)&&x.date&&meaningful(x));
  const lastExact=exactActivity.map(x=>age(x.date)).filter((x):x is number=>x!==null).sort((a,b)=>a-b)[0]??null;
  const recent30=exactActivity.filter(x=>{const a=age(x.date);return a!==null&&a<=30}).length;
- const openMoves=[...reminders.filter(x=>['open','overdue','snoozed'].includes(String(x.status))),...tasks.filter(x=>String(x.status)!=='completed')];
+ const openMoves=tasks.filter(x=>String(x.status)!=='completed');
  const todayValue=day(new Date().toISOString().slice(0,10))!;
  const overdueMoves=openMoves.filter((x:any)=>x.due_date&&day(x.due_date)!<todayValue).length;
  const upcoming=events.filter(x=>x.date&&day(x.date)!==null&&day(x.date)!>=todayValue).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
