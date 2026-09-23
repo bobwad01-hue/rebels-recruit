@@ -508,10 +508,19 @@ export default function EventPrep() {
             <div className="rr-eyebrow">EVENT PREP WORKSPACE</div>
             <h2 className="font-black text-lg">Get ready to make the event count</h2>
             <p className="muted text-sm mt-1">Choose who you want to meet, review the relationship, prepare your questions, and decide what you want to accomplish.</p>
-            <div className="text-sm mt-4"><a href="#get-ready-editor" className="btn">Open Event Prep</a></div>
+            <div className="grid sm:grid-cols-2 gap-3 mt-4">
+              <label className="border rounded-xl p-3 flex gap-2 text-sm font-semibold"><input type="checkbox" checked={!!prep.conversation_reviewed} onChange={e=>setPrep({...prep,conversation_reviewed:e.target.checked})}/>I reviewed my last conversation</label>
+              <label className="border rounded-xl p-3 flex gap-2 text-sm font-semibold"><input type="checkbox" checked={!!prep.video_ready} onChange={e=>setPrep({...prep,video_ready:e.target.checked})}/>My recruiting video/profile is ready</label>
+            </div>
+            {coaches.length>0&&<><h3 className="font-black mt-5">Who do you want to connect with?</h3><div className="mt-2 space-y-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches),checked=(prep.target_coach_ids||[]).includes(x?.id);return <label key={x?.id||i} className="border rounded-xl p-3 flex gap-3 cursor-pointer"><input type="checkbox" checked={checked} onChange={e=>setPrep({...prep,target_coach_ids:e.target.checked?[...(prep.target_coach_ids||[]),x.id]:(prep.target_coach_ids||[]).filter((v:string)=>v!==x.id)})}/><span><b>{x?.first_name} {x?.last_name}</b><span className="block muted text-xs">{x?.title||"Coach"}{x?.email?` · ${x.email}`:""}</span></span></label>})}</div></>}
+            <h3 className="font-black mt-5">Prepare 3 questions</h3>
+            <div className="space-y-2 mt-2">{[0,1,2].map(i=><input key={i} className="input w-full" value={prep.questions?.[i]||""} onChange={e=>{const qs=[...(prep.questions||[])];qs[i]=e.target.value;setPrep({...prep,questions:qs})}} placeholder={`Question ${i+1}`}/>)}</div>
+            <label className="text-sm font-bold block mt-5">What do you want to accomplish at this event?<textarea className="input w-full mt-1 min-h-20" value={prep.personal_goal||""} onChange={e=>setPrep({...prep,personal_goal:e.target.value})} placeholder="Example: Introduce myself to Coach Anderson after the hitting session."/></label>
+            <div className="flex flex-wrap items-center gap-3 mt-5"><button className="btn btn-red" disabled={prepSaving} onClick={savePrep}>{prepSaving?"Saving...":"Save Event Prep"}</button>{prepMessage&&<span className="text-sm font-bold text-slate-700">{prepMessage}</span>}</div>
           </section>
           <section className="card p-5"><div className="rr-eyebrow">RELATIONSHIP CONTEXT</div><div className="text-3xl font-black">{history.length}</div><div className="muted text-sm">recent recorded interactions</div>{school?.id&&<Link href={`/colleges/${school.id}`} className="btn w-full mt-5"><School size={16}/>Open Playbook</Link>}</section>
         </div>}
+        {past && <>
         <section id="follow-up-action" className="card p-5 mt-5 scroll-mt-6">
           <div className="rr-eyebrow">FOLLOW-UP</div>
           <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-up complete":"Close the loop"}</h2>
@@ -698,6 +707,7 @@ export default function EventPrep() {
           </div>
         </section>
 
+        </>}
         </>}
       </div>
     </AppShell>
