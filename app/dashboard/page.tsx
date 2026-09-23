@@ -264,7 +264,8 @@ export default async function Dashboard({
     activeCoaches,
     interactionRows,
   ).sort((a, b) => b.score - a.score);
-  const needsFollowUp = insights.filter((r) => r.momentum === "Cooling" || (r.daysSinceContact !== 999 && r.daysSinceContact >= 14)).length;\n  const stageCounts = Object.fromEntries(RECRUITING_JOURNEY.map((s) => [s, 0]));
+  const needsFollowUp = insights.filter((r) => r.momentum === "Cooling" || (r.daysSinceContact !== 999 && r.daysSinceContact >= 14)).length;
+  const stageCounts = Object.fromEntries(RECRUITING_JOURNEY.map((s) => [s, 0]));
   activeColleges.forEach((r: any) => {
     stageCounts[normalizeJourneyStage(r.status)]++;
   });
