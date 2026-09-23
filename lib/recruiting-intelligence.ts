@@ -23,7 +23,7 @@ const weights:Record<RecruitingStage,Record<string,number>>={
  active:{foundation:10,schools:15,relationships:30,follow:20,activity:25},
  decision:{foundation:5,schools:10,relationships:30,follow:25,activity:30},
 };
-const thresholds:Record<RecruitingStage,{schools:number;coaches:number;fresh:number;grace:number}>={
+const thresholds:Record<RecruitingStage,{schools:number;coaches:number;fresh:number;grace:number}> = {
  early:{schools:5,coaches:1,fresh:45,grace:30},building:{schools:7,coaches:3,fresh:30,grace:21},active:{schools:8,coaches:6,fresh:21,grace:14},decision:{schools:6,coaches:6,fresh:14,grace:10},
 };
 export function buildRecruitingIntelligence(input:IntelligenceInput){
