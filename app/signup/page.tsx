@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
+import { PrimaryBrand } from '@/components/BrandLogo';
 
 const APP_URL = 'https://rebelsrecruit.com';
 
@@ -46,7 +47,7 @@ export default function Signup() {
     if (error) { setError(error.message); setGoogleBusy(false); }
   }
 
-  const Brand=()=> <div className="text-2xl tracking-tight text-center"><span className="font-black text-red-600">REBELS</span><span className="font-normal text-slate-900"> RECRUIT</span></div>;
+  const Brand=()=> <PrimaryBrand className="text-xl justify-center"/>;
 
   if (sent) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><Brand/><h1 className="text-2xl font-black mt-8">Check your email</h1><p className="muted mt-2">We sent a verification link to {email}. After you verify your account, you'll complete your profile before entering Rebels Recruit.</p></div></div>;
 
