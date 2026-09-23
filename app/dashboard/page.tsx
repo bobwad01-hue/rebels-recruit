@@ -295,18 +295,18 @@ export default async function Dashboard({
         )}
         <PageHeader
           title={`${greeting}${name ? `, ${name}` : ""}.`}
-          subtitle="Here is your recruiting picture and what deserves your attention next."
+          subtitle="Here’s what to do next, plus a quick look at your recruiting."
           action={preview.active ? undefined : <QuickAddMenu />}
         />
-        <div className="grid xl:grid-cols-[minmax(0,1fr)_230px] gap-6 items-start"><div className="min-w-0"><section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">\n        <section className="mb-6">\n          <div className="rr-eyebrow">YOUR NEXT MOVE</div>\n          {intelligence.topPriority ? (\n            <Link href={ph(intelligence.topPriority.href || "/game-plan#next-moves")} className="mt-2 rr-priority-card p-4 sm:p-5 block rr-interactive-card min-w-0">\n              <div className="flex items-start gap-3 min-w-0">\n                <div className="h-9 w-9 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0"><Target size={18} /></div>\n                <div className="flex-1 min-w-0">\n                  <div className="font-black text-xl">{intelligence.topPriority.title}</div>\n                  <p className="text-sm mt-1">{intelligence.topPriority.detail}</p>\n                  <div className="btn btn-red mt-4">Do This Next <ArrowRight size={15} /></div>\n                </div>\n              </div>\n            </Link>\n          ) : (\n            <div className="card mt-2 p-4 sm:p-5"><div className="font-black">You’re caught up.</div><div className="muted text-sm mt-1">Nothing urgent needs your attention right now.</div></div>\n          )}\n        </section>\n        <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
             <div className="min-w-0">
               <div className="rr-eyebrow">MY RECRUITING SNAPSHOT</div>
               <h2 className="text-xl sm:text-2xl font-black mt-1">
-                Where you stand right now
+                Recruiting Snapshot
               </h2>
               <p className="muted text-sm mt-1">
-                Your schools, coach relationships, Next Steps and events in one current view.
+                The numbers that help you see where things stand.
               </p>
             </div>
             <Link
@@ -433,7 +433,7 @@ export default async function Dashboard({
             </div>
             <div className="mt-4 min-w-0">
               <SmartNextMoves
-                moves={smartMoves.slice(0, 5)}
+                moves={smartMoves.slice(0, 3)}
                 hrefTransform={ph}
               />
             </div>
