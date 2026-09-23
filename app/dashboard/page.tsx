@@ -304,6 +304,7 @@ export default async function Dashboard({
         <PageHeader
           title={`${greeting}${name ? `, ${name}` : ""}.`}
           subtitle="Here’s what matters today."
+          eyebrow={null}
           action={preview.active ? undefined : <QuickAddMenu />}
         />
         <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">
