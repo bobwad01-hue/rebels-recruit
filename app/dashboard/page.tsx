@@ -363,7 +363,7 @@ export default async function Dashboard({
                     {intelligence.topPriority.title}
                   </div>
                   <p className="text-sm mt-1">
-                    {intelligence.topPriority.dueDate ? `Due ${new Date(`${intelligence.topPriority.dueDate}T12:00:00`).toLocaleDateString("en-US",{month:"short",day:"numeric"})}` : intelligence.topPriority.detail}
+                    {intelligence.topPriority.detail}
                   </p>
                   <div className="btn btn-red mt-4">
                     Do This Next <ArrowRight size={15} />
