@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
+import { PrimaryBrand } from '@/components/BrandLogo';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -58,7 +59,7 @@ export default function Login() {
   return (
     <div className="min-h-screen grid place-items-center p-6 bg-slate-50">
       <form onSubmit={submit} className="card p-8 w-full max-w-md bg-white">
-        <div className="text-2xl tracking-tight text-center"><span className="font-black text-red-600">REBELS</span><span className="font-normal text-slate-900"> RECRUIT</span></div>
+        <PrimaryBrand className="text-xl justify-center"/>
         <h1 className="text-2xl font-black mt-8">Welcome back</h1>
         <p className="muted mt-1">Sign in to your recruiting dashboard.</p>
         <div className="space-y-4 mt-6">
