@@ -43,6 +43,7 @@ type Props = {
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
   contextualReply?: {interactionId:string;kind:string;choice?:string};
+  onEmailSent?: (detail?: any) => void | Promise<void>;
 };
 export default function CoachActionBar({
   coachId,
@@ -59,6 +60,7 @@ export default function CoachActionBar({
   initialEmailStarter = "introduction",
   autoOpenEmail = false,
   contextualReply,
+  onEmailSent,
 }: Props) {
   const c = createClient(),
     params = useSearchParams(),
@@ -399,6 +401,7 @@ export default function CoachActionBar({
           ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""} and logged in Activity.`
           : "Email sent through Gmail, but Activity could not be updated.",
       );
+      if (onEmailSent) await onEmailSent(d);
     } catch {
       setEmailStatus("error");
       setMessage("Could not send email. Please try again.");
