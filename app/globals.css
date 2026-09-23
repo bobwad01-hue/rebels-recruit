@@ -66,3 +66,17 @@ img,svg{max-width:100%}button,a,input,select,textarea{touch-action:manipulation}
 /* Make in-page Playbook destinations unmistakable after a CTA jump. */
 .rr-coach-action-target:target{border-color:#ef4444;background:#fffafa;box-shadow:0 0 0 3px rgba(198,40,40,.10),0 5px 16px rgba(16,24,40,.08);animation:rr-target-pulse 1.2s ease-out 1}
 @keyframes rr-target-pulse{0%{box-shadow:0 0 0 8px rgba(198,40,40,.16),0 5px 16px rgba(16,24,40,.08)}100%{box-shadow:0 0 0 3px rgba(198,40,40,.10),0 5px 16px rgba(16,24,40,.08)}}
+
+/* Rebels Recruit 1.0 visual system */
+:root{--rr-health:#1f9d68;--rr-navy:#0f1f3a;--rr-red:#c62828;--rr-surface:#fff;--rr-canvas:#f5f7fa}
+body{background:var(--rr-canvas)}
+.card,.rr-accent-card{border-color:#e4e8ee;box-shadow:0 1px 3px rgba(15,31,58,.045),0 10px 28px rgba(15,31,58,.025)}
+.rr-metric-card{background:#fff;border-color:#e4e8ee;box-shadow:0 1px 2px rgba(15,31,58,.035)}
+.rr-college-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:28px;padding:3px 8px;border:1px solid #e4e8ee;border-radius:9px;background:#fff;font-size:11px;line-height:1;font-weight:800;color:#344054;box-shadow:0 1px 1px rgba(15,31,58,.03)}
+.rr-health-ring{position:relative;border-radius:999px;display:grid;place-items:center;flex:0 0 auto}.rr-health-ring:before{content:'';position:absolute;inset:5px;border-radius:inherit;background:#fff}.rr-health-ring>div{position:relative;z-index:1;font-weight:900;font-size:.8rem;color:var(--rr-navy)}
+.rr-pipeline-pill,.rr-status-pill,.rr-attention-badge{display:inline-flex;align-items:center;justify-content:center;min-height:25px;border-radius:999px;padding:4px 9px;font-size:10.5px;font-weight:850;line-height:1;white-space:nowrap;border:1px solid transparent}
+.rr-pipeline-building_list{background:#f2f4f7;color:#475467}.rr-pipeline-outreach{background:#eff8ff;color:#175cd3}.rr-pipeline-relationships{background:#f4f3ff;color:#5925dc}.rr-pipeline-active_recruiting{background:#ecfdf3;color:#027a48}.rr-pipeline-visits_offers{background:#fff7ed;color:#c4320a}.rr-pipeline-decision{background:#fff4ed;color:#b42318}.rr-pipeline-committed{background:#ecfdf3;color:#027a48}
+.rr-status-active{background:#eff8ff;color:#175cd3}.rr-status-offer{background:#fff7ed;color:#b54708}.rr-status-committed{background:#ecfdf3;color:#027a48}.rr-status-attention,.rr-attention-badge{background:#fff1f0;color:#b42318;border-color:#fecdca}.rr-status-neutral{background:#f2f4f7;color:#475467}
+.rr-view-toggle{display:inline-flex;padding:3px;border:1px solid #e4e8ee;border-radius:11px;background:#fff;box-shadow:0 1px 2px rgba(15,31,58,.04)}.rr-view-toggle>*{min-height:34px;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:850}.rr-view-toggle>[aria-pressed="true"]{background:var(--rr-navy);color:#fff}
+.rr-command-card{background:#fff;border:1px solid #e4e8ee;border-radius:16px;box-shadow:0 1px 3px rgba(15,31,58,.04);transition:.15s ease}.rr-command-card:hover{border-color:#cbd5e1;box-shadow:0 7px 20px rgba(15,31,58,.07);transform:translateY(-1px)}
+@media(max-width:640px){.rr-college-chip{font-size:10.5px}.rr-pipeline-pill,.rr-status-pill,.rr-attention-badge{font-size:10px}.rr-command-card:hover{transform:none}}
