@@ -295,7 +295,7 @@ export default async function Dashboard({
         )}
         <PageHeader
           title={`${greeting}${name ? `, ${name}` : ""}.`}
-          subtitle="Here’s what to do next, plus a quick look at your recruiting."
+          subtitle="Here’s what matters today."
           action={preview.active ? undefined : <QuickAddMenu />}
         />
         <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">
@@ -324,7 +324,7 @@ export default async function Dashboard({
               </div>
             </Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 min-w-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 mt-5 min-w-0 rounded-xl border bg-slate-50/60 divide-x divide-y md:divide-y-0 overflow-hidden">
             <SnapshotMetric
               label="Active Schools"
               value={intelligence.activeSchools}
@@ -366,7 +366,7 @@ export default async function Dashboard({
                     {intelligence.topPriority.detail}
                   </p>
                   <div className="btn btn-red mt-4">
-                    Go to this Next Step <ArrowRight size={15} />
+                    Do This Next <ArrowRight size={15} />
                   </div>
                 </div>
               </div>
@@ -382,13 +382,6 @@ export default async function Dashboard({
               </div>
             </div>
           )}
-          <div className="mt-4 text-xs muted flex items-start gap-1.5 min-w-0">
-            <Clock3 size={13} className="shrink-0 mt-0.5" />
-            <span>
-              This snapshot updates as your recruiting activity and decisions
-              change.
-            </span>
-          </div>
         </section>
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
         <div className="mb-6 w-full min-w-0">
@@ -413,7 +406,7 @@ function SnapshotMetric({
   return (
     <Link
       href={href}
-      className="rr-metric-card rr-interactive-card px-3 py-3 min-w-0"
+      className="px-4 py-4 min-w-0 hover:bg-white transition-colors"
     >
       <div className="rr-metric-label break-words">{label}</div>
       <div className="rr-metric-value !text-xl">{value}</div>
