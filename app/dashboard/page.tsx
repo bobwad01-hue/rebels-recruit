@@ -183,7 +183,7 @@ export default async function Dashboard({
     invitations.error && "advisor requests",
     milestoneRows.error && "Journey milestones",
     fitProfile.error && "College Fit Survey",
-    athleteProfile.error && "athlete profile",\n    athleteProfile.error && "athlete profile",
+    athleteProfile.error && "athlete profile",
   ].filter(Boolean) as string[];
   if (interactions.error)
     console.error(
