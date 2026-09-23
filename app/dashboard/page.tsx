@@ -133,7 +133,7 @@ export default async function Dashboard({
       .limit(50),
     supabase
       .from("profiles")
-      .select("full_name,timezone")
+      .select("full_name,timezone,profile_completed_at")
       .eq("id", uid)
       .single(),
     supabase
@@ -181,7 +181,7 @@ export default async function Dashboard({
     athleteEvents.error && "events",
     invitations.error && "advisor requests",
     milestoneRows.error && "Journey milestones",
-    fitProfile.error && "College Fit Survey",
+    fitProfile.error && "College Fit Survey",\n    athleteProfile.error && "athlete profile",
   ].filter(Boolean) as string[];
   if (interactions.error)
     console.error(
@@ -319,10 +319,9 @@ export default async function Dashboard({
               className="rounded-xl border bg-slate-50 px-4 py-3 w-full min-w-0 lg:w-auto lg:min-w-[160px] block hover:bg-slate-100 transition-colors"
             >
               <div className="rr-metric-label">Recruiting Health</div>
-              <div className="rr-metric-value !text-3xl">
-                {intelligence.score}
-              </div>
-              <div className="text-sm font-black">{intelligence.health}</div>
+              {intelligence.scoreReady ? <>
+                <div className="flex items-end gap-2 mt-1"><div className="rr-metric-value !text-3xl">{intelligence.score}</div><div className="pb-1"><div className="text-sm font-black">{intelligence.health}</div><div className="muted text-[11px]">out of 100</div></div></div>
+              </> : <div className="font-black text-sm mt-2">Building your score</div>}
               <div className="text-xs font-black mt-2 inline-flex items-center gap-1">
                 See what affects it <ArrowRight size={12} />
               </div>
