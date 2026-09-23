@@ -348,7 +348,9 @@ export default function EventPrep() {
       </AppShell>
     );
   const school = one(event.colleges),
-    past = event.date < new Date().toISOString().slice(0, 10),
+    today = new Date().toISOString().slice(0, 10),
+    past = event.date < today,
+    eventDayOrLater = event.date <= today,
     emailReminder = eventReminders.find(
       (r: any) =>
         r.reminder_kind === "event_prearrival_email" ||
@@ -382,7 +384,7 @@ export default function EventPrep() {
         <div className="mt-5">
           <PageHeader
             eyebrow="RECRUITING EVENT WORKFLOW"
-            title={past ? "Camp & Visit Debrief" : "Camp & Visit Prep"}
+            title={eventDayOrLater ? "Camp & Visit Debrief" : "Camp & Visit Prep"}
             subtitle={`${event.name} · ${fmt(event.date)}${school?.name ? ` · ${school.name}` : ""}`}
           />
         </div>
@@ -399,7 +401,7 @@ export default function EventPrep() {
           onRelationshipReview={markRelationshipReviewed}
         />
         </div>
-        {!past && (
+        {!eventDayOrLater && (
           allTrackedCoachesContacted ? <section id="email-coaches" className="card p-4 mt-5 scroll-mt-6"><div className="flex flex-col sm:flex-row sm:items-center gap-3"><CheckCircle2 className="text-green-600 shrink-0" size={20}/><div className="flex-1"><div className="font-black">Pre-event outreach complete</div><div className="muted text-sm">{coaches.map((r:any)=>{const x=one(r.college_coaches);return [x?.first_name,x?.last_name].filter(Boolean).join(" ")}).filter(Boolean).join(" + ")} contacted{[...preEventContactByCoach.values()][0]?.date?` · ${fmt([...preEventContactByCoach.values()][0].date)}`:""}</div></div><button type="button" className="btn" aria-expanded={outreachOpen} aria-controls="outreach-details" onClick={()=>setOutreachOpen(v=>!v)}>{outreachOpen?"Hide Outreach":"View Outreach"}</button></div>{outreachOpen&&<div id="outreach-details" className="mt-3 space-y-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches),prior=x?.id?preEventContactByCoach.get(x.id):null;return <button type="button" key={x?.id||i} onClick={()=>prior&&setOutreachMessage({...prior,selectedCoach:x})} disabled={!prior} className="w-full rounded-xl border p-3 text-left transition hover:bg-slate-50 hover:border-slate-300 disabled:cursor-default disabled:hover:bg-white"><div className="flex items-center justify-between gap-3"><div><div className="font-black text-sm">{[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach"}</div><div className="muted text-xs">{x?.title||"Coach"}{prior?.date?` · Contacted ${fmt(prior.date)}`:""}</div></div>{prior&&<span className="text-xs font-black text-slate-600">View email →</span>}</div></button>})}</div>}</section> :
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
             <div className="flex items-start gap-3">
@@ -487,7 +489,7 @@ export default function EventPrep() {
             )}
           </section>
         )}
-        {past ? <details className="card mt-5"><summary className="p-5 cursor-pointer font-black">View Event Prep</summary><div className="grid lg:grid-cols-3 gap-5 px-5 pb-5"><section id="get-ready" className="border rounded-xl p-5 lg:col-span-2 scroll-mt-6">
+        {eventDayOrLater ? <details className="card mt-5"><summary className="p-5 cursor-pointer font-black">View Event Prep</summary><div className="grid lg:grid-cols-3 gap-5 px-5 pb-5"><section id="get-ready" className="border rounded-xl p-5 lg:col-span-2 scroll-mt-6">
             <div className="rr-eyebrow">EVENT PREP WORKSPACE</div>
             <h2 className="font-black text-lg">Get ready to make the event count</h2>
             <p className="muted text-sm mt-1">Choose who you want to meet, review the relationship, prepare your questions, and decide what you want to accomplish.</p>
@@ -538,7 +540,7 @@ export default function EventPrep() {
           <section className="card p-5"><div className="rr-eyebrow">RELATIONSHIP CONTEXT</div><div className="text-3xl font-black">{history.length}</div><div className="muted text-sm">recent recorded interactions</div>{school?.id&&<Link href={`/colleges/${school.id}`} className="btn w-full mt-5"><School size={16}/>Open Playbook</Link>}</section>
         </div>}
         {outreachMessage&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true" aria-label="Sent outreach email" onMouseDown={(e)=>{if(e.target===e.currentTarget)setOutreachMessage(null)}}><div className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl border"><div className="flex items-start justify-between gap-4 border-b p-5"><div><div className="rr-eyebrow">EMAIL SENT</div><h2 className="text-xl font-black mt-1">{outreachMessage.email_subject||"Pre-event outreach"}</h2><div className="muted text-sm mt-1">{school?.name||"School"}{outreachMessage.date?` · ${fmt(outreachMessage.date)}`:""}</div></div><button type="button" className="btn shrink-0" onClick={()=>setOutreachMessage(null)}>Close</button></div><div className="p-5 overflow-y-auto max-h-[65vh]"><div className="grid gap-2 text-sm"><div><span className="font-black">To / CC:</span> {coaches.filter((r:any)=>{const x=one(r.college_coaches);return x?.id===outreachMessage.coach_id||(outreachMessage.interaction_recipients||[]).some((recipient:any)=>recipient.coach_id===x?.id)}).map((r:any)=>{const x=one(r.college_coaches);return [x?.first_name,x?.last_name].filter(Boolean).join(" ")}).filter(Boolean).join(", ")||[outreachMessage.selectedCoach?.first_name,outreachMessage.selectedCoach?.last_name].filter(Boolean).join(" ")}</div>{outreachMessage.email_type&&<div><span className="font-black">Email type:</span> {outreachMessage.email_type}</div>}</div><div className="border-t mt-4 pt-4"><div className="text-sm whitespace-pre-wrap leading-6">{outreachMessage.email_content||outreachMessage.note||"The email was logged in the Journey, but the original message body is not available for this interaction."}</div></div><div className="muted text-xs mt-5">Logged in Journey as one communication with all recorded recipients.</div></div></div></div>}
-        {eventDate <= new Date().toISOString().slice(0, 10) && <>
+        {eventDayOrLater && <>
         <section id="follow-up-action" className="card p-5 mt-5 scroll-mt-6">
           <div className="rr-eyebrow">FOLLOW-UP</div>
           <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-up complete":"Close the loop"}</h2>
