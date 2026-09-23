@@ -37,6 +37,7 @@ export default function EventPrep() {
     [prepSaving,setPrepSaving]=useState(false),
     [prepMessage,setPrepMessage]=useState(""),
     [prepEditing,setPrepEditing]=useState(false),
+    [outreachOpen,setOutreachOpen]=useState(false),
     [debrief, setDebrief] = useState<any>(null),
     [eventReminders, setEventReminders] = useState<any[]>([]),
     [form, setForm] = useState({
@@ -398,7 +399,7 @@ export default function EventPrep() {
         />
         </div>
         {!past && (
-          allTrackedCoachesContacted ? <section id="email-coaches" className="card p-4 mt-5 scroll-mt-6"><div className="flex flex-col sm:flex-row sm:items-center gap-3"><CheckCircle2 className="text-green-600 shrink-0" size={20}/><div className="flex-1"><div className="font-black">Pre-event outreach complete</div><div className="muted text-sm">{coaches.map((r:any)=>{const x=one(r.college_coaches);return [x?.first_name,x?.last_name].filter(Boolean).join(" ")}).filter(Boolean).join(" + ")} contacted{[...preEventContactByCoach.values()][0]?.date?` · ${fmt([...preEventContactByCoach.values()][0].date)}`:""}</div></div><a href="#outreach-details" className="btn">View outreach</a></div><details id="outreach-details" className="mt-3"><summary className="cursor-pointer text-sm font-bold">Outreach details</summary><div className="mt-3 space-y-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches),prior=x?.id?preEventContactByCoach.get(x.id):null;return <div key={x?.id||i} className="rounded-xl border p-3"><div className="font-black text-sm">{[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach"}</div><div className="muted text-xs">{x?.title||"Coach"}{prior?.date?` · Contacted ${fmt(prior.date)}`:""}</div></div>})}</div></details></section> :
+          allTrackedCoachesContacted ? <section id="email-coaches" className="card p-4 mt-5 scroll-mt-6"><div className="flex flex-col sm:flex-row sm:items-center gap-3"><CheckCircle2 className="text-green-600 shrink-0" size={20}/><div className="flex-1"><div className="font-black">Pre-event outreach complete</div><div className="muted text-sm">{coaches.map((r:any)=>{const x=one(r.college_coaches);return [x?.first_name,x?.last_name].filter(Boolean).join(" ")}).filter(Boolean).join(" + ")} contacted{[...preEventContactByCoach.values()][0]?.date?` · ${fmt([...preEventContactByCoach.values()][0].date)}`:""}</div></div><button type="button" className="btn" aria-expanded={outreachOpen} aria-controls="outreach-details" onClick={()=>setOutreachOpen(v=>!v)}>{outreachOpen?"Hide Outreach":"View Outreach"}</button></div>{outreachOpen&&<div id="outreach-details" className="mt-3 space-y-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches),prior=x?.id?preEventContactByCoach.get(x.id):null;return <div key={x?.id||i} className="rounded-xl border p-3"><div className="font-black text-sm">{[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach"}</div><div className="muted text-xs">{x?.title||"Coach"}{prior?.date?` · Contacted ${fmt(prior.date)}`:""}</div></div>})}</div>}</section> :
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
             <div className="flex items-start gap-3">
               <div className="h-10 w-10 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0">
