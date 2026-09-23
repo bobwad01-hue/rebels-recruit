@@ -27,6 +27,20 @@ const fmt = (d: any) =>
 export default function EventPrep() {
   const { id } = useParams<{ id: string }>(),
     c = createClient();
+  // Keep same-page workflow links useful even when Next.js only updates the hash.
+  useEffect(() => {
+    const scrollToHash = () => {
+      const hash = window.location.hash.slice(1);
+      if (!hash) return;
+      window.requestAnimationFrame(() => {
+        document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    };
+    scrollToHash();
+    window.addEventListener("hashchange", scrollToHash);
+    return () => window.removeEventListener("hashchange", scrollToHash);
+  }, [event, debrief]);
+
   // Deployment sync marker: event prep relationship/outreach fix.
   const [event, setEvent] = useState<any>(null),
     [history, setHistory] = useState<any[]>([]),
@@ -543,9 +557,9 @@ export default function EventPrep() {
         {eventDayOrLater && <>
         <section id="follow-up-action" className="card p-5 mt-5 scroll-mt-6">
           <div className="rr-eyebrow">FOLLOW-UP</div>
-          <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-up complete":"Close the loop"}</h2>
+          <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-Up Complete":"Close the loop"}</h2>
           <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
-          {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed"}:r));setSaveMessage("Follow-up completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>}
+          {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed"}:r));setSaveMessage("Follow-Up Completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>}
         </section>
         {debrief ? <details className="card mt-5">
           <summary className="p-5 cursor-pointer font-black flex items-center justify-between gap-3">
@@ -609,11 +623,11 @@ export default function EventPrep() {
                 setForm({ ...form, follow_up_needed: e.target.checked })
               }
             />
-            Follow-up needed
+            Follow-Up Needed
           </label>
           {form.follow_up_needed && (
             <label className="text-sm font-bold block mt-3">
-              Follow-up plan
+              Follow-Up Plan
               <input
                 className="input w-full mt-1"
                 value={form.follow_up_notes}
@@ -697,11 +711,11 @@ export default function EventPrep() {
                 setForm({ ...form, follow_up_needed: e.target.checked })
               }
             />
-            Follow-up needed
+            Follow-Up Needed
           </label>
           {form.follow_up_needed && (
             <label className="text-sm font-bold block mt-3">
-              Follow-up plan
+              Follow-Up Plan
               <input
                 className="input w-full mt-1"
                 value={form.follow_up_notes}
