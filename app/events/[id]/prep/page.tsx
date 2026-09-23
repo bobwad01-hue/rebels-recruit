@@ -36,6 +36,7 @@ export default function EventPrep() {
     [prep, setPrep] = useState<any>({target_coach_ids:[],questions:["","",""],personal_goal:"",conversation_reviewed:false,video_ready:false}),
     [prepSaving,setPrepSaving]=useState(false),
     [prepMessage,setPrepMessage]=useState(""),
+    [prepEditing,setPrepEditing]=useState(false),
     [debrief, setDebrief] = useState<any>(null),
     [eventReminders, setEventReminders] = useState<any[]>([]),
     [form, setForm] = useState({
@@ -198,7 +199,10 @@ export default function EventPrep() {
     const payload={athlete_user_id:user.id,event_id:id,target_coach_ids:prep.target_coach_ids||[],questions:(prep.questions||[]).map((q:string)=>q.trim()).filter(Boolean),personal_goal:prep.personal_goal?.trim()||null,conversation_reviewed:!!prep.conversation_reviewed,video_ready:!!prep.video_ready,updated_at:new Date().toISOString()};
     const {data,error}=await c.from("event_preparations").upsert(payload,{onConflict:"athlete_user_id,event_id"}).select("*").single();
     if(error){setPrepMessage("Your event prep could not be saved. Please try again.");setPrepSaving(false);return}
-    setPrep({...data,questions:[...(data.questions||[]),"",""].slice(0,3)});setPrepMessage("Event prep saved.");setPrepSaving(false);setTimeout(()=>setPrepMessage(""),3000);
+    setPrep({...data,questions:[...(data.questions||[]),"",""].slice(0,3)});
+    const complete=Boolean((data.target_coach_ids||[]).length)&&Boolean((data.questions||[]).filter((q:string)=>q?.trim()).length>=3)&&Boolean(data.personal_goal?.trim());
+    setPrepEditing(!complete);setPrepMessage(complete?"Event prep complete. You’re ready for the event.":"Event prep saved. Add a target coach, 3 questions and an event goal to complete prep.");setPrepSaving(false);
+    if(complete)setTimeout(()=>{document.getElementById("event-plan")?.scrollIntoView({behavior:"smooth",block:"start"});},150);
   }
   async function save() {
     const {
@@ -380,6 +384,7 @@ export default function EventPrep() {
             subtitle={`${event.name} · ${fmt(event.date)}${school?.name ? ` · ${school.name}` : ""}`}
           />
         </div>
+        <div id="event-plan" className="scroll-mt-6">
         <EventWorkflowPanel
           event={event}
           emailReminder={emailReminder}
@@ -391,6 +396,7 @@ export default function EventPrep() {
           relationshipInteractionCount={relationshipInteractionCount}
           onRelationshipReview={markRelationshipReviewed}
         />
+        </div>
         {!past && (
           <section id="email-coaches" className="card p-5 mt-5 border-2 border-red-200 bg-red-50 scroll-mt-6">
             <div className="flex items-start gap-3">
@@ -505,6 +511,13 @@ export default function EventPrep() {
           </section>
         </div></details> : <div className="grid lg:grid-cols-3 gap-5 mt-5">
           <section id="get-ready" className="card p-5 lg:col-span-2 scroll-mt-6">
+            {Boolean((prep.target_coach_ids||[]).length)&&Boolean((prep.questions||[]).filter((q:string)=>q?.trim()).length>=3)&&Boolean(prep.personal_goal?.trim())&&!prepEditing ? <>
+              <div className="flex items-start gap-3"><CheckCircle2 className="text-green-600 shrink-0 mt-0.5" size={22}/><div className="flex-1"><div className="rr-eyebrow text-green-700">PREP COMPLETE</div><h2 className="font-black text-lg">You’re ready for the event</h2><p className="muted text-sm mt-1">Your event plan is saved. Review it here anytime before you go.</p></div></div>
+              <div className="grid sm:grid-cols-2 gap-3 mt-4"><div className="border rounded-xl p-3"><div className="muted text-xs font-bold">TARGET COACH{(prep.target_coach_ids||[]).length===1?"":"ES"}</div><div className="font-black mt-1">{coaches.filter((r:any)=>(prep.target_coach_ids||[]).includes(r.coach_id)).map((r:any)=>{const x=one(r.college_coaches);return [x?.first_name,x?.last_name].filter(Boolean).join(" ")}).filter(Boolean).join(", ")||`${(prep.target_coach_ids||[]).length} selected`}</div></div><div className="border rounded-xl p-3"><div className="muted text-xs font-bold">READINESS</div><div className="font-black mt-1">{prep.conversation_reviewed?"Conversation reviewed":"Conversation review optional"} · {prep.video_ready?"Profile/video ready":"Profile/video check optional"}</div></div></div>
+              <div className="border rounded-xl p-4 mt-3"><div className="font-black text-sm">3 prepared questions</div><ol className="list-decimal ml-5 mt-2 text-sm space-y-1">{(prep.questions||[]).filter((q:string)=>q?.trim()).slice(0,3).map((q:string,i:number)=><li key={i}>{q}</li>)}</ol></div>
+              <div className="border rounded-xl p-4 mt-3"><div className="font-black text-sm">Event goal</div><p className="text-sm mt-1">{prep.personal_goal}</p></div>
+              <button className="btn mt-4" onClick={()=>setPrepEditing(true)}>Edit Prep</button>
+            </> : <>
             <div className="rr-eyebrow">EVENT PREP WORKSPACE</div>
             <h2 className="font-black text-lg">Get ready to make the event count</h2>
             <p className="muted text-sm mt-1">Choose who you want to meet, review the relationship, prepare your questions, and decide what you want to accomplish.</p>
@@ -517,6 +530,7 @@ export default function EventPrep() {
             <div className="space-y-2 mt-2">{[0,1,2].map(i=><input key={i} className="input w-full" value={prep.questions?.[i]||""} onChange={e=>{const qs=[...(prep.questions||[])];qs[i]=e.target.value;setPrep({...prep,questions:qs})}} placeholder={`Question ${i+1}`}/>)}</div>
             <label className="text-sm font-bold block mt-5">What do you want to accomplish at this event?<textarea className="input w-full mt-1 min-h-20" value={prep.personal_goal||""} onChange={e=>setPrep({...prep,personal_goal:e.target.value})} placeholder="Example: Introduce myself to Coach Anderson after the hitting session."/></label>
             <div className="flex flex-wrap items-center gap-3 mt-5"><button className="btn btn-red" disabled={prepSaving} onClick={savePrep}>{prepSaving?"Saving...":"Save Event Prep"}</button>{prepMessage&&<span className="text-sm font-bold text-slate-700">{prepMessage}</span>}</div>
+            </>}
           </section>
           <section className="card p-5"><div className="rr-eyebrow">RELATIONSHIP CONTEXT</div><div className="text-3xl font-black">{history.length}</div><div className="muted text-sm">recent recorded interactions</div>{school?.id&&<Link href={`/colleges/${school.id}`} className="btn w-full mt-5"><School size={16}/>Open Playbook</Link>}</section>
         </div>}
