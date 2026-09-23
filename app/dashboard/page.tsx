@@ -31,6 +31,7 @@ import {
 } from "@/lib/us-timezones";
 import { buildRelationshipInsights } from "@/lib/communication-intelligence";
 import { buildRecruitingIntelligence } from "@/lib/recruiting-intelligence";
+import RecruitingHealthScore from "@/components/RecruitingHealthScore";
 import {
   RECRUITING_JOURNEY,
   normalizeJourneyStage,
@@ -322,9 +323,7 @@ export default async function Dashboard({
               className="rounded-xl border bg-slate-50 px-4 py-3 w-full min-w-0 lg:w-auto lg:min-w-[160px] block hover:bg-slate-100 transition-colors"
             >
               <div className="rr-metric-label">Recruiting Health</div>
-              {intelligence.scoreReady ? <>
-                <div className="flex items-end gap-2 mt-1"><div className="rr-metric-value !text-3xl">{intelligence.score}</div><div className="pb-1"><div className="text-sm font-black">{intelligence.health}</div><div className="muted text-[11px]">out of 100</div></div></div>
-              </> : <div className="font-black text-sm mt-2">Building your score</div>}
+              <div className="mt-2"><RecruitingHealthScore score={intelligence.score} health={intelligence.health} size="sm"/></div>
               <div className="text-xs font-black mt-2 inline-flex items-center gap-1">
                 See what affects it <ArrowRight size={12} />
               </div>
