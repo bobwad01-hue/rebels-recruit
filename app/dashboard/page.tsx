@@ -423,127 +423,6 @@ export default async function Dashboard({
           </div>
         </section>
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
-        <div className="mb-6 w-full min-w-0">
-          <WeeklyRecruitingMomentum
-            athleteId={preview.active ? uid : undefined}
-          />
-        </div>
-        <div className="grid xl:grid-cols-3 gap-5 sm:gap-6 mt-6 min-w-0">
-          <section className="card w-full min-w-0 p-4 sm:p-5 lg:col-span-2">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <div className="rr-eyebrow">NEXT STEPS</div>
-                <h2 className="font-black text-lg flex items-center gap-2">
-                  <Sparkles size={19} className="shrink-0" />
-                  What needs your attention
-                </h2>
-                <p className="muted text-sm mt-1">
-                  Your reminders, advisor-assigned Next Steps and the most
-                  useful recruiting actions to take next.
-                </p>
-              </div>
-              <Link
-                href={ph("/game-plan#next-moves")}
-                className="text-sm font-bold whitespace-nowrap self-start"
-              >
-                Review All Next Steps →
-              </Link>
-            </div>
-            <div className="mt-4 min-w-0">
-              <SmartNextMoves
-                moves={smartMoves.slice(0, 3)}
-                hrefTransform={ph}
-              />
-            </div>
-          </section>
-          <section className="card w-full min-w-0 p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <div className="rr-eyebrow">RECRUITING JOURNEY</div>
-                <h2 className="font-black text-lg">
-                  Where relationships stand
-                </h2>
-                <p className="muted text-sm">
-                  {activeColleges.length} current schools
-                </p>
-              </div>
-              <Flag size={19} className="shrink-0" />
-            </div>
-            <div className="mt-4 space-y-2">
-              {RECRUITING_JOURNEY.filter((s) => stageCounts[s] > 0).map((s) => (
-                <Link
-                  href={ph("/journey")}
-                  key={s}
-                  className="flex items-center justify-between border rounded-xl px-3 py-2.5 hover:border-slate-400 rr-interactive-card"
-                >
-                  <span className="text-sm font-semibold">{s}</span>
-                  <span className="flex items-center gap-2">
-                    <b>{stageCounts[s]}</b>
-                    <ArrowRight size={13} />
-                  </span>
-                </Link>
-              ))}
-              {!activeColleges.length && (
-                <Empty text="Add schools to start your Recruiting Journey." />
-              )}
-            </div>
-            <HomeTopTargets athleteId={preview.active ? uid : undefined} />
-            <Link
-              href={ph("/journey")}
-              className="inline-flex items-center gap-1 text-sm font-bold mt-4"
-            >
-              Review Recruiting Journey <ArrowRight size={15} />
-            </Link>
-          </section>
-        </div>
-        {recentMilestones.length > 0 && (
-          <section className="card w-full min-w-0 p-4 sm:p-5 mt-6">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
-              <div className="min-w-0">
-                <div className="rr-eyebrow">PROGRESS</div>
-                <h2 className="font-black text-lg flex items-center gap-2">
-                  <Flag size={19} className="shrink-0" />
-                  Recent Journey Milestones
-                </h2>
-                <p className="muted text-sm">
-                  The latest movement in your recruiting relationships and
-                  events.
-                </p>
-              </div>
-              <Link
-                href={ph("/journey")}
-                className="text-sm font-bold whitespace-nowrap self-start"
-              >
-                Review Journey
-              </Link>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 min-w-0">
-              {recentMilestones.map((m: any) => (
-                <Link
-                  href={ph(
-                    m.collegeId ? `/colleges/${m.collegeId}` : "/journey",
-                  )}
-                  key={`${m.entity_id}-${m.date}-${m.stage}`}
-                  className="border rounded-xl p-3 rr-interactive-card min-w-0"
-                >
-                  <div className="font-black text-sm">{m.stage}</div>
-                  <div className="text-sm mt-1">
-                    {collegeMap.get(m.collegeId) ||
-                      m.note ||
-                      "Recruiting milestone"}
-                  </div>
-                  <div className="muted text-xs mt-1">{fmt(m.date)}</div>
-                  {m.note && collegeMap.get(m.collegeId) && (
-                    <div className="muted text-xs mt-2 line-clamp-2">
-                      {m.note}
-                    </div>
-                  )}
-                  <div className="text-xs font-black mt-2">Review school →</div>
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
         <div className="grid lg:grid-cols-2 gap-5 sm:gap-6 mt-6 min-w-0">
           <section className="card w-full min-w-0 p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3 min-w-0">
@@ -558,7 +437,7 @@ export default async function Dashboard({
               <TrendingUp size={19} className="shrink-0" />
             </div>
             <div className="mt-4 divide-y min-w-0">
-              {insights.slice(0, 5).map((r) => (
+              {insights.slice(0, 4).map((r) => (
                 <Link
                   key={r.id}
                   href={ph(
@@ -600,62 +479,7 @@ export default async function Dashboard({
           </section>
           <HomeUpcomingEvents personalEvents={eventRows} />
         </div>
-        <section className="card w-full min-w-0 p-4 sm:p-5 mt-6">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 min-w-0">
-            <div className="min-w-0">
-              <div className="rr-eyebrow">RECENT ACTIVITY</div>
-              <h2 className="font-black text-lg">What has happened recently</h2>
-              <p className="muted text-sm">
-                Your latest recruiting activity, including coach relationships,
-                events and recruiting videos.
-              </p>
-            </div>
-            <Link
-              href={ph("/journey")}
-              className="text-sm font-bold self-start"
-            >
-              Review Full Journey
-            </Link>
-          </div>
-          <div className="mt-4 grid md:grid-cols-2 gap-3 min-w-0">
-            {recent.map((i: any) => {
-              const school = one(i.colleges)?.name;
-              const displayNote = cleanDisplayNote(i.note);
-              return (
-                <Link
-                  key={i.id}
-                  href={ph(`/activity/${i.id}`)}
-                  className="border rounded-xl p-4 flex gap-3 hover:bg-slate-50 rr-interactive-card min-w-0"
-                >
-                  <CheckCircle2 size={17} className="shrink-0" />
-                  <div className="min-w-0">
-                    <b className="text-sm">{i.type}</b>
-                    <div className="muted text-xs mt-1 break-words">
-                      {school || "General recruiting"} ·{" "}
-                      {formatInteractionDateTime(
-                        i.date,
-                        i.created_at,
-                        timezone,
-                        i.date_precision,
-                        i.date_year,
-                        i.date_month,
-                      )}
-                    </div>
-                    {displayNote && (
-                      <div className="text-xs text-slate-600 mt-2 line-clamp-2">
-                        {displayNote}
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
-            {!recent.length && (
-              <Empty text="Your recruiting timeline starts here." />
-            )}
-          </div>
-        </section>
-      </div>
+     </div>
     </AppShell>
   );
 }
