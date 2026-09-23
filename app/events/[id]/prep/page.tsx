@@ -399,6 +399,15 @@ export default function EventPrep() {
   });
   const contactedCoachCount=coaches.filter((r:any)=>preEventContactByCoach.has(r.coach_id)).length;
   const allTrackedCoachesContacted=coaches.length>0&&contactedCoachCount===coaches.length;
+  async function completeFollowUpAfterEmail(){
+    if(!followupReminder?.id||followupReminder.status==="completed")return;
+    const completedAt=new Date().toISOString();
+    const {error}=await c.from("reminders").update({status:"completed",completed_at:completedAt}).eq("id",followupReminder.id);
+    if(error){setSaveMessage("Email sent, but the event follow-up could not be marked complete. You can complete it manually.");return;}
+    setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed",completed_at:completedAt}:r));
+    setSaveMessage("Thank-you sent. Follow-Up completed automatically.");
+    setSaved(true);
+  }
   return (
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
@@ -754,7 +763,7 @@ export default function EventPrep() {
           <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-Up Complete":"Close the loop"}</h2>
           <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
           {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <>
-            {coaches.length>0 && <div className="mt-4"><div className="text-sm font-black mb-2">Do the follow-up</div><div className="grid gap-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches);const name=[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach";return <div key={x?.id||i} className="border rounded-xl p-3"><div className="font-black text-sm mb-2">{name}</div><CoachActionBar coachId={x.id} collegeId={event.college_id} coachName={name} collegeName={school?.name} email={x.email} phone={x.phone} compact primaryAction="email" hideReminder initialEmailStarter={event?.type?.toLowerCase?.().includes("visit")?"visit_followup":"post_camp"}/></div>})}</div><p className="muted text-xs mt-2">Send the follow-up here, then mark it complete. The email will be logged in your Journey automatically.</p></div>}
+            {coaches.length>0 && <div className="mt-4"><div className="text-sm font-black mb-2">Do the follow-up</div><div className="grid gap-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches);const name=[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach";return <div key={x?.id||i} className="border rounded-xl p-3"><div className="font-black text-sm mb-2">{name}</div><CoachActionBar coachId={x.id} collegeId={event.college_id} coachName={name} collegeName={school?.name} email={x.email} phone={x.phone} compact primaryAction="email" hideReminder initialEmailStarter={event?.type?.toLowerCase?.().includes("visit")?"visit_followup":"post_camp"} onEmailSent={completeFollowUpAfterEmail}/></div>})}</div><p className="muted text-xs mt-2">Send the follow-up here. Once the email is sent successfully, Rebels Recruit logs it in your Journey and completes this step automatically.</p></div>}
             <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed",completed_at:new Date().toISOString()}:r));setSaveMessage("Follow-Up Completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>
           </>}
           {debrief?.follow_up_needed && followupReminder?.status==="completed" && <button className="btn mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"open",completed_at:null}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be reopened. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"open",completed_at:null}:r));setSaveMessage("Follow-Up reopened.");setSaved(true);setSaving(false)}} disabled={saving}>Reopen Follow-Up</button>}
