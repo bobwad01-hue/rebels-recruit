@@ -104,6 +104,7 @@ export default async function Dashboard({
     athleteEvents,
     invitations,
     milestoneRows,
+    fitProfile,
   ] = await Promise.all([
     supabase
       .from("athlete_colleges")
@@ -168,6 +169,7 @@ export default async function Dashboard({
           .order("created_at", { ascending: false })
           .limit(100)
       : (Promise.resolve({ data: [] }) as any),
+    supabase.from("college_fit_profiles").select("completed_at").eq("user_id", uid).maybeSingle(),
   ]);
   const sourceIssues = [
     colleges.error && "school relationships",
@@ -179,6 +181,7 @@ export default async function Dashboard({
     athleteEvents.error && "events",
     invitations.error && "advisor requests",
     milestoneRows.error && "Journey milestones",
+    fitProfile.error && "College Fit Survey",
   ].filter(Boolean) as string[];
   if (interactions.error)
     console.error(
@@ -383,6 +386,14 @@ export default async function Dashboard({
             </div>
           )}
         </section>
+        {!fitProfile.data?.completed_at && (
+          <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 sm:px-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1 min-w-0">
+              <div className="rr-eyebrow">COLLEGE FIT SURVEY</div><div className="font-black text-lg mt-1">Tell us what matters to you in a college.</div>
+              <p className="text-sm text-slate-700 mt-1">Your answers help shape school discovery and other recommendations throughout your recruiting journey.</p>
+            </div><Link href={ph("/fit-profile")} className="btn shrink-0">Take the Survey <ArrowRight size={15} /></Link></div>
+          </section>
+        )}
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
         <div className="mb-6 w-full min-w-0">
           <WeeklyRecruitingMomentum athleteId={preview.active ? uid : undefined} />
