@@ -264,7 +264,7 @@ export default async function Dashboard({
     activeCoaches,
     interactionRows,
   ).sort((a, b) => b.score - a.score);
-  const stageCounts = Object.fromEntries(RECRUITING_JOURNEY.map((s) => [s, 0]));
+  const needsFollowUp = insights.filter((r) => r.momentum === "Cooling" || (r.daysSinceContact !== 999 && r.daysSinceContact >= 14)).length;\n  const stageCounts = Object.fromEntries(RECRUITING_JOURNEY.map((s) => [s, 0]));
   activeColleges.forEach((r: any) => {
     stageCounts[normalizeJourneyStage(r.status)]++;
   });
@@ -391,7 +391,7 @@ export default async function Dashboard({
             <div className="flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1 min-w-0">
               <div className="rr-eyebrow">COLLEGE FIT SURVEY</div><div className="font-black text-lg mt-1">Tell us what matters to you in a college.</div>
               <p className="text-sm text-slate-700 mt-1">Your answers help shape school discovery and other recommendations throughout your recruiting journey.</p>
-            </div><Link href={ph("/fit-profile")} className="btn shrink-0">Take the Survey <ArrowRight size={15} /></Link></div>
+            </div><Link href={ph("/fit-profile")} className="btn shrink-0">Complete College Fit Survey <ArrowRight size={15} /></Link></div>
           </section>
         )}
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
