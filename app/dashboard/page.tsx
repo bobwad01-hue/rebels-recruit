@@ -105,6 +105,7 @@ export default async function Dashboard({
     invitations,
     milestoneRows,
     fitProfile,
+    athleteProfile,
   ] = await Promise.all([
     supabase
       .from("athlete_colleges")
@@ -146,7 +147,6 @@ export default async function Dashboard({
       .from("advisor_tasks")
       .select("id,title,description,due_date,status,created_at")
       .eq("athlete_user_id", uid)
-      .neq("status", "completed")
       .order("due_date")
       .limit(20),
     supabase
@@ -170,6 +170,7 @@ export default async function Dashboard({
           .limit(100)
       : (Promise.resolve({ data: [] }) as any),
     supabase.from("college_fit_profiles").select("completed_at").eq("user_id", uid).maybeSingle(),
+    supabase.from("athlete_profiles").select("class_year").eq("user_id", uid).maybeSingle(),
   ]);
   const sourceIssues = [
     colleges.error && "school relationships",
@@ -181,7 +182,8 @@ export default async function Dashboard({
     athleteEvents.error && "events",
     invitations.error && "advisor requests",
     milestoneRows.error && "Journey milestones",
-    fitProfile.error && "College Fit Survey",\n    athleteProfile.error && "athlete profile",
+    fitProfile.error && "College Fit Survey",
+    athleteProfile.error && "athlete profile",\n    athleteProfile.error && "athlete profile",
   ].filter(Boolean) as string[];
   if (interactions.error)
     console.error(
@@ -259,6 +261,7 @@ export default async function Dashboard({
     reminders: reminders.data || [],
     tasks: tasks.data || [],
     events: eventRows,
+    healthProfile: { classYear: athleteProfile.data?.class_year || null, profileComplete: !!profile.data?.profile_completed_at, fitComplete: !!fitProfile.data?.completed_at },
   });
   const insights = buildRelationshipInsights(
     activeCoaches,
