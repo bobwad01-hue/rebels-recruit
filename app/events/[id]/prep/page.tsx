@@ -569,12 +569,6 @@ export default function EventPrep() {
         </div>}
         {outreachMessage&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true" aria-label="Sent outreach email" onMouseDown={(e)=>{if(e.target===e.currentTarget)setOutreachMessage(null)}}><div className="w-full max-w-2xl max-h-[85vh] overflow-hidden rounded-2xl bg-white shadow-2xl border"><div className="flex items-start justify-between gap-4 border-b p-5"><div><div className="rr-eyebrow">EMAIL SENT</div><h2 className="text-xl font-black mt-1">{outreachMessage.email_subject||"Pre-event outreach"}</h2><div className="muted text-sm mt-1">{school?.name||"School"}{outreachMessage.date?` · ${fmt(outreachMessage.date)}`:""}</div></div><button type="button" className="btn shrink-0" onClick={()=>setOutreachMessage(null)}>Close</button></div><div className="p-5 overflow-y-auto max-h-[65vh]"><div className="grid gap-2 text-sm"><div><span className="font-black">To / CC:</span> {coaches.filter((r:any)=>{const x=one(r.college_coaches);return x?.id===outreachMessage.coach_id||(outreachMessage.interaction_recipients||[]).some((recipient:any)=>recipient.coach_id===x?.id)}).map((r:any)=>{const x=one(r.college_coaches);return [x?.first_name,x?.last_name].filter(Boolean).join(" ")}).filter(Boolean).join(", ")||[outreachMessage.selectedCoach?.first_name,outreachMessage.selectedCoach?.last_name].filter(Boolean).join(" ")}</div>{outreachMessage.email_type&&<div><span className="font-black">Email type:</span> {outreachMessage.email_type}</div>}</div><div className="border-t mt-4 pt-4"><div className="text-sm whitespace-pre-wrap leading-6">{outreachMessage.email_content||outreachMessage.note||"The email was logged in the Journey, but the original message body is not available for this interaction."}</div></div><div className="muted text-xs mt-5">Logged in Journey as one communication with all recorded recipients.</div></div></div></div>}
         {eventDayOrLater && <>
-        <section id="follow-up-action" className="card p-5 mt-5 scroll-mt-6">
-          <div className="rr-eyebrow">FOLLOW-UP</div>
-          <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-Up Complete":"Close the loop"}</h2>
-          <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
-          {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed"}:r));setSaveMessage("Follow-Up Completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>}
-        </section>
         {debrief ? <details className="card mt-5">
           <summary className="p-5 cursor-pointer font-black flex items-center justify-between gap-3">
             <span>▸&nbsp; View / Edit Debrief</span>
@@ -755,7 +749,13 @@ export default function EventPrep() {
           </div>
         </section>
 
-        </>}
+        </>}        <section id="follow-up-action" className="card p-5 mt-5 scroll-mt-6">
+          <div className="rr-eyebrow">FOLLOW-UP</div>
+          <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-Up Complete":"Close the loop"}</h2>
+          <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
+          {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed"}:r));setSaveMessage("Follow-Up Completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>}
+        </section>
+
         </>}
       </div>
     </AppShell>
