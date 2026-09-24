@@ -15,6 +15,7 @@ import {
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import { createClient } from "@/lib/supabase-browser";
+import OwnerAdminPlayerAccess from "@/components/OwnerAdminPlayerAccess";
 
 const text = (v: any) => String(v || "").toLowerCase();
 
@@ -26,6 +27,7 @@ export default function AdvisorAccessPage() {
     [loadError, setLoadError] = useState(""),
     [search, setSearch] = useState("");
   const [orgId, setOrgId] = useState(""),
+    [viewerRole, setViewerRole] = useState(""),
     [viewerId, setViewerId] = useState(""),
     [players, setPlayers] = useState<any[]>([]),
     [assignments, setAssignments] = useState<any[]>([]);
@@ -65,6 +67,7 @@ export default function AdvisorAccessPage() {
       return;
     }
     setOrgId(me.organization_id);
+    setViewerRole(String(me.role||""));
     const [membersResult, assignmentResult] = await Promise.all([
       c
         .from("organization_members")
@@ -187,6 +190,7 @@ export default function AdvisorAccessPage() {
         !["active", "pending"].includes(byAthlete.get(String(p.id))?.status),
     ).length,
   };
+  if (!loading && ["owner","admin"].includes(viewerRole)) return <AppShell><div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6"><OwnerAdminPlayerAccess/></div></AppShell>;
   return (
     <AppShell>
       <div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6">
