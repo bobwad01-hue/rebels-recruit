@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles, ChevronRight } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import PageHeader from "@/components/PageHeader";
 import { PageFrame, StatePanel } from "@/components/ProductUI";
 import { createClient } from "@/lib/supabase-browser";
@@ -18,6 +19,8 @@ const organizationLabel = (m: any) => {
 
 export default function Profile() {
   const [name, setName] = useState("");
+  const [userId, setUserId] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [classYear, setClassYear] = useState("");
@@ -61,8 +64,9 @@ export default function Profile() {
         return;
       }
       setEmail(user.email || "");
+      setUserId(user.id);
       const [profileResult, athleteResult, teamResponse, signatureResponse] = await Promise.all([
-        c.from("profiles").select("full_name,phone,timezone,profile_completed_at").eq("id", user.id).single(),
+        c.from("profiles").select("full_name,phone,timezone,profile_completed_at,avatar_url").eq("id", user.id).single(),
         c.from("athlete_profiles").select("*").eq("user_id", user.id).maybeSingle(),
         fetch("/api/profile/team"),
         fetch("/api/profile/email-signature"),
@@ -77,6 +81,7 @@ export default function Profile() {
       const teamRes = (await teamResponse.json()) as { organizations?: any[]; teams?: any[]; currentOrganizationId?: string; currentTeamId?: string; error?: string };
       const sigRes = (await signatureResponse.json()) as { signature?: Record<string, any> };
       setName(p?.full_name || "");
+      setAvatarUrl(p?.avatar_url || "");
       setPhone(p?.phone || "");
       setTimezone(p?.timezone || DEFAULT_TIMEZONE);
       setIsOnboarding(!p?.profile_completed_at);
@@ -173,6 +178,8 @@ export default function Profile() {
         {!loading && !loadError && (
           <form onSubmit={save} className="space-y-5">
             <section className="card p-5 sm:p-6">
+              <div className="mb-5"><h2 className="font-black text-lg">Player photo</h2><p className="muted text-sm mt-1">This headshot appears throughout Rebels Recruit, including Big Board and War Room.</p></div>
+              {userId&&<div className="mb-6 pb-6 border-b"><PlayerPhotoUpload athleteId={userId} name={name||"Player"} initialUrl={avatarUrl} onSaved={setAvatarUrl}/></div>}
               <div className="mb-5"><h2 className="font-black text-lg">Profile essentials</h2><p className="muted text-sm mt-1">All fields below are required. These details drive personalization, filtering and your recruiting identity.</p></div>
               <div className="grid md:grid-cols-2 gap-4">
                 <label><b className="text-sm">Full name *</b><input required className="input mt-1" value={name} onChange={(e) => setName(e.target.value)} /></label>
