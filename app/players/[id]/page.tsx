@@ -13,6 +13,7 @@ import {
   Target,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import PlayerPhotoUpload from "@/components/PlayerPhotoUpload";
 import PageHeader from "@/components/PageHeader";
 import SmartNextMoves, {
   buildSmartNextMoves,
@@ -135,7 +136,7 @@ export default function Player360() {
       const [p, ap, cs, ch, int, re, ta, ae] = await Promise.all([
         c
           .from("profiles")
-          .select("id,full_name,email")
+          .select("id,full_name,email,avatar_url")
           .eq("id", id)
           .maybeSingle(),
         c.from("athlete_profiles").select("*").eq("user_id", id).maybeSingle(),
@@ -373,6 +374,7 @@ export default function Player360() {
           title={player?.full_name || "Player"}
           subtitle={`${player?.class_year || "Class year not set"}${player?.positions?.length ? " · " + player.positions.join(" / ") : ""}${player?.school_name ? " · " + player.school_name : ""}`}
         />
+        {(athleteView||advisor)&&!preview.active&&<div className="card p-4 mb-5"><div className="rr-eyebrow mb-2">PLAYER PHOTO</div><PlayerPhotoUpload compact athleteId={id} name={player?.full_name||"Player"} initialUrl={player?.avatar_url} onSaved={(avatar_url)=>setPlayer((p:any)=>({...p,avatar_url}))}/></div>}
         <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
           {[
             ["Recruiting Health", `${intelligence.score}`, intelligence.health],
