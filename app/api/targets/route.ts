@@ -3,7 +3,7 @@ import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
 
 const ENTITY='athlete_college_target_rank';
-const TOP_FIVE='athlete_top';
+const ATHLETE_TARGETS='athlete_top';
 
 async function latestRanks(admin:any,athleteIds:string[]){
   if(!athleteIds.length)return new Map<string,number>();
@@ -50,10 +50,10 @@ export async function POST(req:NextRequest){
   const {error:writeError}=await admin.from('audit_log').insert(rows);if(writeError)return NextResponse.json({error:writeError.message},{status:500});
   if(member?.organization_id){
     const collegeByRelationship=new Map((await admin.from('athlete_colleges').select('id,college_id').in('id',order)).data?.map((r:any)=>[String(r.id),r.college_id])||[]);
-    const topFive=order.slice(0,5).map((id:string,i:number)=>({athlete_user_id:user.id,organization_id:member.organization_id,college_id:collegeByRelationship.get(id),list_type:TOP_FIVE,rank:i+1,updated_by:user.id})).filter((r:any)=>r.college_id);
-    const del=await admin.from('athlete_school_rankings').delete().eq('athlete_user_id',user.id).eq('organization_id',member.organization_id).eq('list_type',TOP_FIVE);
+    const topTargets=order.slice(0,10).map((id:string,i:number)=>({athlete_user_id:user.id,organization_id:member.organization_id,college_id:collegeByRelationship.get(id),list_type:ATHLETE_TARGETS,rank:i+1,updated_by:user.id})).filter((r:any)=>r.college_id);
+    const del=await admin.from('athlete_school_rankings').delete().eq('athlete_user_id',user.id).eq('organization_id',member.organization_id).eq('list_type',ATHLETE_TARGETS);
     if(del.error)return NextResponse.json({error:del.error.message},{status:500});
-    if(topFive.length){const ins=await admin.from('athlete_school_rankings').insert(topFive);if(ins.error)return NextResponse.json({error:ins.error.message},{status:500})}
+    if(topTargets.length){const ins=await admin.from('athlete_school_rankings').insert(topTargets);if(ins.error)return NextResponse.json({error:ins.error.message},{status:500})}
   }
   return NextResponse.json({ok:true,order});
 }
