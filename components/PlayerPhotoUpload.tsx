@@ -10,7 +10,7 @@ export default function PlayerPhotoUpload({athleteId,name,initialUrl,onSaved,com
 
  function cropRect(img:HTMLImageElement){const crop=Math.min(img.naturalWidth,img.naturalHeight)/zoom,maxX=Math.max(0,img.naturalWidth-crop),maxY=Math.max(0,img.naturalHeight-crop);return{crop,sx:maxX*((panX+100)/200),sy:maxY*((panY+100)/200)}}
  function moveDrag(e:React.PointerEvent){if(!drag.current)return;const dx=e.clientX-drag.current.x,dy=e.clientY-drag.current.y;setPanX(Math.max(-100,Math.min(100,drag.current.px-dx*.65)));setPanY(Math.max(-100,Math.min(100,drag.current.py-dy*.65)))}
- function draw(canvas:HTMLCanvasElement,img:HTMLImageElement,size:number){const{crop,sx,sy}=cropRect(img),ctx=canvas.getContext("2d");if(!ctx)return;canvas.width=size;canvas.height=size;ctx.clearRect(0,0,size,size);ctx.drawImage(img,sx,sy,crop,crop,0,0,size,size)}
+ function draw(canvas:HTMLCanvasElement,img:HTMLImageElement,size:number){const{crop,sx,sy}=cropRect(img),ctx=canvas.getContext("2d");if(!ctx)return;canvas.width=size;canvas.height=size;ctx.clearRect(0,0,size,size);ctx.fillStyle="#f1f5f9";ctx.fillRect(0,0,size,size);ctx.drawImage(img,sx,sy,crop,crop,0,0,size,size)}
  useEffect(()=>{if(!cropSrc||!preview.current)return;const img=new Image();img.onload=()=>preview.current&&draw(preview.current,img,600);img.src=cropSrc},[cropSrc,zoom,panX,panY]);
 
  function choose(file?:File){if(!file)return;setMsg("");if(!["image/jpeg","image/png","image/webp"].includes(file.type)){setMsg("Use a JPG, PNG or WebP photo.");return}if(file.size>5*1024*1024){setMsg("Photo must be 5 MB or smaller.");return}if(cropSrc)URL.revokeObjectURL(cropSrc);setSourceFile(file);setCropSrc(URL.createObjectURL(file));setZoom(1);setPanX(0);setPanY(-25)}
