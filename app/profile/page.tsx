@@ -56,6 +56,7 @@ export default function Profile() {
   const [bats, setBats] = useState("");
   const [slaps, setSlaps] = useState(false);
   const [ncaaNumber, setNcaaNumber] = useState("");
+  const [draftReady, setDraftReady] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -126,9 +127,32 @@ export default function Profile() {
         setBats(m[2].toUpperCase());
         setSlaps(/slap/i.test(s.throwBat));
       }
+      try {
+        const raw = window.localStorage.getItem(`rr-profile-draft:${user.id}`);
+        if (raw) {
+          const d = JSON.parse(raw);
+          if (d.name !== undefined) setName(d.name); if (d.phone !== undefined) setPhone(d.phone);
+          if (d.classYear !== undefined) setClassYear(d.classYear); if (d.jerseyNumber !== undefined) setJerseyNumber(d.jerseyNumber);
+          if (d.school !== undefined) setSchool(d.school); if (Array.isArray(d.positions)) setPositions(d.positions);
+          if (d.gpa !== undefined) setGpa(d.gpa); if (d.homeCity !== undefined) setHomeCity(d.homeCity); if (d.state !== undefined) setState(d.state);
+          if (d.homeZip !== undefined) setHomeZip(d.homeZip); if (d.majors !== undefined) setMajors(d.majors); if (d.timezone !== undefined) setTimezone(d.timezone);
+          if (d.xTwitter !== undefined) setXTwitter(d.xTwitter); if (d.sportsRecruitsUrl !== undefined) setSportsRecruitsUrl(d.sportsRecruitsUrl);
+          if (d.travelTeamCoachName !== undefined) setTravelTeamCoachName(d.travelTeamCoachName); if (d.travelTeamCoachPhone !== undefined) setTravelTeamCoachPhone(d.travelTeamCoachPhone); if (d.travelTeamCoachEmail !== undefined) setTravelTeamCoachEmail(d.travelTeamCoachEmail);
+          if (d.highSchoolCity !== undefined) setHighSchoolCity(d.highSchoolCity); if (d.highSchoolState !== undefined) setHighSchoolState(d.highSchoolState); if (d.highSchoolCoachName !== undefined) setHighSchoolCoachName(d.highSchoolCoachName);
+          if (d.highSchoolCoachPhone !== undefined) setHighSchoolCoachPhone(d.highSchoolCoachPhone); if (d.highSchoolCoachEmail !== undefined) setHighSchoolCoachEmail(d.highSchoolCoachEmail);
+          if (d.throws !== undefined) setThrows(d.throws); if (d.bats !== undefined) setBats(d.bats); if (d.slaps !== undefined) setSlaps(!!d.slaps); if (d.ncaaNumber !== undefined) setNcaaNumber(d.ncaaNumber);
+        }
+      } catch {}
+      setDraftReady(true);
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    if (!draftReady || !userId) return;
+    const draft = {name,phone,classYear,jerseyNumber,school,positions,gpa,homeCity,state,homeZip,majors,timezone,xTwitter,sportsRecruitsUrl,travelTeamCoachName,travelTeamCoachPhone,travelTeamCoachEmail,highSchoolCity,highSchoolState,highSchoolCoachName,highSchoolCoachPhone,highSchoolCoachEmail,throws,bats,slaps,ncaaNumber};
+    window.localStorage.setItem(`rr-profile-draft:${userId}`, JSON.stringify(draft));
+  }, [draftReady,userId,name,phone,classYear,jerseyNumber,school,positions,gpa,homeCity,state,homeZip,majors,timezone,xTwitter,sportsRecruitsUrl,travelTeamCoachName,travelTeamCoachPhone,travelTeamCoachEmail,highSchoolCity,highSchoolState,highSchoolCoachName,highSchoolCoachPhone,highSchoolCoachEmail,throws,bats,slaps,ncaaNumber]);
 
   const teamOptions = useMemo(() => teams.filter((t: any) => t.organization_id === organizationId), [teams, organizationId]);
   const selectedTeam = teams.find((t: any) => t.id === teamId);
@@ -170,6 +194,7 @@ export default function Profile() {
       setMsg(p.error?.message || a.error?.message || teamError || signatureError || "Could not save profile.");
       return;
     }
+    if (user?.id) window.localStorage.removeItem(`rr-profile-draft:${user.id}`);
     setMsg("Profile saved.");
     if (isOnboarding) location.href = "/onboarding";
   }
