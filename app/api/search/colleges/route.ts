@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 
 const PAGE_SIZE=20;
-const FIELDS='id,name,division,city,state,conference,school_type';
+const FIELDS='id,name,division,city,state,conference,school_type,website,logo_url';
 export async function GET(req:NextRequest){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
