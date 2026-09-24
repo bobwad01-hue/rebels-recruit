@@ -45,10 +45,12 @@ export default function Profile() {
   const [sportsRecruitsUrl, setSportsRecruitsUrl] = useState("");
   const [travelTeamCoachName, setTravelTeamCoachName] = useState("");
   const [travelTeamCoachPhone, setTravelTeamCoachPhone] = useState("");
+  const [travelTeamCoachEmail, setTravelTeamCoachEmail] = useState("");
   const [highSchoolCity, setHighSchoolCity] = useState("");
   const [highSchoolState, setHighSchoolState] = useState("");
   const [highSchoolCoachName, setHighSchoolCoachName] = useState("");
   const [highSchoolCoachPhone, setHighSchoolCoachPhone] = useState("");
+  const [highSchoolCoachEmail, setHighSchoolCoachEmail] = useState("");
   const [throws, setThrows] = useState("");
   const [bats, setBats] = useState("");
   const [slaps, setSlaps] = useState(false);
@@ -109,10 +111,12 @@ export default function Profile() {
       setSportsRecruitsUrl(s.sportsRecruitsUrl || "");
       setTravelTeamCoachName(s.travelTeamCoachName || "");
       setTravelTeamCoachPhone(s.travelTeamCoachPhone || "");
+      setTravelTeamCoachEmail(s.travelTeamCoachEmail || "");
       setHighSchoolCity(s.highSchoolCity || "");
       setHighSchoolState(s.highSchoolState || "");
       setHighSchoolCoachName(s.highSchoolCoachName || "");
       setHighSchoolCoachPhone(s.highSchoolCoachPhone || "");
+      setHighSchoolCoachEmail(s.highSchoolCoachEmail || "");
       setNcaaNumber(s.ncaaNumber || "");
       const m = String(s.throwBat || "").match(/^([RL])\/([RL])/i);
       if (m) {
@@ -153,7 +157,7 @@ export default function Profile() {
       c.from("profiles").update({ full_name: name.trim(), phone: phone.trim(), timezone, profile_completed_at: completedAt }).eq("id", user?.id),
       c.from("athlete_profiles").upsert({ user_id: user?.id, class_year: Number(classYear), jersey_number: jerseyNumber.trim(), school_name: school.trim(), positions, gpa: Number(gpa), primary_state: state.trim(), home_zip: homeZip.trim(), interested_majors: majors.split(",").map((x) => x.trim()).filter(Boolean) }, { onConflict: "user_id" }),
       fetch("/api/profile/team", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, teamId }) }),
-      fetch("/api/profile/email-signature", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, xTwitter, sportsRecruitsUrl, travelTeamName: selectedTeam?.name || "", travelTeamCoachName, travelTeamCoachPhone, highSchoolCity, highSchoolState, highSchoolCoachName, highSchoolCoachPhone, throwBat, ncaaNumber }) }),
+      fetch("/api/profile/email-signature", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, xTwitter, sportsRecruitsUrl, travelTeamName: selectedTeam?.name || "", travelTeamCoachName, travelTeamCoachPhone, travelTeamCoachEmail, highSchoolCity, highSchoolState, highSchoolCoachName, highSchoolCoachPhone, highSchoolCoachEmail, throwBat, ncaaNumber }) }),
     ]);
     setSaving(false);
     let teamError = "";
@@ -220,10 +224,12 @@ export default function Profile() {
                   <label className="md:col-span-2"><b className="text-sm">SportsRecruits profile</b><input className="input mt-1" value={sportsRecruitsUrl} onChange={(e) => setSportsRecruitsUrl(e.target.value)} /></label>
                   <label><b className="text-sm">Team coach</b><input className="input mt-1" value={travelTeamCoachName} onChange={(e) => setTravelTeamCoachName(e.target.value)} /></label>
                   <label><b className="text-sm">Coach phone</b><input className="input mt-1" value={travelTeamCoachPhone} onChange={(e) => setTravelTeamCoachPhone(e.target.value)} /></label>
+                  <label><b className="text-sm">Coach email</b><input className="input mt-1" type="email" value={travelTeamCoachEmail} onChange={(e) => setTravelTeamCoachEmail(e.target.value)} /></label>
                   <label><b className="text-sm">High school city</b><input className="input mt-1" value={highSchoolCity} onChange={(e) => setHighSchoolCity(e.target.value)} /></label>
                   <label><b className="text-sm">High school state</b><input className="input mt-1" value={highSchoolState} onChange={(e) => setHighSchoolState(e.target.value)} /></label>
                   <label><b className="text-sm">High school coach</b><input className="input mt-1" value={highSchoolCoachName} onChange={(e) => setHighSchoolCoachName(e.target.value)} /></label>
                   <label><b className="text-sm">Coach phone</b><input className="input mt-1" value={highSchoolCoachPhone} onChange={(e) => setHighSchoolCoachPhone(e.target.value)} /></label>
+                  <label><b className="text-sm">Coach email</b><input className="input mt-1" type="email" value={highSchoolCoachEmail} onChange={(e) => setHighSchoolCoachEmail(e.target.value)} /></label>
                   <label><b className="text-sm">Throws</b><select className="input mt-1" value={throws} onChange={(e) => setThrows(e.target.value)}><option value="">Select</option><option value="R">Right</option><option value="L">Left</option></select></label>
                   <label><b className="text-sm">Bats</b><select className="input mt-1" value={bats} onChange={(e) => setBats(e.target.value)}><option value="">Select</option><option value="R">Right</option><option value="L">Left</option></select>{bats === "L" && <span className="block mt-2 text-sm"><input type="checkbox" checked={slaps} onChange={(e) => setSlaps(e.target.checked)} /> Slap hitter</span>}</label>
                   <label><b className="text-sm">NCAA #</b><input className="input mt-1" value={ncaaNumber} onChange={(e) => setNcaaNumber(e.target.value)} /></label>
