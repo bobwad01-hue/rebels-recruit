@@ -32,17 +32,30 @@ export async function GET(req: NextRequest) {
   const athleteUserId = String(
     req.nextUrl.searchParams.get("athlete") || user.id,
   );
+  const admin = createAdminClient();
   if (athleteUserId !== user.id) {
-    const { data: allowed } = await c.rpc("can_access_athlete", {
+    const { data: allowedByRpc } = await c.rpc("can_access_athlete", {
       target_athlete_id: athleteUserId,
     });
+    let allowed = !!allowedByRpc;
+    if (!allowed) {
+      const [{ data: viewerMemberships }, { data: athleteMemberships }, { data: parentAccess }] = await Promise.all([
+        admin.from("organization_members").select("organization_id,role,organization_view_access").eq("user_id", user.id).eq("status", "active"),
+        admin.from("organization_members").select("organization_id").eq("user_id", athleteUserId).eq("role", "athlete").eq("status", "active"),
+        admin.from("parent_guardian_access").select("athlete_user_id").eq("parent_user_id", user.id).eq("athlete_user_id", athleteUserId).eq("status", "active").maybeSingle(),
+      ]);
+      const athleteOrgIds = new Set((athleteMemberships || []).map((m: any) => m.organization_id));
+      allowed = !!parentAccess || (viewerMemberships || []).some((m: any) =>
+        athleteOrgIds.has(m.organization_id) &&
+        (m.role === "owner" || m.role === "admin" || m.role === "advisor" || !!m.organization_view_access)
+      );
+    }
     if (!allowed)
       return NextResponse.json(
         { error: "You do not have access to this athlete." },
         { status: 403 },
       );
   }
-  const admin = createAdminClient();
   const [{ data: log }, { data: profile }, { data: athlete }] =
     await Promise.all([
       admin
