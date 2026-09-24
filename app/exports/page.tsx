@@ -69,7 +69,7 @@ const days = (d: any) =>
 const REPORTS: Report[] = [
   {
     id: "weekly",
-    title: "Advisor Weekly Report",
+    title: "Weekly Recruiting Action Report",
     description:
       "Players needing attention, overdue Next Steps, open tasks and recruiting priorities.",
     icon: CheckSquare,
@@ -1067,10 +1067,11 @@ export default function Exports() {
     <AppShell>
       <PageFrame size="6xl">
         <PageHeader
+          eyebrow={owner ? "ORGANIZATION REPORTING" : "ADVISOR REPORTING"}
           title="Exports & Reports"
           subtitle={
             owner
-              ? "Create recruiting reports across your organization."
+              ? "Create organization-wide recruiting reports, review the data before downloading and export only what you need."
               : "Create recruiting reports for the players you advise."
           }
         />
@@ -1127,9 +1128,7 @@ export default function Exports() {
                 <h2 className="font-black text-lg">Report Filters</h2>
               </div>
               <p className="muted text-sm mt-1">
-                Filters apply where relevant. Historical import metadata is
-                removed from report-facing notes, and partial historical dates
-                keep their recorded precision.
+                Choose the players, timeframe and recruiting context you want included. Filters apply to every report where that data is relevant.
               </p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
                 <Select

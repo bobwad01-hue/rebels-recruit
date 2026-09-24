@@ -7,7 +7,7 @@ export default function GlobalError({error,reset}:{error:Error&{digest?:string};
   useEffect(()=>{
     console.error(error);
     try{
-      fetch('/api/telemetry/errors',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({source:'react.error-boundary',name:error.name||'Error',message:error.message||'Application render error',digest:error.digest||'',path:location.pathname+location.search,online:navigator.onLine})}).catch(()=>{});
+      fetch('/api/telemetry/errors',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({source:'react.error-boundary',name:error.name||'Error',message:'Application render error',digest:error.digest||'',path:location.pathname,online:navigator.onLine})}).catch(()=>{});
     }catch{}
   },[error]);
   return <div className="min-h-[60vh] flex items-center justify-center px-4" role="alert">
