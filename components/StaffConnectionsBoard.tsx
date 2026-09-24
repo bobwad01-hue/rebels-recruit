@@ -1,6 +1,4 @@
 'use client';
-// Deployment nudge: publish latest Player 360/profile fixes and Connections logo updates — 2026-09-24
-// Deployment nudge: school logos in staff Connections
 import Link from 'next/link';import {useEffect,useMemo,useState} from 'react';import {ArrowRight,ChevronDown,ChevronUp,Search,School,Users} from 'lucide-react';import {useSearchParams} from 'next/navigation';import {createClient} from '@/lib/supabase-browser'; 
 const one=(v:any)=>Array.isArray(v)?v[0]:v;
 const schoolAbbr=(name:string)=>String(name||'School').split(/\s+/).map(w=>w.replace(/[^A-Za-z0-9–—-]/g,'')).filter(Boolean).map(w=>{const parts=w.split(/([–—-])/);return parts.map(p=>p==='-'||p==='–'||p==='—'?'-':/^[A-Z]/.test(p)?p[0]:'').join('')}).join('').replace(/-+/g,'-').replace(/^-|-$/g,'')||String(name||'S')[0].toUpperCase();
