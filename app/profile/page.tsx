@@ -28,6 +28,7 @@ export default function Profile() {
   const [school, setSchool] = useState("");
   const [positions, setPositions] = useState<string[]>([]);
   const [gpa, setGpa] = useState("");
+  const [homeCity, setHomeCity] = useState("");
   const [state, setState] = useState("");
   const [homeZip, setHomeZip] = useState("");
   const [majors, setMajors] = useState("");
@@ -92,6 +93,7 @@ export default function Profile() {
       setSchool(a?.school_name || "");
       setPositions(Array.isArray(a?.positions) ? a.positions : []);
       setGpa(a?.gpa?.toString() || "");
+      setHomeCity(a?.home_city || "");
       setState(a?.primary_state || "");
       setHomeZip(a?.home_zip || "");
       setMajors((a?.interested_majors || []).join(", "));
@@ -144,7 +146,7 @@ export default function Profile() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setMsg("");
-    if (!name.trim() || !phone.trim() || !classYear || !jerseyNumber.trim() || !school.trim() || !state.trim() || !homeZip.trim() || !positions.length || !timezone || !gpa || !majors.trim() || !organizationId || !teamId) {
+    if (!name.trim() || !phone.trim() || !classYear || !jerseyNumber.trim() || !school.trim() || !homeCity.trim() || !state.trim() || !homeZip.trim() || !positions.length || !timezone || !gpa || !majors.trim() || !organizationId || !teamId) {
       setMsg("Please complete every required profile field before continuing.");
       return;
     }
@@ -155,7 +157,7 @@ export default function Profile() {
     const throwBat = throws && bats ? `${throws}/${bats}${bats === "L" && slaps ? " (Slap)" : ""}` : "";
     const [p, a, tr, sr] = await Promise.all([
       c.from("profiles").update({ full_name: name.trim(), phone: phone.trim(), timezone, profile_completed_at: completedAt }).eq("id", user?.id),
-      c.from("athlete_profiles").upsert({ user_id: user?.id, class_year: Number(classYear), jersey_number: jerseyNumber.trim(), school_name: school.trim(), positions, gpa: Number(gpa), primary_state: state.trim(), home_zip: homeZip.trim(), interested_majors: majors.split(",").map((x) => x.trim()).filter(Boolean) }, { onConflict: "user_id" }),
+      c.from("athlete_profiles").upsert({ user_id: user?.id, class_year: Number(classYear), jersey_number: jerseyNumber.trim(), school_name: school.trim(), positions, gpa: Number(gpa), home_city: homeCity.trim(), primary_state: state.trim(), home_zip: homeZip.trim(), interested_majors: majors.split(",").map((x) => x.trim()).filter(Boolean) }, { onConflict: "user_id" }),
       fetch("/api/profile/team", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, teamId }) }),
       fetch("/api/profile/email-signature", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, xTwitter, sportsRecruitsUrl, travelTeamName: selectedTeam?.name || "", travelTeamCoachName, travelTeamCoachPhone, travelTeamCoachEmail, highSchoolCity, highSchoolState, highSchoolCoachName, highSchoolCoachPhone, highSchoolCoachEmail, throwBat, ncaaNumber }) }),
     ]);
@@ -207,6 +209,7 @@ export default function Profile() {
                   {organizationId && teamOptions.length === 0 && <span className="text-xs mt-1 block text-amber-700">No active teams are available for this organization. Manage organization access or ask an organization administrator to add you to a team.</span>}
                 </label>
                 <label><b className="text-sm">High school *</b><input required className="input mt-1" value={school} onChange={(e) => setSchool(e.target.value)} /></label>
+                <label><b className="text-sm">Home city *</b><input required className="input mt-1" value={homeCity} onChange={(e) => setHomeCity(e.target.value)} /></label>
                 <label><b className="text-sm">Home state *</b><input required className="input mt-1" value={state} onChange={(e) => setState(e.target.value)} /></label>
                 <label><b className="text-sm">Home ZIP *</b><input required className="input mt-1" value={homeZip} onChange={(e) => setHomeZip(e.target.value.replace(/[^0-9-]/g, ""))} /></label>
                 <div className="md:col-span-2"><b className="text-sm">Positions *</b><div className="flex flex-wrap gap-2 mt-2">{SOFTBALL_POSITIONS.map((p) => <button key={p} type="button" onClick={() => togglePosition(p)} aria-pressed={positions.includes(p)} className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-bold ${positions.includes(p) ? "bg-slate-950 text-white" : "bg-white"}`}>{p}</button>)}</div></div>
