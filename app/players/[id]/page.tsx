@@ -251,8 +251,9 @@ export default function Player360() {
         reminders,
         tasks,
         events,
+        healthProfile:{classYear:player?.class_year||null},
       }),
-    [colleges, coaches, interactions, reminders, tasks, events],
+    [colleges, coaches, interactions, reminders, tasks, events, player?.class_year],
   );
   const moves = useMemo(
     () => buildSmartNextMoves({ reminders, tasks, coaches, colleges, events }),
@@ -484,15 +485,13 @@ export default function Player360() {
             <div className="rr-eyebrow">PLAYER PROFILE</div>
             <h2 className="font-black text-lg">Recruiting essentials</h2>
             <div className="mt-4 space-y-3 text-sm">
+              <Row k="Class" v={player?.class_year || "Not set"} />
+              <Row k="High school" v={player?.school_name || "Not set"} />
+              <Row k="Position" v={player?.positions?.join(" / ") || "Not set"} />
+              <Row k="Jersey #" v={player?.jersey_number || "Not set"} />
               <Row k="GPA" v={player?.gpa || "Not set"} />
-              <Row
-                k="Home"
-                v={player?.primary_state || player?.home_zip || "Not set"}
-              />
-              <Row
-                k="Interested majors"
-                v={player?.interested_majors?.join(", ") || "Not set"}
-              />
+              <Row k="Home" v={player?.primary_state || player?.home_zip || "Not set"} />
+              <Row k="Interested majors" v={player?.interested_majors?.join(", ") || "Not set"} />
             </div>
             {athleteView && !preview.active && (
               <Link href="/profile" className="btn w-full mt-5">
@@ -509,7 +508,7 @@ export default function Player360() {
             <div className="flex items-center gap-2">
               <CheckCircle2 size={19} />
               <h2 className="font-black text-lg">
-                {parent ? "Current Next Steps" : "What should happen next"}
+                {parent ? "Current Next Steps" : advisor ? `${String(player?.full_name||"Player").split(" ")[0]}'s Next Steps` : "What should happen next"}
               </h2>
             </div>
             <p className="muted text-sm mt-1">
@@ -520,11 +519,11 @@ export default function Player360() {
                   : "Prioritized from your current recruiting state. As relationships, events and Next Steps change, this list changes too."}
             </p>
             <div className="mt-4">
-              {parent ? (
+              {parent || advisor ? (
                 <div className="space-y-2">
                   {moves.slice(0, 6).map((m: any) => (
                     <Link
-                      href={parentHref(m.href)}
+                      href={parent ? parentHref(m.href) : staffHref(m.href)}
                       key={m.id || m.title}
                       className="block border rounded-xl p-4 rr-interactive-card"
                     >
