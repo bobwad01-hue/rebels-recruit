@@ -135,10 +135,10 @@ export default function Player360() {
         }
         setPermissions(a.permissions || {});
       }
-      const [p, ap, cs, ch, int, re, ta, ae, sig] = await Promise.all([
+      const [p, ap, cs, ch, int, re, ta, ae, sig, fit] = await Promise.all([
         c
           .from("profiles")
-          .select("id,full_name,email,avatar_url")
+          .select("id,full_name,email,avatar_url,profile_completed_at")
           .eq("id", id)
           .maybeSingle(),
         c.from("athlete_profiles").select("*").eq("user_id", id).maybeSingle(),
@@ -181,6 +181,7 @@ export default function Player360() {
           )
           .eq("athlete_user_id", id),
         fetch(`/api/profile/email-signature?athlete=${id}`).then(async(r)=>({ok:r.ok,data:r.ok?await r.json():null})).catch(()=>({ok:false,data:null})),
+        c.from("college_fit_profiles").select("completed_at").eq("user_id", id).maybeSingle(),
       ]);
       const failures = [
         p.error && "player profile",
@@ -212,7 +213,7 @@ export default function Player360() {
         setLoading(false);
         return;
       }
-      setPlayer({ ...p.data, ...(ap.data || {}) });
+      setPlayer({ ...p.data, ...(ap.data || {}), fit_completed_at: fit.data?.completed_at || null });
       setSignatureProfile(sig?.data?.signature || {});
       if (ap.data?.primary_team_id) {
         const { data: teamRow } = await c.from("teams").select("name").eq("id", ap.data.primary_team_id).maybeSingle();
@@ -259,9 +260,9 @@ export default function Player360() {
         reminders,
         tasks,
         events,
-        healthProfile:{classYear:player?.class_year||null},
+        healthProfile:{classYear:player?.class_year||null,profileComplete:!!player?.profile_completed_at,fitComplete:!!player?.fit_completed_at},
       }),
-    [colleges, coaches, interactions, reminders, tasks, events, player?.class_year],
+    [colleges, coaches, interactions, reminders, tasks, events, player?.class_year, player?.profile_completed_at, player?.fit_completed_at],
   );
   const moves = useMemo(
     () => buildSmartNextMoves({ reminders, tasks, coaches, colleges, events }),
@@ -496,7 +497,7 @@ export default function Player360() {
               <Row k="Position" v={player?.positions?.join(" / ") || "Not set"} />
               <Row k="Jersey #" v={player?.jersey_number || "Not set"} />
               <Row k="GPA" v={player?.gpa || "Not set"} />
-              <Row k="Home" v={[signatureProfile?.highSchoolCity,signatureProfile?.highSchoolState||player?.primary_state].filter(Boolean).join(", ") || player?.home_zip || "Not set"} />
+              <Row k="Home" v={[player?.home_city||signatureProfile?.highSchoolCity,player?.primary_state||signatureProfile?.highSchoolState].filter(Boolean).join(", ") || player?.home_zip || "Not set"} />
               <Row k="Interested majors" v={player?.interested_majors?.join(", ") || "Not set"} />
               <div className="pt-3 mt-3 border-t"><div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">High School</div></div>
               <Row k="School" v={player?.school_name || "Not set"} />
