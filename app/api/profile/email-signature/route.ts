@@ -9,10 +9,12 @@ const FIELDS = [
   "travelTeamName",
   "travelTeamCoachName",
   "travelTeamCoachPhone",
+  "travelTeamCoachEmail",
   "highSchoolCity",
   "highSchoolState",
   "highSchoolCoachName",
   "highSchoolCoachPhone",
+  "highSchoolCoachEmail",
   "throwBat",
   "ncaaNumber",
 ] as const;
