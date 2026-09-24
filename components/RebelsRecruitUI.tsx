@@ -11,7 +11,8 @@ export function CollegeLogo({name,logoUrl,website,size='md'}:{name:string;logoUr
  const cls=size==='lg'?'h-10 w-10':size==='sm'?'h-5 w-5':'h-7 w-7';
  return src?<img src={src} alt="" className={cls+' rounded-md object-contain bg-white border border-slate-200 p-0.5 shrink-0'}/>:<span className={cls+' rounded-md bg-white border border-slate-200 grid place-items-center text-[9px] font-black shrink-0'}>{String(name||'?')[0]}</span>
 }
-export function CollegeChip({name,logoUrl,website,rank}:{name:string;logoUrl?:string|null;website?:string|null;rank?:number|null}){
+export function CollegeChip({name,logoUrl,website,rank,compact=false}:{name:string;logoUrl?:string|null;website?:string|null;rank?:number|null;compact?:boolean}){
+ if(compact)return <span className="inline-flex items-center justify-center" title={name}><CollegeLogo name={name} logoUrl={logoUrl} website={website} size="md"/></span>;
  return <span className="rr-college-chip"><CollegeLogo name={name} logoUrl={logoUrl} website={website} size="sm"/><span className="truncate">{rank?rank+'. ':''}{name}</span></span>
 }
 export function HealthRing({score,size='md'}:{score:number;size?:'sm'|'md'|'lg'}){
