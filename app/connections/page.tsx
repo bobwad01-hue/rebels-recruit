@@ -14,8 +14,8 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
  const athleteId=preview.active&&preview.role==='athlete'&&preview.athleteId?preview.athleteId:user?.id;
  if(!athleteId)return <AppShell><PageFrame size="5xl"><StatePanel tone="error" title="Sign in to review Connections" description="Your recruiting relationships are available after you sign in."/></PageFrame></AppShell>;
  const [colleges,coaches,actions,memberships]=await Promise.all([
-  supabase.from('athlete_colleges').select('id,athlete_user_id,status,fit_rating,created_at,archived_at,archived_reason,colleges(id,name,division,state,city,conference)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false}),
-  supabase.from('athlete_coaches').select('id,relationship_rating,last_contact_date,next_step,created_at,college_id,archived_at,archived_reason,colleges(id,name,state,city,division,conference),college_coaches(id,first_name,last_name,title,email,phone)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false}),
+  supabase.from('athlete_colleges').select('id,athlete_user_id,status,fit_rating,created_at,archived_at,archived_reason,colleges(id,name,division,state,city,conference,website,logo_url)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false}),
+  supabase.from('athlete_coaches').select('id,relationship_rating,last_contact_date,next_step,created_at,college_id,archived_at,archived_reason,colleges(id,name,state,city,division,conference,website,logo_url),college_coaches(id,first_name,last_name,title,email,phone)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false}),
   supabase.from('gmail_recruiting_messages').select('interaction_id,coach_id,college_id,recruiting_intent,next_action,action_due_date,action_state,action_required,action_updated_at,received_at').eq('athlete_user_id',athleteId).eq('action_required',true).order('received_at',{ascending:false}),
   supabase.from('organization_members').select('organization_id').eq('user_id',athleteId).eq('role','athlete').eq('status','active').limit(1)
  ]);
