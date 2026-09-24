@@ -362,14 +362,7 @@ export default function Player360() {
   return (
     <AppShell>
       <div className="max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-6">
-        <div className="rr-eyebrow">
-          PLAYER 360°
-          {parent
-            ? " · PARENT / GUARDIAN · READ ONLY"
-            : advisor
-              ? " · ADVISOR / STAFF"
-              : ""}
-        </div>
+        <div className="rr-eyebrow">PLAYER 360° SNAPSHOT</div>
         <div className="flex items-center gap-4 sm:gap-5 mb-5">
           {(athleteView||advisor)&&!preview.active&&<PlayerPhotoUpload photoOnly athleteId={id} name={player?.full_name||"Player"} initialUrl={player?.avatar_url} onSaved={(avatar_url)=>setPlayer((p:any)=>({...p,avatar_url}))}/>}
           <div className="min-w-0 flex-1"><PageHeader
