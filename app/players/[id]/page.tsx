@@ -377,7 +377,7 @@ export default function Player360() {
             ["Active Schools", intelligence.activeSchools, ""],
             ["Target Schools", intelligence.targetSchools, ""],
             ["Coach Relationships", intelligence.coachRelationships, ""],
-            ["Open Next Steps", intelligence.openNextMoves, ""],
+            ["Open Next Steps", moves.length, ""],
             ["Upcoming Events", intelligence.upcomingEvents, ""],
           ].map(([label, value, sub]: any) => (
             <Metric
@@ -401,8 +401,7 @@ export default function Player360() {
                   What matters right now
                 </h2>
                 <p className="muted text-sm mt-1">
-                  Signals are based on recorded relationships, recruiting
-                  activity with known dates, open work and upcoming events.
+                  Signals surface what deserves attention and why, based on relationships, recruiting activity, open work and upcoming events.
                 </p>
               </div>
               <Target size={22} />
@@ -410,7 +409,7 @@ export default function Player360() {
             {intelligence.topPriority ? (
               <div className="mt-4 rr-priority-card p-4">
                 <div className="font-black">
-                  {parent ? "What to support next" : "Do this next"}:{" "}
+                  {parent ? "What to support next" : advisor ? "Priority signal" : "Do this next"}:{" "}
                   {intelligence.topPriority.title}
                 </div>
                 <p className="text-sm mt-1">
@@ -515,7 +514,7 @@ export default function Player360() {
               {parent
                 ? "Read-only view of what the athlete is working on. Use this to support, not take over."
                 : advisor
-                  ? "Prioritized recruiting work with relationship context. Review the context or assign a Next Step when appropriate."
+                  ? `Work ${String(player?.full_name||"the player").split(" ")[0]} is responsible for completing. Review progress here, and assign a new Next Step when coaching support is needed.`
                   : "Prioritized from your current recruiting state. As relationships, events and Next Steps change, this list changes too."}
             </p>
             <div className="mt-4">
