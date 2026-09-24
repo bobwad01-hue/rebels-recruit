@@ -43,6 +43,8 @@ export default function Player360() {
     [tasks, setTasks] = useState<any[]>([]),
     [events, setEvents] = useState<any[]>([]),
     [permissions, setPermissions] = useState<any>(null),
+    [signatureProfile, setSignatureProfile] = useState<any>({}),
+    [teamName, setTeamName] = useState(""),
     [preview, setPreview] = useState<OwnerPreview>({
       active: false,
       role: null,
@@ -133,7 +135,7 @@ export default function Player360() {
         }
         setPermissions(a.permissions || {});
       }
-      const [p, ap, cs, ch, int, re, ta, ae] = await Promise.all([
+      const [p, ap, cs, ch, int, re, ta, ae, sig] = await Promise.all([
         c
           .from("profiles")
           .select("id,full_name,email,avatar_url")
@@ -178,6 +180,7 @@ export default function Player360() {
             "id,status,events(id,name,date,type,location,colleges(id,name))",
           )
           .eq("athlete_user_id", id),
+        fetch(`/api/profile/email-signature?athlete=${id}`).then(async(r)=>({ok:r.ok,data:r.ok?await r.json():null})).catch(()=>({ok:false,data:null})),
       ]);
       const failures = [
         p.error && "player profile",
@@ -210,6 +213,11 @@ export default function Player360() {
         return;
       }
       setPlayer({ ...p.data, ...(ap.data || {}) });
+      setSignatureProfile(sig?.data?.signature || {});
+      if (ap.data?.primary_team_id) {
+        const { data: teamRow } = await c.from("teams").select("name").eq("id", ap.data.primary_team_id).maybeSingle();
+        setTeamName(teamRow?.name || sig?.data?.signature?.travelTeamName || "");
+      } else setTeamName(sig?.data?.signature?.travelTeamName || "");
       setColleges(cs.data || []);
       setCoaches(ch.data || []);
       const collegeMap = new Map(
@@ -368,7 +376,7 @@ export default function Player360() {
           <div className="min-w-0 flex-1"><PageHeader
             title={player?.full_name || "Player"}
             eyebrow="PLAYER 360° SNAPSHOT"
-            subtitle={`${player?.class_year || "Class year not set"}${player?.positions?.length ? " · " + player.positions.join(" / ") : ""}${player?.school_name ? " · " + player.school_name : ""}`}
+            subtitle={`${player?.class_year || "Class year not set"}${player?.positions?.length ? " · " + player.positions.join(" / ") : ""}`}
           /></div>
         </div>
         <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
@@ -485,12 +493,21 @@ export default function Player360() {
             <h2 className="font-black text-lg">Recruiting essentials</h2>
             <div className="mt-4 space-y-3 text-sm">
               <Row k="Class" v={player?.class_year || "Not set"} />
-              <Row k="High school" v={player?.school_name || "Not set"} />
               <Row k="Position" v={player?.positions?.join(" / ") || "Not set"} />
               <Row k="Jersey #" v={player?.jersey_number || "Not set"} />
               <Row k="GPA" v={player?.gpa || "Not set"} />
-              <Row k="Home" v={player?.primary_state || player?.home_zip || "Not set"} />
+              <Row k="Home" v={[signatureProfile?.highSchoolCity,signatureProfile?.highSchoolState||player?.primary_state].filter(Boolean).join(", ") || player?.home_zip || "Not set"} />
               <Row k="Interested majors" v={player?.interested_majors?.join(", ") || "Not set"} />
+              <div className="pt-3 mt-3 border-t"><div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">High School</div></div>
+              <Row k="School" v={player?.school_name || "Not set"} />
+              <Row k="Coach" v={signatureProfile?.highSchoolCoachName || "Not set"} />
+              <Row k="Coach phone" v={signatureProfile?.highSchoolCoachPhone || "Not set"} />
+              <Row k="Coach email" v={signatureProfile?.highSchoolCoachEmail || "Not set"} />
+              <div className="pt-3 mt-3 border-t"><div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">Travel Team</div></div>
+              <Row k="Team" v={teamName || signatureProfile?.travelTeamName || "Not set"} />
+              <Row k="Coach" v={signatureProfile?.travelTeamCoachName || "Not set"} />
+              <Row k="Coach phone" v={signatureProfile?.travelTeamCoachPhone || "Not set"} />
+              <Row k="Coach email" v={signatureProfile?.travelTeamCoachEmail || "Not set"} />
             </div>
             {athleteView && !preview.active && (
               <Link href="/profile" className="btn w-full mt-5">
