@@ -225,14 +225,14 @@ export default function Profile() {
                   <label><b className="text-sm">Email</b><input className="input mt-1 bg-slate-50" value={email} readOnly /></label>
                   <label><b className="text-sm">X / Twitter</b><input className="input mt-1" value={xTwitter} onChange={(e) => setXTwitter(e.target.value)} /></label>
                   <label className="md:col-span-2"><b className="text-sm">SportsRecruits profile</b><input className="input mt-1" value={sportsRecruitsUrl} onChange={(e) => setSportsRecruitsUrl(e.target.value)} /></label>
-                  <label><b className="text-sm">Team coach</b><input className="input mt-1" value={travelTeamCoachName} onChange={(e) => setTravelTeamCoachName(e.target.value)} /></label>
-                  <label><b className="text-sm">Coach phone</b><input className="input mt-1" value={travelTeamCoachPhone} onChange={(e) => setTravelTeamCoachPhone(e.target.value)} /></label>
-                  <label><b className="text-sm">Coach email</b><input className="input mt-1" type="email" value={travelTeamCoachEmail} onChange={(e) => setTravelTeamCoachEmail(e.target.value)} /></label>
-                  <label><b className="text-sm">High school city</b><input className="input mt-1" value={highSchoolCity} onChange={(e) => setHighSchoolCity(e.target.value)} /></label>
-                  <label><b className="text-sm">High school state</b><input className="input mt-1" value={highSchoolState} onChange={(e) => setHighSchoolState(e.target.value)} /></label>
-                  <label><b className="text-sm">High school coach</b><input className="input mt-1" value={highSchoolCoachName} onChange={(e) => setHighSchoolCoachName(e.target.value)} /></label>
-                  <label><b className="text-sm">Coach phone</b><input className="input mt-1" value={highSchoolCoachPhone} onChange={(e) => setHighSchoolCoachPhone(e.target.value)} /></label>
-                  <label><b className="text-sm">Coach email</b><input className="input mt-1" type="email" value={highSchoolCoachEmail} onChange={(e) => setHighSchoolCoachEmail(e.target.value)} /></label>
+                  <label><b className="text-sm">Club/Travel Team Coach</b><input className="input mt-1" value={travelTeamCoachName} onChange={(e) => setTravelTeamCoachName(e.target.value)} /></label>
+                  <label><b className="text-sm">Club/Travel Team Coach Phone</b><input className="input mt-1" value={travelTeamCoachPhone} onChange={(e) => setTravelTeamCoachPhone(e.target.value)} /></label>
+                  <label><b className="text-sm">Club/Travel Team Coach Email</b><input className="input mt-1" type="email" value={travelTeamCoachEmail} onChange={(e) => setTravelTeamCoachEmail(e.target.value)} /></label>
+                  <label><b className="text-sm">High School City</b><input className="input mt-1" value={highSchoolCity} onChange={(e) => setHighSchoolCity(e.target.value)} /></label>
+                  <label><b className="text-sm">High School State</b><input className="input mt-1" value={highSchoolState} onChange={(e) => setHighSchoolState(e.target.value)} /></label>
+                  <label><b className="text-sm">HS Coach</b><input className="input mt-1" value={highSchoolCoachName} onChange={(e) => setHighSchoolCoachName(e.target.value)} /></label>
+                  <label><b className="text-sm">HS Coach Phone</b><input className="input mt-1" value={highSchoolCoachPhone} onChange={(e) => setHighSchoolCoachPhone(e.target.value)} /></label>
+                  <label><b className="text-sm">HS Coach Email</b><input className="input mt-1" type="email" value={highSchoolCoachEmail} onChange={(e) => setHighSchoolCoachEmail(e.target.value)} /></label>
                   <label><b className="text-sm">Throws</b><select className="input mt-1" value={throws} onChange={(e) => setThrows(e.target.value)}><option value="">Select</option><option value="R">Right</option><option value="L">Left</option></select></label>
                   <label><b className="text-sm">Bats</b><select className="input mt-1" value={bats} onChange={(e) => setBats(e.target.value)}><option value="">Select</option><option value="R">Right</option><option value="L">Left</option></select>{bats === "L" && <span className="block mt-2 text-sm"><input type="checkbox" checked={slaps} onChange={(e) => setSlaps(e.target.checked)} /> Slap hitter</span>}</label>
                   <label><b className="text-sm">NCAA #</b><input className="input mt-1" value={ncaaNumber} onChange={(e) => setNcaaNumber(e.target.value)} /></label>
