@@ -370,11 +370,13 @@ export default function Player360() {
               ? " · ADVISOR / STAFF"
               : ""}
         </div>
-        <PageHeader
-          title={player?.full_name || "Player"}
-          subtitle={`${player?.class_year || "Class year not set"}${player?.positions?.length ? " · " + player.positions.join(" / ") : ""}${player?.school_name ? " · " + player.school_name : ""}`}
-        />
-        {(athleteView||advisor)&&!preview.active&&<div className="card p-4 mb-5"><div className="rr-eyebrow mb-2">PLAYER PHOTO</div><PlayerPhotoUpload compact athleteId={id} name={player?.full_name||"Player"} initialUrl={player?.avatar_url} onSaved={(avatar_url)=>setPlayer((p:any)=>({...p,avatar_url}))}/></div>}
+        <div className="flex items-center gap-4 sm:gap-5 mb-5">
+          {(athleteView||advisor)&&!preview.active&&<PlayerPhotoUpload photoOnly athleteId={id} name={player?.full_name||"Player"} initialUrl={player?.avatar_url} onSaved={(avatar_url)=>setPlayer((p:any)=>({...p,avatar_url}))}/>}
+          <div className="min-w-0 flex-1"><PageHeader
+            title={player?.full_name || "Player"}
+            subtitle={`${player?.class_year || "Class year not set"}${player?.positions?.length ? " · " + player.positions.join(" / ") : ""}${player?.school_name ? " · " + player.school_name : ""}`}
+          /></div>
+        </div>
         <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
           {[
             ["Recruiting Health", `${intelligence.score}`, intelligence.health],
