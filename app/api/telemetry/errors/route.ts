@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {createAdminClient} from '@/lib/supabase-admin';
 import {createClient} from '@/lib/supabase-server';
 
-const clean=(value:unknown,max:number)=>String(value||'').replace(/[\r\n\t]+/g,' ').slice(0,max);
+const clean=(value:unknown,max:number)=>String(value||'').replace(/[\r\n\t]+/g,' ').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,'[redacted]').replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,'[redacted]').replace(/\b(?:Bearer\s+)?[A-Za-z0-9_-]{24,}\b/g,'[redacted]').slice(0,max);
 const ALERT_TIMEOUT_MS=3500;
 
 async function deliverWebhook(webhook:string,summary:string){
@@ -43,7 +43,7 @@ export async function POST(req:NextRequest){
     error_digest:clean(body?.digest||'',160)||null,
     user_agent:clean(req.headers.get('user-agent')||'',500)||null,
     release:clean(process.env.VERCEL_GIT_COMMIT_SHA||'',80)||null,
-    metadata:{online:body?.online!==false,user_id:user.id},
+    metadata:{online:body?.online!==false},
   };
   try{
     const admin=createAdminClient();

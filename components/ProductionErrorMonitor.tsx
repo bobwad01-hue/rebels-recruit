@@ -1,12 +1,13 @@
 'use client';
 import {useEffect} from 'react';
 
-const recent=new Map<string,number>();
+const recent=new Map<string,number>();const REDACTED='[redacted]';
+function safeMessage(value:unknown){return String(value||'').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,REDACTED).replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,REDACTED).replace(/\b(?:Bearer\s+)?[A-Za-z0-9_-]{24,}\b/g,REDACTED).slice(0,1000)}
 function report(payload:Record<string,unknown>){
   try{
     const key=`${String(payload.source||'')}|${String(payload.name||'')}|${String(payload.message||'')}|${location.pathname}`;
     const now=Date.now(),last=recent.get(key)||0;if(now-last<10000)return;recent.set(key,now);
-    fetch('/api/telemetry/errors',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({...payload,path:location.pathname+location.search,online:navigator.onLine})}).catch(()=>{});
+    fetch('/api/telemetry/errors',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({...payload,message:safeMessage(payload.message),path:location.pathname,online:navigator.onLine})}).catch(()=>{});
   }catch{}
 }
 export default function ProductionErrorMonitor(){
