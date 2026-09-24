@@ -48,8 +48,8 @@ export async function GET(req: NextRequest) {
       admin
         .from("audit_log")
         .select("metadata,created_at")
-        .eq("actor_user_id", athleteUserId)
         .eq("entity_type", ENTITY)
+        .eq("entity_id", athleteUserId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
