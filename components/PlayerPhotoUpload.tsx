@@ -8,7 +8,8 @@ export default function PlayerPhotoUpload({athleteId,name,initialUrl,onSaved,com
  const[cropSrc,setCropSrc]=useState(""),[sourceFile,setSourceFile]=useState<File|null>(null),[zoom,setZoom]=useState(1),[panX,setPanX]=useState(0),[panY,setPanY]=useState(-25),drag=useRef<{x:number;y:number;px:number;py:number}|null>(null);
  const initials=(name||"Player").split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();
 
- function cropRect(img:HTMLImageElement){const crop=Math.min(img.naturalWidth,img.naturalHeight)/zoom,maxX=Math.max(0,img.naturalWidth-crop),maxY=Math.max(0,img.naturalHeight-crop);return{crop,sx:maxX*((panX+100)/200),sy:maxY*((panY+100)/200)}}\n function moveDrag(e:React.PointerEvent){if(!drag.current)return;const dx=e.clientX-drag.current.x,dy=e.clientY-drag.current.y;setPanX(Math.max(-100,Math.min(100,drag.current.px-dx*.65)));setPanY(Math.max(-100,Math.min(100,drag.current.py-dy*.65)))}
+ function cropRect(img:HTMLImageElement){const crop=Math.min(img.naturalWidth,img.naturalHeight)/zoom,maxX=Math.max(0,img.naturalWidth-crop),maxY=Math.max(0,img.naturalHeight-crop);return{crop,sx:maxX*((panX+100)/200),sy:maxY*((panY+100)/200)}}
+ function moveDrag(e:React.PointerEvent){if(!drag.current)return;const dx=e.clientX-drag.current.x,dy=e.clientY-drag.current.y;setPanX(Math.max(-100,Math.min(100,drag.current.px-dx*.65)));setPanY(Math.max(-100,Math.min(100,drag.current.py-dy*.65)))}
  function draw(canvas:HTMLCanvasElement,img:HTMLImageElement,size:number){const{crop,sx,sy}=cropRect(img),ctx=canvas.getContext("2d");if(!ctx)return;canvas.width=size;canvas.height=size;ctx.clearRect(0,0,size,size);ctx.drawImage(img,sx,sy,crop,crop,0,0,size,size)}
  useEffect(()=>{if(!cropSrc||!preview.current)return;const img=new Image();img.onload=()=>preview.current&&draw(preview.current,img,600);img.src=cropSrc},[cropSrc,zoom,panX,panY]);
 
