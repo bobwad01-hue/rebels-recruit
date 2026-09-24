@@ -180,7 +180,7 @@ export default function Player360() {
             "id,status,events(id,name,date,type,location,colleges(id,name))",
           )
           .eq("athlete_user_id", id),
-        fetch(`/api/profile/email-signature?athlete=${id}`).then(async(r)=>({ok:r.ok,data:r.ok?await r.json():null})).catch(()=>({ok:false,data:null})),
+        fetch(`/api/profile/email-signature?athlete=${id}`,{cache:"no-store"}).then(async(r)=>({ok:r.ok,data:r.ok?await r.json():null})).catch(()=>({ok:false,data:null})),
         c.from("college_fit_profiles").select("completed_at").eq("user_id", id).maybeSingle(),
       ]);
       const failures = [
