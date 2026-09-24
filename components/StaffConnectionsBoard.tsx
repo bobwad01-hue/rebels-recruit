@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';import {useEffect,useMemo,useState} from 'react';import {ArrowRight,ChevronDown,ChevronUp,Search,School,Users} from 'lucide-react';import {useSearchParams} from 'next/navigation';import {createClient} from '@/lib/supabase-browser';
-import {schoolAbbreviation} from '@/lib/school-branding'; 
+import {schoolAbbreviation} from '@/lib/school-branding';
 const one=(v:any)=>Array.isArray(v)?v[0]:v;
 const schoolAbbr=(name:string)=>schoolAbbreviation(name);
 function StaffSchoolLogo({school}:{school:any}){const src=school?.logo_url||'';return src?<span className="h-[58px] w-[58px] rounded-xl border border-slate-200 bg-white p-1.5 grid place-items-center shrink-0"><img src={src} alt="" className="max-h-full max-w-full object-contain"/></span>:<span className="h-[58px] min-w-[58px] max-w-[76px] rounded-xl border border-slate-200 bg-slate-50 px-2 grid place-items-center text-[11px] leading-none font-black text-slate-700 shrink-0" aria-label={school?.name}>{schoolAbbr(school?.name)}</span>}
