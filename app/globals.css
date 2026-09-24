@@ -100,3 +100,15 @@ body{background:var(--rr-canvas)}
   .rr-message-composer .btn{padding-left:11px;padding-right:11px}
   form .grid.md\:grid-cols-2,form .grid.sm\:grid-cols-2{grid-template-columns:minmax(0,1fr)}
 }
+
+
+/* Owner/Admin production polish */
+@media (max-width: 767px){
+  .rr-owner-actions{display:grid;grid-template-columns:1fr;gap:.65rem}
+  .rr-owner-actions .btn{width:100%;justify-content:center;min-height:44px}
+  .rr-admin-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .rr-admin-table-wrap table{min-width:760px}
+}
+@media (min-width: 768px) and (max-width: 1100px){
+  .rr-admin-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}

@@ -327,7 +327,7 @@ export default function OrganizationSetup() {
                         onClick={() => {
                           if (
                             window.confirm(
-                              "Generate a new code? The current code will stop working immediately.",
+                              `Generate a new private join code for ${org.name}${org.branch_name ? ` · ${org.branch_name}` : ""}? The current code will stop working immediately.`,
                             )
                           )
                             act(
@@ -400,16 +400,11 @@ export default function OrganizationSetup() {
                           <button
                             className="btn px-3 py-2 text-xs"
                             disabled={busy}
-                            onClick={() =>
-                              act(
-                                {
-                                  action: "archiveTeam",
-                                  organizationId: selected,
-                                  teamId: team.id,
-                                },
-                                "Team archived.",
-                              )
-                            }
+                            onClick={() => {
+                              const orgLabel = `${org.name}${org.branch_name ? ` · ${org.branch_name}` : ""}`;
+                              if (window.confirm(`Archive team “${team.name}” from ${orgLabel}? Players and history stay saved, but the team will no longer be active.`))
+                                act({action:"archiveTeam",organizationId:selected,teamId:team.id},"Team archived.");
+                            }}
                           >
                             <Archive size={14} />
                             Archive
