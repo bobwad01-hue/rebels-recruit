@@ -412,11 +412,11 @@ export default function EventPrep() {
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
         <Link
-          href="/game-plan#camp-visit-prep"
+          href="/events"
           className="text-sm font-bold inline-flex items-center gap-2"
         >
           <ArrowLeft size={16} />
-          Game Plan
+          Events
         </Link>
         <div className="mt-5">
           <PageHeader
@@ -538,7 +538,7 @@ export default function EventPrep() {
             <h3 className="font-black mt-5">Prepare 3 questions</h3>
             <div className="space-y-2 mt-2">{[0,1,2].map(i=><input key={i} className="input w-full" value={prep.questions?.[i]||""} onChange={e=>{const qs=[...(prep.questions||[])];qs[i]=e.target.value;setPrep({...prep,questions:qs})}} placeholder={`Question ${i+1}`}/>)}</div>
             <label className="text-sm font-bold block mt-5">What do you want to accomplish at this event?<textarea className="input w-full mt-1 min-h-20" value={prep.personal_goal||""} onChange={e=>setPrep({...prep,personal_goal:e.target.value})} placeholder="Example: Introduce myself to Coach Anderson after the hitting session."/></label>
-            <div className="flex flex-wrap items-center gap-3 mt-5"><button className="btn btn-red" disabled={prepSaving} onClick={savePrep}>{prepSaving?"Saving...":"Save Event Prep"}</button>{prepMessage&&<span className="text-sm font-bold text-slate-700">{prepMessage}</span>}</div>
+            <div className="flex flex-wrap items-center gap-3 mt-5">{prepEditing&&<button type="button" className="btn" disabled={prepSaving} onClick={()=>{setPrepEditing(false);setPrepMessage("")}}>Cancel</button>}<button className="btn btn-red" disabled={prepSaving} onClick={savePrep}>{prepSaving?"Saving...":"Save Event Prep"}</button>{prepMessage&&<span className="text-sm font-bold text-slate-700">{prepMessage}</span>}</div>
           </section>
           <section className="card p-5">
             <div className="rr-eyebrow">RELATIONSHIP CONTEXT</div>
