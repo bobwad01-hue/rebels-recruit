@@ -248,7 +248,6 @@ export default async function Dashboard({
       (apm.get(i.advisor_user_id) as any)?.email,
   }));
   const smartMoves = buildSmartNextMoves({
-    reminders: reminders.data || [],
     tasks: tasks.data || [],
     coaches: activeCoaches,
     colleges: activeColleges,
@@ -352,10 +351,10 @@ export default async function Dashboard({
               href={ph("/events")}
             />
           </div>
-          {intelligence.topPriority ? (
+          {smartMoves[0] ? (
             <Link
               href={ph(
-                intelligence.topPriority.href || "/game-plan#next-moves",
+                smartMoves[0].href || "/game-plan#next-moves",
               )}
               className="mt-5 rr-priority-card p-4 sm:p-5 block rr-interactive-card min-w-0"
             >
@@ -366,10 +365,10 @@ export default async function Dashboard({
                 <div className="flex-1 min-w-0">
                   <div className="rr-eyebrow !mb-1">DO THIS NEXT</div>
                   <div className="font-black text-lg mt-1">
-                    {intelligence.topPriority.title}
+                    {smartMoves[0].title}
                   </div>
                   <p className="text-sm mt-1">
-                    {intelligence.topPriority.detail}
+                    {smartMoves[0].detail}
                   </p>
                   <div className="btn btn-red mt-4">
                     Do This Next <ArrowRight size={15} />
