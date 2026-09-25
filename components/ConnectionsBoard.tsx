@@ -10,6 +10,7 @@ import TargetRanking from '@/components/TargetRanking';
 import {CollegeLogo} from '@/components/RebelsRecruitUI';
 const one=(v:any)=>Array.isArray(v)?v[0]:v;
 const fmt=(d?:string|null)=>d?new Date(`${String(d).slice(0,10)}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
+// Connections UI intentionally defaults to a compact school preview; the full list expands on demand.
 type Props={initialColleges:any[];initialCoaches:any[];initialActivity?:Record<string,string>;initialActions?:any[]};
 type PendingArchive={kind:'college'|'coach';row:any;name:string}|null;
 export default function ConnectionsBoard({initialColleges,initialCoaches,initialActivity={},initialActions=[]}:Props){
