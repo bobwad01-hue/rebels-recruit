@@ -265,8 +265,8 @@ export default function Player360() {
     [colleges, coaches, interactions, reminders, tasks, events, player?.class_year, player?.profile_completed_at, player?.fit_completed_at],
   );
   const moves = useMemo(
-    () => buildSmartNextMoves({ reminders, tasks, coaches, colleges, events }),
-    [reminders, tasks, coaches, colleges, events],
+    () => buildSmartNextMoves({ tasks, coaches, colleges, events }),
+    [tasks, coaches, colleges, events],
   );
   const parent = role === "parent",
     athleteView = role === "athlete",
