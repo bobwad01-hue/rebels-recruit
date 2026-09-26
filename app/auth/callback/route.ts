@@ -76,6 +76,9 @@ export async function GET(request: Request) {
     }else return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
   }
 
+  const {data:platformRole}=await supabase.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
+  if(platformRole?.role==='super_owner'&&profile?.profile_completed_at)return NextResponse.redirect(new URL('/platform-admin',requestUrl.origin))
+
   const role = profile?.app_role || 'athlete'
   if (!profile?.profile_completed_at) {
     return NextResponse.redirect(new URL(profilePath(role), requestUrl.origin))
