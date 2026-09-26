@@ -51,12 +51,14 @@ export default function AdvisorAccessPage() {
       return;
     }
     setViewerId(user.id);
-    const { data: me, error: memberError } = await c
+    const { data: memberRows, error: memberError } = await c
       .from("organization_members")
       .select("organization_id,role,status")
       .eq("user_id", user.id)
       .eq("status", "active")
-      .maybeSingle();
+      .limit(20);
+    const activeView=typeof window!=="undefined"?window.localStorage.getItem("rr-active-view"):null;
+    const me=(memberRows||[]).find((m:any)=>activeView==="advisor"?m.role==="advisor":activeView==="admin"?m.role==="admin":["advisor","admin"].includes(m.role))||(memberRows||[])[0];
     if (memberError) {
       setLoadError("Your organization membership could not be loaded.");
       setLoading(false);
@@ -195,7 +197,7 @@ export default function AdvisorAccessPage() {
         !["active", "pending"].includes(byAthlete.get(String(p.id))?.status),
     ).length,
   };
-  if (!loading && ["owner","admin"].includes(viewerRole)) return <AppShell><div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6"><OwnerAdminPlayerAccess/></div></AppShell>;
+  if (!loading && viewerRole==="admin") return <AppShell><div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6"><OwnerAdminPlayerAccess/></div></AppShell>;
   return (
     <AppShell>
       <div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6">
