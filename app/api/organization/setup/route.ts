@@ -133,16 +133,19 @@ export async function POST(req: NextRequest) {
         .select("id,name,branch_name,city,state,join_code")
         .single();
       if (error) throw new Error(error.message);
-      const { error: memberError } = await admin
-        .from("organization_members")
-        .insert({
-          organization_id: organization.id,
-          user_id: user.id,
-          role: "admin",
-          status: "active",
-          joined_at: new Date().toISOString(),
-        });
-      if (memberError) throw new Error(memberError.message);
+      const { data: platformRole } = await admin.from("platform_roles").select("role").eq("user_id", user.id).eq("role", "super_owner").maybeSingle();
+      if (!platformRole) {
+        const { error: memberError } = await admin
+          .from("organization_members")
+          .insert({
+            organization_id: organization.id,
+            user_id: user.id,
+            role: "admin",
+            status: "active",
+            joined_at: new Date().toISOString(),
+          });
+        if (memberError) throw new Error(memberError.message);
+      }
       return NextResponse.json({ ok: true, organization });
     }
     const organizationId = String(body.organizationId || "");
