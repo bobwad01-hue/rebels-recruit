@@ -22,7 +22,7 @@ export function HealthRing({score,size='md'}:{score:number;size?:'sm'|'md'|'lg'}
  return <div className="rr-health-ring" style={{width:px,height:px,background:'conic-gradient(var(--rr-health) '+(n*3.6)+'deg,#e9edf2 0)'}} aria-label={'Recruiting Health '+n+' out of 100'}><div>{n}</div></div>
 }
 export function PipelinePill({stage}:{stage:string}){
- const labels:any={building_list:'Building List',outreach:'Outreach',relationships:'Relationships',camps:'Camps',visits:'Visits',offers:'Offers',committed:'Committed'};
+ const labels:any={building_list:'Building List',outreach:'Outreach',relationships:'Relationships',camps:'Camps',visits:'Visits',offers:'Offers',committed:'Committed',signed:'Signed'};
  return <span className={'rr-pipeline-pill rr-pipeline-'+(stage||'building_list')}>{labels[stage]||'Building List'}</span>
 }
 export function StatusPill({status,children}:{status:'active'|'offer'|'committed'|'attention'|'neutral';children:ReactNode}){return <span className={'rr-status-pill rr-status-'+status}>{children}</span>}
