@@ -100,13 +100,10 @@ export async function POST(req: NextRequest) {
     admin = createAdminClient();
   try {
     if (action === "create") {
-      const existing = await managed(admin, user.id);
-      if (!existing.length)
+      const { data: platformOwner } = await admin.from("platform_roles").select("role").eq("user_id", user.id).eq("role", "super_owner").maybeSingle();
+      if (!platformOwner)
         return NextResponse.json(
-          {
-            error:
-              "Only a Platform Owner or organization Admin can create another organization.",
-          },
+          { error: "Only the Rebels Recruit Super Owner can create an organization." },
           { status: 403 },
         );
       const name = String(body.name || "").trim(),
