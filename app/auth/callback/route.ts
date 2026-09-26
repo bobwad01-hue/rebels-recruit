@@ -79,7 +79,7 @@ export async function GET(request: Request) {
   const {data:platformRole}=await supabase.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
   if(platformRole?.role==='super_owner'&&profile?.profile_completed_at)return NextResponse.redirect(new URL('/platform-admin',requestUrl.origin))
 
-  const role = profile?.app_role || 'athlete'
+  const cookieView=request.headers.get('cookie')?.match(/(?:^|;\\s*)rr-active-view=([^;]+)/)?.[1];const savedView=cookieView?decodeURIComponent(cookieView):null;const{data:roleRows}=await supabase.from('user_roles').select('role').eq('user_id',user.id);const role=savedView&&(roleRows||[]).some((x:any)=>x.role===savedView)?savedView:(profile?.app_role||'athlete')
   if (!profile?.profile_completed_at) {
     return NextResponse.redirect(new URL(profilePath(role), requestUrl.origin))
   }
