@@ -227,8 +227,8 @@ export default async function Dashboard({
     college_coaches: interactionCoachMap.get(row.coach_id) || null,
   }));
   const eventRows = (athleteEvents.data || [])
-    .map((r: any) => one(r.events))
-    .filter(Boolean);
+    .map((r: any) => ({ ...one(r.events), rsvp: r.status }))
+    .filter((r: any) => r.id);
   const advisorIds = [
     ...new Set((invitations.data || []).map((i: any) => i.advisor_user_id)),
   ];
