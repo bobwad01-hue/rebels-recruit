@@ -84,6 +84,17 @@ export default function OrganizationCommandCenter() {
       useState<AccountAction | null>(null),
     [accountActionBusy, setAccountActionBusy] = useState(false),
     [accountActionError, setAccountActionError] = useState("");
+  useEffect(() => {
+    if (!pendingAccountAction) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !accountActionBusy) {
+        setPendingAccountAction(null);
+        setAccountActionError("");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pendingAccountAction, accountActionBusy]);
   async function load() {
     setLoading(true);
     setLoadError("");
@@ -587,7 +598,7 @@ export default function OrganizationCommandCenter() {
       {pendingAccountAction &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !accountActionBusy) { setPendingAccountAction(null); setAccountActionError(""); } }}>
             <div
               role="dialog"
               aria-modal="true"
