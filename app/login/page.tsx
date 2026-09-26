@@ -32,7 +32,7 @@ export default function Login() {
       if(acceptError){setError('We could not verify your Terms and Privacy acceptance. Please try again.');setBusy(false);return}
       if(!accepted){location.href='/legal/accept?context=existing_account';return}
       if(platformRole?.role==='super_owner'){location.href='/platform-admin';return}
-      const role = profile?.app_role || 'athlete';
+      const{data:roleRows}=await c.from('user_roles').select('role').eq('user_id',user.id);const savedView=window.localStorage.getItem('rr-active-view');const role=savedView&&(roleRows||[]).some((x:any)=>x.role===savedView)?savedView:(profile?.app_role||'athlete');
       if (!profile?.profile_completed_at) location.href = role === 'athlete' ? '/profile' : role === 'parent' ? '/parent/profile' : '/advisors/profile';
       else location.href = role === 'athlete' ? '/dashboard' : role === 'parent' ? '/parent' : '/advisors';
     }
