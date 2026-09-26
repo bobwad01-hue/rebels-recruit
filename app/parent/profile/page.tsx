@@ -82,7 +82,6 @@ export default function ParentProfile() {
         email: cleanEmail,
         phone: phone.trim(),
         timezone,
-        app_role: "parent",
         advisor_type: "Parent",
         profile_completed_at: new Date().toISOString(),
       })
