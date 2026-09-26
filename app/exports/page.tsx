@@ -264,7 +264,7 @@ export default function Exports() {
       } = await c.auth.getUser();
       if (authError) throw authError;
       if (!user) {
-        setLoadError("Sign in to use Exports & Reports.");
+        setLoadError("Sign in to use Reports.");
         return;
       }
       const { data: membershipRows, error: memberError } = await c
@@ -1068,7 +1068,7 @@ export default function Exports() {
       <PageFrame size="6xl">
         <PageHeader
           eyebrow={owner ? "ORGANIZATION REPORTING" : "ADVISOR REPORTING"}
-          title="Exports & Reports"
+          title="Reports"
           subtitle={
             owner
               ? "Create organization-wide recruiting reports, review the data before downloading and export only what you need."
