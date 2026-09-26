@@ -558,6 +558,7 @@ export default function Player360() {
                 <SmartNextMoves
                   moves={moves.slice(0, 6)}
                   hrefTransform={advisor ? staffHref : ph}
+                  athleteId={id}
                 />
               )}
             </div>
