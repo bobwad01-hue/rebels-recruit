@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Save,
   Settings2,
+  X,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
@@ -42,7 +43,10 @@ export default function OrganizationSetup() {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
-    [copied, setCopied] = useState(false);
+    [copied, setCopied] = useState(false),
+    [teamEdit, setTeamEdit] = useState<Team | null>(null),
+    [teamEditName, setTeamEditName] = useState(""),
+    [confirmAction, setConfirmAction] = useState<null | { type: "code" | "archive"; team?: Team }>(null);
   async function load(preferred?: string) {
     setLoading(true);
     setError("");
@@ -136,20 +140,50 @@ export default function OrganizationSetup() {
       setAgeGroup("");
     }
   }
-  async function editTeam(team: Team) {
-    const name = window.prompt("Team name", team.name);
-    if (!name || name === team.name) return;
-    await act(
+  function editTeam(team: Team) {
+    setTeamEdit(team);
+    setTeamEditName(team.name);
+  }
+  async function saveTeamEdit() {
+    if (!teamEdit || !teamEditName.trim() || teamEditName.trim() === teamEdit.name) {
+      setTeamEdit(null);
+      return;
+    }
+    const d = await act(
       {
         action: "renameTeam",
         organizationId: selected,
-        teamId: team.id,
-        name,
-        ageGroup: team.age_group || "",
+        teamId: teamEdit.id,
+        name: teamEditName.trim(),
+        ageGroup: teamEdit.age_group || "",
       },
       "Team updated.",
     );
+    if (d) setTeamEdit(null);
   }
+  async function runConfirmedAction() {
+    if (!confirmAction || !org) return;
+    if (confirmAction.type === "code") {
+      const d = await act({ action: "regenerateCode", organizationId: selected }, "A new organization code was generated.");
+      if (d) setConfirmAction(null);
+      return;
+    }
+    if (confirmAction.team) {
+      const d = await act({ action: "archiveTeam", organizationId: selected, teamId: confirmAction.team.id }, "Team archived.");
+      if (d) setConfirmAction(null);
+    }
+  }
+  useEffect(() => {
+    if (!teamEdit && !confirmAction) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !busy) {
+        setTeamEdit(null);
+        setConfirmAction(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [teamEdit, confirmAction, busy]);
   async function copy() {
     if (!org?.join_code) return;
     await navigator.clipboard?.writeText(org.join_code);
@@ -324,20 +358,7 @@ export default function OrganizationSetup() {
                       <button
                         className="btn"
                         disabled={busy}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Generate a new private join code for ${org.name}${org.branch_name ? ` · ${org.branch_name}` : ""}? The current code will stop working immediately.`,
-                            )
-                          )
-                            act(
-                              {
-                                action: "regenerateCode",
-                                organizationId: selected,
-                              },
-                              "A new organization code was generated.",
-                            );
-                        }}
+                        onClick={() => setConfirmAction({ type: "code" })}
                       >
                         <RefreshCw size={16} />
                         New Code
@@ -400,11 +421,7 @@ export default function OrganizationSetup() {
                           <button
                             className="btn px-3 py-2 text-xs"
                             disabled={busy}
-                            onClick={() => {
-                              const orgLabel = `${org.name}${org.branch_name ? ` · ${org.branch_name}` : ""}`;
-                              if (window.confirm(`Archive team “${team.name}” from ${orgLabel}? Players and history stay saved, but the team will no longer be active.`))
-                                act({action:"archiveTeam",organizationId:selected,teamId:team.id},"Team archived.");
-                            }}
+                            onClick={() => setConfirmAction({ type: "archive", team })}
                           >
                             <Archive size={14} />
                             Archive
@@ -461,6 +478,39 @@ export default function OrganizationSetup() {
           </>
         )}
       </div>
+      {(teamEdit || confirmAction) && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) { setTeamEdit(null); setConfirmAction(null); } }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="setup-modal-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="rr-eyebrow">{teamEdit ? "EDIT TEAM" : "CONFIRM CHANGE"}</div>
+                <h2 id="setup-modal-title" className="mt-1 text-xl font-black">
+                  {teamEdit ? "Rename team" : confirmAction?.type === "code" ? "Generate a new organization code?" : "Archive this team?"}
+                </h2>
+              </div>
+              <button type="button" className="btn p-2" aria-label="Close" disabled={busy} onClick={() => { setTeamEdit(null); setConfirmAction(null); }}><X size={16}/></button>
+            </div>
+            {teamEdit ? (
+              <>
+                <label className="mt-5 block text-sm font-bold">Team name
+                  <input autoFocus className="input mt-1" value={teamEditName} onChange={(e)=>setTeamEditName(e.target.value)} onKeyDown={(e)=>{if(e.key==="Enter") saveTeamEdit();}} />
+                </label>
+                <p className="muted text-sm mt-3">This changes the team name everywhere inside this organization. Player history and access stay connected.</p>
+              </>
+            ) : confirmAction?.type === "code" ? (
+              <p className="mt-4 text-sm">Generate a new private join code for <b>{org?.name}{org?.branch_name ? ` · ${org.branch_name}` : ""}</b>? The current code will stop working immediately.</p>
+            ) : (
+              <p className="mt-4 text-sm">Archive <b>{confirmAction?.team?.name}</b> from <b>{org?.name}{org?.branch_name ? ` · ${org.branch_name}` : ""}</b>? Players and history stay saved, but the team will no longer be active.</p>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="btn" disabled={busy} onClick={() => { setTeamEdit(null); setConfirmAction(null); }}>Cancel</button>
+              <button className={confirmAction?.type === "archive" ? "btn btn-red" : "btn bg-slate-900 text-white"} disabled={busy || (!!teamEdit && !teamEditName.trim())} onClick={teamEdit ? saveTeamEdit : runConfirmedAction}>
+                {busy ? "Working..." : teamEdit ? "Save Team Name" : confirmAction?.type === "code" ? "Generate New Code" : "Archive Team"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
