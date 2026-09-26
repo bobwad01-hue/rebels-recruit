@@ -24,12 +24,14 @@ export default function Login() {
     if (error) setError(error.message);
     else if (!user) setError('Unable to sign in. Please try again.');
     else {
-      const [{data:accepted,error:acceptError},{ data: profile }] = await Promise.all([
+      const [{data:accepted,error:acceptError},{ data: profile },{data:platformRole}] = await Promise.all([
         c.rpc('has_current_legal_acceptance'),
-        c.from('profiles').select('app_role,profile_completed_at').eq('id', user.id).single()
+        c.from('profiles').select('app_role,profile_completed_at').eq('id', user.id).single(),
+        c.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
       ]);
       if(acceptError){setError('We could not verify your Terms and Privacy acceptance. Please try again.');setBusy(false);return}
       if(!accepted){location.href='/legal/accept?context=existing_account';return}
+      if(platformRole?.role==='super_owner'){location.href='/platform-admin';return}
       const role = profile?.app_role || 'athlete';
       if (!profile?.profile_completed_at) location.href = role === 'athlete' ? '/profile' : role === 'parent' ? '/parent/profile' : '/advisors/profile';
       else location.href = role === 'athlete' ? '/dashboard' : role === 'parent' ? '/parent' : '/advisors';
