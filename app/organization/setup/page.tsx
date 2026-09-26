@@ -196,7 +196,7 @@ export default function OrganizationSetup() {
         <PageHeader
           eyebrow="OWNER SETTINGS"
           title="Organization Setup"
-          subtitle="Manage each independent organization or branch, its private player join code and the teams inside it."
+          subtitle="Manage organizations, branches, player join codes and teams."
           action={
             <Link href="/organization" className="btn">
               <ArrowLeft size={16} />
