@@ -58,7 +58,7 @@ export default function AdvisorAccessPage() {
       .eq("status", "active")
       .limit(20);
     const activeView=typeof window!=="undefined"?window.localStorage.getItem("rr-active-view"):null;
-    const me=(memberRows||[]).find((m:any)=>activeView==="advisor"?m.role==="advisor":activeView==="admin"?m.role==="admin":["advisor","admin"].includes(m.role))||(memberRows||[])[0];
+    const rawMe=(memberRows||[]).find((m:any)=>activeView==="advisor"?m.role==="advisor":activeView==="admin"?m.role==="admin":["advisor","admin"].includes(m.role))||(memberRows||[])[0];const me=activeView==="advisor"&&rawMe?.role==="admin"?{...rawMe,role:"advisor"}:rawMe;
     if (memberError) {
       setLoadError("Your organization membership could not be loaded.");
       setLoading(false);
