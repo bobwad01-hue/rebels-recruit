@@ -170,7 +170,7 @@ export default function Profile() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setMsg("");
-    if (!name.trim() || !phone.trim() || !classYear || !jerseyNumber.trim() || !school.trim() || !homeCity.trim() || !state.trim() || !homeZip.trim() || !positions.length || !timezone || !gpa || !majors.trim() || !organizationId || !teamId) {
+    if (!name.trim() || !phone.trim() || !classYear || !jerseyNumber.trim() || !school.trim() || !homeCity.trim() || !state.trim() || !homeZip.trim() || !positions.length || !timezone || !gpa || !majors.trim()) {
       setMsg("Please complete every required profile field before continuing.");
       return;
     }
@@ -182,7 +182,7 @@ export default function Profile() {
     const [p, a, tr, sr] = await Promise.all([
       c.from("profiles").update({ full_name: name.trim(), phone: phone.trim(), timezone, profile_completed_at: completedAt }).eq("id", user?.id),
       c.from("athlete_profiles").upsert({ user_id: user?.id, class_year: Number(classYear), jersey_number: jerseyNumber.trim(), school_name: school.trim(), positions, gpa: Number(gpa), home_city: homeCity.trim(), primary_state: state.trim(), home_zip: homeZip.trim(), interested_majors: majors.split(",").map((x) => x.trim()).filter(Boolean) }, { onConflict: "user_id" }),
-      fetch("/api/profile/team", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, teamId }) }),
+      organizationId && teamId ? fetch("/api/profile/team", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, teamId }) }) : Promise.resolve(new Response(JSON.stringify({ok:true}),{status:200})),
       fetch("/api/profile/email-signature", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ organizationId, xTwitter, sportsRecruitsUrl, travelTeamName: selectedTeam?.name || "", travelTeamCoachName, travelTeamCoachPhone, travelTeamCoachEmail, highSchoolCity, highSchoolState, highSchoolCoachName, highSchoolCoachPhone, highSchoolCoachEmail, throwBat, ncaaNumber }) }),
     ]);
     setSaving(false);
@@ -218,16 +218,16 @@ export default function Profile() {
                 <label><b className="text-sm">Class year *</b><input required className="input mt-1" type="number" value={classYear} onChange={(e) => setClassYear(e.target.value)} /></label>
                 <label><b className="text-sm">Jersey number *</b><input required className="input mt-1" value={jerseyNumber} onChange={(e) => setJerseyNumber(e.target.value.replace(/^#/, ""))} /></label>
                 <label>
-                  <b className="text-sm">Organization *</b>
-                  <select required className="input mt-1" value={organizationId} onChange={(e) => chooseOrganization(e.target.value)}>
-                    <option value="">Select organization</option>
+                  <b className="text-sm">Organization <span className="muted font-normal">(optional)</span></b>
+                  <select className="input mt-1" value={organizationId} onChange={(e) => chooseOrganization(e.target.value)}>
+                    <option value="">I’m recruiting independently</option>
                     {organizations.map((m: any) => <option key={m.organization_id} value={m.organization_id}>{organizationLabel(m)}</option>)}
                   </select>
-                  <span className="muted text-xs mt-1 block">Choose the organization you already have access to. <Link href="/organizations" className="font-bold underline">Manage organization access</Link></span>
+                  <span className="muted text-xs mt-1 block">You can recruit independently or connect to an organization you have access to. <Link href="/organizations" className="font-bold underline">Manage organization access</Link></span>
                 </label>
                 <label>
-                  <b className="text-sm">Team *</b>
-                  <select required className="input mt-1" value={teamId} onChange={(e) => setTeamId(e.target.value)} disabled={!organizationId || teamOptions.length === 0}>
+                  <b className="text-sm">Team <span className="muted font-normal">(optional)</span></b>
+                  <select className="input mt-1" value={teamId} onChange={(e) => setTeamId(e.target.value)} disabled={!organizationId || teamOptions.length === 0}>
                     <option value="">{!organizationId ? "Choose organization first" : teamOptions.length ? "Select team" : "No teams available"}</option>
                     {teamOptions.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
@@ -266,7 +266,7 @@ export default function Profile() {
             )}
             {msg && <StatePanel title={msg === "Profile saved." ? "Saved" : "Profile needs attention"} description={msg} tone={msg === "Profile saved." ? "success" : "warning"} />}
             <button className="btn btn-red w-full sm:w-auto sm:min-w-56" disabled={saving}>{saving ? "Saving..." : isOnboarding ? "Save Profile & Continue" : "Save Profile"}</button>
-            {isOnboarding && <p className="muted text-xs">Every field marked * is required before continuing.</p>}
+            {isOnboarding && <p className="muted text-xs">Every field marked * is required. Organization and team are optional.</p>}
           </form>
         )}
       </PageFrame>
