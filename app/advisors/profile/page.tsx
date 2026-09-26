@@ -117,7 +117,7 @@ export default function AdvisorProfile() {
         />
         <div className="card p-6">
           {loading && <p className="muted text-sm">Loading profile...</p>}
-          {error && !busy && (
+          {error && !busy && loading && (
             <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               {error}{" "}
               <button
