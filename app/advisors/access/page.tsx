@@ -25,7 +25,7 @@ export default function AdvisorAccessPage() {
     [busy, setBusy] = useState(""),
     [message, setMessage] = useState(""),
     [loadError, setLoadError] = useState(""),
-    [search, setSearch] = useState("");
+    [search, setSearch] = useState(""), [inviteEmail,setInviteEmail]=useState(""), [independent,setIndependent]=useState(false);
   const [orgId, setOrgId] = useState(""),
     [viewerRole, setViewerRole] = useState(""),
     [viewerId, setViewerId] = useState(""),
@@ -63,8 +63,12 @@ export default function AdvisorAccessPage() {
       return;
     }
     if (!me) {
-      setLoading(false);
-      return;
+      setViewerRole("advisor");setIndependent(true);
+      const {data:as,error:assignmentError}=await c.from("athlete_advisor_assignments").select("id,athlete_user_id,advisor_user_id,status,invited_at,responded_at").eq("advisor_user_id",user.id);
+      if(assignmentError){setLoadError("Your player relationships could not be loaded.");setLoading(false);return}
+      const activeIds=(as||[]).filter((a:any)=>a.status==="active").map((a:any)=>a.athlete_user_id);
+      const profileResult=activeIds.length?await c.from("profiles").select("id,full_name,email").in("id",activeIds):{data:[] as any[],error:null};
+      setPlayers(profileResult.data||[]);setAssignments(as||[]);setLoading(false);return;
     }
     setOrgId(me.organization_id);
     setViewerRole(String(me.role||""));
@@ -129,6 +133,7 @@ export default function AdvisorAccessPage() {
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  async function requestByEmail(){const email=inviteEmail.trim();if(!email)return;setBusy('email');setMessage('');const{error}=await c.rpc('request_advisor_access_by_email',{target_email:email});if(error)setMessage(error.message);else{setMessage('Access request sent. The athlete must approve it before you can view their recruiting work.');setInviteEmail('');await load()}setBusy('')}
   async function requestAccess(athleteId: string) {
     if (!viewerId || !orgId) return;
     setBusy(athleteId);
@@ -222,7 +227,7 @@ export default function AdvisorAccessPage() {
           <div className="card p-10 text-center muted">Loading players...</div>
         ) : (
           <>
-            <div className="grid sm:grid-cols-3 gap-3 mb-5">
+            <div className="card p-4 sm:p-5 mb-5"><div className="font-black">Connect with an athlete</div><p className="muted text-sm mt-1">Enter the email address on the athlete’s Rebels Recruit account. They stay in control and must approve your request.</p><div className="flex flex-col sm:flex-row gap-2 mt-3"><input className="input flex-1" type="email" placeholder="athlete@email.com" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)}/><button type="button" className="btn btn-red" disabled={busy==='email'||!inviteEmail.trim()} onClick={requestByEmail}><UserPlus size={16}/>{busy==='email'?'Sending...':'Request Access'}</button></div></div><div className="grid sm:grid-cols-3 gap-3 mb-5">
               <Metric
                 icon={<CheckCircle2 size={18} />}
                 label="Players I Can Support"
@@ -235,8 +240,8 @@ export default function AdvisorAccessPage() {
               />
               <Metric
                 icon={<UserPlus size={18} />}
-                label="Available to Request"
-                value={counts.available}
+                label={independent?"Connected Clients":"Available to Request"}
+                value={independent?counts.active:counts.available}
               />
             </div>
             <div className="card p-4 sm:p-5">
@@ -244,7 +249,7 @@ export default function AdvisorAccessPage() {
                 <div>
                   <h2 className="font-black text-lg flex items-center gap-2">
                     <Users size={19} />
-                    Players in Your Organization
+                    {independent?'My Athletes':'Players in Your Organization'}
                   </h2>
                   <p className="muted text-sm mt-1">
                     Once access is approved, review Player 360° to see the
@@ -334,8 +339,7 @@ export default function AdvisorAccessPage() {
                 })}
                 {!filtered.length && (
                   <div className="md:col-span-2 muted text-center py-10">
-                    No players match your search. Try a different name or clear
-                    the search.
+                    {independent?'No active athlete connections yet. Invite an athlete above, and they’ll appear here after approval.':'No players match your search. Try a different name or clear the search.'}
                   </div>
                 )}
               </div>
