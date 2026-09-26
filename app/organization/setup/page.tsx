@@ -34,6 +34,7 @@ type Organization = {
 const empty = { name: "", branchName: "", city: "", state: "" };
 export default function OrganizationSetup() {
   const [organizations, setOrganizations] = useState<Organization[]>([]),
+    [canCreate,setCanCreate]=useState(false),
     [selected, setSelected] = useState(""),
     [form, setForm] = useState(empty),
     [teamName, setTeamName] = useState(""),
@@ -56,7 +57,7 @@ export default function OrganizationSetup() {
       if (!r.ok)
         throw new Error(d.error || "Could not load organization setup.");
       const rows = d.organizations || [];
-      setOrganizations(rows);
+      setOrganizations(rows);setCanCreate(Boolean(d.canCreate));
       const id = preferred || selected || rows[0]?.id || "";
       setSelected(id);
       const o = rows.find((x: Organization) => x.id === id);
@@ -194,7 +195,7 @@ export default function OrganizationSetup() {
     <AppShell>
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
         <PageHeader
-          eyebrow="OWNER SETTINGS"
+          eyebrow={canCreate?"PLATFORM SETUP":"ADMIN SETTINGS"}
           title="Organization Setup"
           subtitle="Manage organizations, branches, player join codes and teams."
           action={
@@ -223,10 +224,7 @@ export default function OrganizationSetup() {
           </div>
         ) : !organizations.length && !creating ? (
           <div className="card p-6">
-            <div className="font-black">Owner access required</div>
-            <p className="muted text-sm mt-1">
-              Only an active organization Owner can manage organization setup.
-            </p>
+            <div className="font-black">Admin access required</div><p className="muted text-sm mt-1">You need active Admin access to manage an organization.</p>
           </div>
         ) : (
           <>
@@ -251,7 +249,7 @@ export default function OrganizationSetup() {
                       {o.branch_name ? ` · ${o.branch_name}` : ""}
                     </option>
                   ))}
-                  <option value="new">+ Create another organization</option>
+                  {canCreate&&<option value="new">+ Create another organization</option>}
                 </select>
               </label>
             </div>
