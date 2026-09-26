@@ -13,5 +13,7 @@ export async function GET(req:NextRequest){
  ]);
  if(!platform||!org)return NextResponse.redirect(new URL('/platform-admin',req.url));
  await admin.from('audit_log').insert({organization_id:organizationId,actor_user_id:user.id,action:'platform_support_view_started',entity_type:'organization',entity_id:organizationId,metadata:{organization_name:org.name,mode:'support'}});
- return NextResponse.redirect(new URL('/organization/recruiting-board?supportOrg='+encodeURIComponent(organizationId),req.url));
+ const res=NextResponse.redirect(new URL('/organization/recruiting-board?supportOrg='+encodeURIComponent(organizationId),req.url));
+ res.cookies.set('rr-support-org',organizationId,{httpOnly:false,sameSite:'lax',secure:process.env.NODE_ENV==='production',path:'/',maxAge:60*60*4});
+ return res;
 }
