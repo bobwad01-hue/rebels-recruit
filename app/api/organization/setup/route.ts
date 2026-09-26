@@ -14,13 +14,16 @@ async function viewer() {
   if (!user) return null;
   return user;
 }
-async function owned(admin: any, userId: string, organizationId?: string) {
-  let q = admin
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", userId)
-    .eq("role", "owner")
-    .eq("status", "active");
+async function managed(admin: any, userId: string, organizationId?: string) {
+  const { data: platform } = await admin.from("platform_roles").select("role").eq("user_id", userId).eq("role", "super_owner").maybeSingle();
+  if (platform) {
+    let q = admin.from("organizations").select("id");
+    if (organizationId) q = q.eq("id", organizationId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return (data || []).map((x:any)=>({organization_id:x.id}));
+  }
+  let q = admin.from("organization_members").select("organization_id").eq("user_id", userId).eq("role", "admin").eq("status", "active");
   if (organizationId) q = q.eq("organization_id", organizationId);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
@@ -48,7 +51,7 @@ export async function GET() {
     );
   const admin = createAdminClient();
   try {
-    const memberships = await owned(admin, user.id);
+    const memberships = await managed(admin, user.id);
     const ids = memberships.map((m: any) => m.organization_id);
     if (!ids.length) return NextResponse.json({ organizations: [] });
     const { data: organizations, error } = await admin
@@ -97,12 +100,12 @@ export async function POST(req: NextRequest) {
     admin = createAdminClient();
   try {
     if (action === "create") {
-      const existing = await owned(admin, user.id);
+      const existing = await managed(admin, user.id);
       if (!existing.length)
         return NextResponse.json(
           {
             error:
-              "Only an existing organization Owner can create another organization.",
+              "Only a Platform Owner or organization Admin can create another organization.",
           },
           { status: 403 },
         );
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
         .insert({
           organization_id: organization.id,
           user_id: user.id,
-          role: "owner",
+          role: "admin",
           status: "active",
           joined_at: new Date().toISOString(),
         });
@@ -145,10 +148,10 @@ export async function POST(req: NextRequest) {
     const organizationId = String(body.organizationId || "");
     if (
       !organizationId ||
-      !(await owned(admin, user.id, organizationId)).length
+      !(await managed(admin, user.id, organizationId)).length
     )
       return NextResponse.json(
-        { error: "Owner access is required for this organization." },
+        { error: "Admin access is required for this organization." },
         { status: 403 },
       );
     if (action === "update") {
