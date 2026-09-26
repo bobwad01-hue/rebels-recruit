@@ -52,8 +52,9 @@ export async function GET() {
   const admin = createAdminClient();
   try {
     const memberships = await managed(admin, user.id);
+    const {data:platformOwner}=await admin.from("platform_roles").select("role").eq("user_id",user.id).eq("role","super_owner").maybeSingle();
     const ids = memberships.map((m: any) => m.organization_id);
-    if (!ids.length) return NextResponse.json({ organizations: [] });
+    if (!ids.length) return NextResponse.json({ organizations: [], canCreate: !!platformOwner });
     const { data: organizations, error } = await admin
       .from("organizations")
       .select(
@@ -63,6 +64,7 @@ export async function GET() {
       .order("name");
     if (error) throw new Error(error.message);
     return NextResponse.json({
+      canCreate: !!platformOwner,
       organizations: (organizations || []).map((o: any) => ({
         ...o,
         teams: (o.teams || []).sort((a: any, b: any) =>
