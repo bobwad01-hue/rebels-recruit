@@ -103,6 +103,7 @@ export default async function Dashboard({
     coachRelationships,
     tasks,
     athleteEvents,
+    eventDebriefs,
     invitations,
     milestoneRows,
     fitProfile,
@@ -155,6 +156,10 @@ export default async function Dashboard({
       .select(
         "id,status,events(id,name,type,date,location,college_id,colleges(id,name))",
       )
+      .eq("athlete_user_id", uid),
+    supabase
+      .from("event_debriefs")
+      .select("event_id")
       .eq("athlete_user_id", uid),
     supabase
       .from("athlete_advisor_assignments")
@@ -252,6 +257,8 @@ export default async function Dashboard({
     coaches: activeCoaches,
     colleges: activeColleges,
     events: eventRows,
+    interactions: interactionRows,
+    debriefEventIds: (eventDebriefs.data || []).map((x: any) => x.event_id),
     advisorRequests,
   });
   const intelligence = buildRecruitingIntelligence({
