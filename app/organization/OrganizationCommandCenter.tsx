@@ -295,7 +295,7 @@ export default function OrganizationCommandCenter() {
       setPartialWarning(
         "Some information is temporarily unavailable: " +
           warnings.join(", ") +
-          ". The command center is using the information that could be loaded.",
+          ". Showing the information that is available right now.",
       );
     setLoading(false);
   }
