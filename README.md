@@ -33,4 +33,6 @@ Copy `.env.example` to `.env.local`, set the Supabase URL and publishable/anon k
 5. Organization analytics, momentum and audit UI
 6. Gmail/Outlook/calendar/social integrations
 
-<!-- deployment refresh --> 
+<!-- deployment refresh -->
+
+<!-- deployment retry: 2026-09-27 -->
