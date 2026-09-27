@@ -1068,6 +1068,8 @@ export default function Exports() {
               : "Create recruiting reports for the players you advise."
           }
         />
+        {readOnlyPreview&&<div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Report previews are available in read-only QA mode. Downloads are disabled.</div>}
+        
         {Object.keys(warnings).length > 0 && (
           <div className="mb-5">
             <StatePanel
@@ -1275,7 +1277,7 @@ export default function Exports() {
                         Preview Report
                       </button>
                       <button
-                        className="btn btn-red"
+                        className={`btn ${readOnlyPreview?"opacity-50 cursor-not-allowed":"btn-red"}`}
                         disabled={readOnlyPreview || !!busy || blocked}
                         title={readOnlyPreview?"Downloads are unavailable in read-only preview":undefined}
                         onClick={() => run(r.id, "xlsx")}
@@ -1287,7 +1289,7 @@ export default function Exports() {
                       </button>
                       {!r.multi && (
                         <button
-                          className="btn"
+                          className={`btn ${readOnlyPreview?"opacity-50 cursor-not-allowed":""}`}
                           disabled={readOnlyPreview || !!busy || blocked}
                           title={readOnlyPreview?"Downloads are unavailable in read-only preview":undefined}
                           onClick={() => run(r.id, "csv")}
