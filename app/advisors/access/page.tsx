@@ -16,6 +16,7 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import { createClient } from "@/lib/supabase-browser";
 import OwnerAdminPlayerAccess from "@/components/OwnerAdminPlayerAccess";
+import { resolveStaffOrganizationContext } from "@/lib/owner-preview";
 
 const text = (v: any) => String(v || "").toLowerCase();
 
@@ -51,14 +52,8 @@ export default function AdvisorAccessPage() {
       return;
     }
     setViewerId(user.id);
-    const { data: memberRows, error: memberError } = await c
-      .from("organization_members")
-      .select("organization_id,role,status")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .limit(20);
-    const activeView=typeof window!=="undefined"?window.localStorage.getItem("rr-active-view"):null;
-    const rawMe=(memberRows||[]).find((m:any)=>activeView==="advisor"?m.role==="advisor":activeView==="admin"?m.role==="admin":["advisor","admin"].includes(m.role))||(memberRows||[])[0];const me=activeView==="advisor"&&rawMe?.role==="admin"?{...rawMe,role:"advisor"}:rawMe;
+    const qs=typeof window!=="undefined"?new URLSearchParams(window.location.search):new URLSearchParams();const me:any=await resolveStaffOrganizationContext(c,user.id,qs);
+    const memberError=me?.error;
     if (memberError) {
       setLoadError("Your organization membership could not be loaded.");
       setLoading(false);
