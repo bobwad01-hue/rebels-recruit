@@ -17,8 +17,12 @@ type Service=keyof typeof SCOPES;
 type StatePayload={state:string;service:Service;userId:string};
 type GoogleTokenResponse={access_token?:string;expires_in?:number;refresh_token?:string;scope?:string;token_type?:string;error?:string;error_description?:string};
 
+function appOrigin(req:NextRequest){
+  return (process.env.NEXT_PUBLIC_APP_URL||req.nextUrl.origin).replace(/\/$/,'');
+}
+
 function redirect(req:NextRequest,code:string){
-  const res=NextResponse.redirect(new URL(`/settings?google=${encodeURIComponent(code)}`,req.url));
+  const res=NextResponse.redirect(new URL(`/settings?google=${encodeURIComponent(code)}`,appOrigin(req)));
   res.cookies.set(STATE_COOKIE,'',{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:0});
   return res;
 }
@@ -39,14 +43,14 @@ export async function GET(req:NextRequest){
 
     const c=await createClient();
     const {data:{user}}=await c.auth.getUser();
-    if(!user)return NextResponse.redirect(new URL('/login',req.url));
+    if(!user)return NextResponse.redirect(new URL('/login',appOrigin(req)));
     if(user.id!==saved.userId)return redirect(req,'invalid-state');
 
     const clientId=process.env.GOOGLE_WORKSPACE_CLIENT_ID||process.env.GOOGLE_CLIENT_ID;
     const clientSecret=process.env.GOOGLE_WORKSPACE_CLIENT_SECRET||process.env.GOOGLE_CLIENT_SECRET;
     if(!clientId||!clientSecret||!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.GOOGLE_TOKEN_ENCRYPTION_KEY)return redirect(req,'not-configured');
 
-    const callback=new URL('/api/google/callback',req.nextUrl.origin).toString();
+    const callback=new URL('/api/google/callback',appOrigin(req)).toString();
     const tokenRes=await fetch('https://oauth2.googleapis.com/token',{
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
