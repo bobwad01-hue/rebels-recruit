@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import { EmptyState, PageFrame, StatePanel } from "@/components/ProductUI";
 import { createClient } from "@/lib/supabase-browser";
 import { cleanDisplayNote } from "@/lib/display-notes";
+import { resolveStaffOrganizationContext } from "@/lib/owner-preview";
 import {
   RECRUITING_JOURNEY,
   normalizeJourneyStage,
@@ -267,19 +268,9 @@ export default function Exports() {
         setLoadError("Sign in to use Reports.");
         return;
       }
-      const { data: membershipRows, error: memberError } = await c
-        .from("organization_members")
-        .select(
-          "organization_id,role,organization_view_access,organizations(name)",
-        )
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .limit(10);
-      if (memberError) throw memberError;
-      const me =
-        (membershipRows || []).find((m: any) =>
-          ["owner", "admin", "advisor"].includes(m.role),
-        ) || membershipRows?.[0];
+      const qs=typeof window!=="undefined"?new URLSearchParams(window.location.search):new URLSearchParams();
+      const me:any=await resolveStaffOrganizationContext(c,user.id,qs);
+      if (me?.error) throw me.error;
       if (!me) {
         setLoadError(
           "We could not find an active organization membership for this account.",
