@@ -21,14 +21,11 @@ export async function GET(req:NextRequest){
   if(linkError)return NextResponse.json({error:'Could not load athlete event context.'},{status:500});
   const eventIds=(links||[]).map((x:any)=>String(x.event_id));
 
-  const [linkedResult,orgResult]=await Promise.all([
-    eventIds.length?supabase.from('events').select('*,colleges(name,division)').in('id',eventIds).order('date') : Promise.resolve({data:[],error:null}),
-    supabase.from('events').select('*,colleges(name,division)').eq('organization_id',athlete.organization_id).order('date')
-  ]);
-  if(linkedResult.error||orgResult.error)return NextResponse.json({error:'Could not load recruiting events for this preview.'},{status:500});
+  const {data:allEvents,error:eventError}=await supabase.from('events').select('*,colleges(name,division)').order('date');
+  if(eventError)return NextResponse.json({error:'Could not load recruiting events for this preview.'},{status:500});
 
-  const unique=new Map<string,any>();
-  for(const row of [...(linkedResult.data||[]),...(orgResult.data||[])])unique.set(String(row.id),row);
-  const events=[...unique.values()].sort((a:any,b:any)=>String(a.date||'').localeCompare(String(b.date||'')));
+  const orgId=String(athlete.organization_id||'');
+  const linkedIds=new Set(eventIds);
+  const events=(allEvents||[]).filter((row:any)=>linkedIds.has(String(row.id))||(orgId&&String(row.organization_id||'')===orgId));
   return NextResponse.json({events});
 }
