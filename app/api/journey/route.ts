@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase-server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -17,6 +17,17 @@ export async function GET() {
     );
 
   const admin = createAdminClient();
+  let athleteUserId = user.id;
+  const url = new URL(request.url);
+  const previewRole = url.searchParams.get("previewRole");
+  const previewAthlete = url.searchParams.get("previewAthlete");
+  if (previewRole === "athlete" && previewAthlete) {
+    const [{ data: platform }, { data: athleteRole }] = await Promise.all([
+      admin.from("platform_roles").select("role").eq("user_id", user.id).eq("role", "super_owner").maybeSingle(),
+      admin.from("user_roles").select("user_id").eq("user_id", previewAthlete).eq("role", "athlete").maybeSingle(),
+    ]);
+    if (platform && athleteRole) athleteUserId = previewAthlete;
+  }
   const [activityResult, profileResult, relationshipResult, gmailResult] = await Promise.all(
     [
       admin
@@ -24,16 +35,16 @@ export async function GET() {
         .select(
           "id,type,date,date_precision,date_year,date_month,created_at,note,initiated_by,source,email_subject,email_type,email_content,follow_up_due_date,follow_up_completed_at,college_id,coach_id",
         )
-        .eq("athlete_user_id", user.id)
+        .eq("athlete_user_id", athleteUserId)
         .order("date", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
         .limit(500),
-      admin.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+      admin.from("profiles").select("timezone").eq("id", athleteUserId).maybeSingle(),
       admin
         .from("athlete_colleges")
         .select("college_id,status,archived_at")
-        .eq("athlete_user_id", user.id),
-      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject,received_at,extracted_data,action_state,action_decision,action_updated_at").eq("athlete_user_id", user.id),
+        .eq("athlete_user_id", athleteUserId),
+      admin.from("gmail_recruiting_messages").select("interaction_id,recruiting_intent,summary,action_required,next_action,action_due_date,subject,received_at,extracted_data,action_state,action_decision,action_updated_at").eq("athlete_user_id", athleteUserId),
     ],
   );
 
