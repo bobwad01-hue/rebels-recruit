@@ -5,7 +5,13 @@ export async function resolveParentView(c:any,preferredAthleteId?:string|null):P
  const {data:{user}}=await c.auth.getUser();if(!user)return null;
  const sp=typeof window!=='undefined'?new URLSearchParams(window.location.search):new URLSearchParams();
  const previewRole=sp.get('previewRole'),previewAthlete=sp.get('previewAthlete');
- if(previewRole==='parent'&&previewAthlete){const{data:ownerMemberships}=await c.from('organization_members').select('organization_id,role').eq('user_id',user.id).eq('status','active');const ownerOrgIds=(ownerMemberships||[]).filter((m:any)=>m.role==='owner').map((m:any)=>m.organization_id);if(ownerOrgIds.length){const{data:t}=await c.from('organization_members').select('user_id,organization_id').in('organization_id',ownerOrgIds).eq('user_id',previewAthlete).eq('role','athlete').eq('status','active').limit(1);if(t?.length)return{athleteId:previewAthlete,permissions:ALL_PARENT_PREVIEW_PERMISSIONS,preview:true}}}
+ if(previewRole==='parent'&&previewAthlete){
+   const{data:platform}=await c.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle();
+   if(platform){
+     const{data:target}=await c.from('user_roles').select('user_id').eq('user_id',previewAthlete).eq('role','athlete').maybeSingle();
+     if(target)return{athleteId:previewAthlete,permissions:ALL_PARENT_PREVIEW_PERMISSIONS,preview:true};
+   }
+ }
  const {data}=await c.from('parent_guardian_access').select('id,athlete_user_id,permissions').eq('parent_user_id',user.id).eq('status','active').order('created_at',{ascending:true});const rows=data||[];
  const queryAthlete=sp.get('athlete');const stored=typeof window!=='undefined'?window.localStorage.getItem(STORAGE_KEY):null;const requested=preferredAthleteId||queryAthlete||stored;const selected=requested?rows.find((x:any)=>String(x.athlete_user_id)===String(requested)):rows[0];if(!selected)return null;
  if(typeof window!=='undefined')window.localStorage.setItem(STORAGE_KEY,String(selected.athlete_user_id));
