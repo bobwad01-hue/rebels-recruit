@@ -24,7 +24,8 @@ export async function GET(req:NextRequest){
 
   const state=crypto.randomUUID();
   const statePayload=Buffer.from(JSON.stringify({state,service,userId:user.id})).toString('base64url');
-  const callback=new URL('/api/google/callback',req.nextUrl.origin).toString();
+  const appOrigin=(process.env.NEXT_PUBLIC_APP_URL||req.nextUrl.origin).replace(/\/$/,'');
+  const callback=new URL('/api/google/callback',appOrigin).toString();
   const p=new URLSearchParams({
     client_id:clientId,
     redirect_uri:callback,
