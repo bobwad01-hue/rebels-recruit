@@ -307,7 +307,7 @@ export default function AdvisorAccessPage() {
                           >
                             Review Player 360°
                           </Link>
-                        ) : status === "pending" ? (
+                        ) : status === "pending" && !previewReadOnly ? (
                           <button
                             className="btn"
                             onClick={() => cancelRequest(String(p.id))}
@@ -316,7 +316,7 @@ export default function AdvisorAccessPage() {
                             <XCircle size={16} />
                             {busy === p.id ? "Working..." : "Cancel Request"}
                           </button>
-                        ) : (
+                        ) : !previewReadOnly ? (
                           <button
                             className="btn btn-red"
                             onClick={() => requestAccess(String(p.id))}
@@ -329,7 +329,7 @@ export default function AdvisorAccessPage() {
                                 ? "Request Again"
                                 : "Request Access"}
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   );
