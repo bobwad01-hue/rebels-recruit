@@ -405,7 +405,7 @@ export default async function Dashboard({
         )}
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
         <div className="mb-6 w-full min-w-0">
-          <WeeklyRecruitingMomentum athleteId={preview.active ? uid : undefined} />
+          <WeeklyRecruitingMomentum athleteId={preview.active ? uid : undefined} roleOverride={preview.active && preview.role === "athlete" ? "athlete" : undefined} />
         </div>
         <div className="mt-6 w-full min-w-0">
           <HomeUpcomingEvents personalEvents={eventRows} />
