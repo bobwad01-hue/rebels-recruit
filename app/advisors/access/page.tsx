@@ -26,7 +26,7 @@ export default function AdvisorAccessPage() {
     [busy, setBusy] = useState(""),
     [message, setMessage] = useState(""),
     [loadError, setLoadError] = useState(""),
-    [search, setSearch] = useState(""), [inviteEmail,setInviteEmail]=useState(""), [independent,setIndependent]=useState(false);
+    [search, setSearch] = useState(""), [inviteEmail,setInviteEmail]=useState(""), [independent,setIndependent]=useState(false), [previewReadOnly,setPreviewReadOnly]=useState(false);
   const [orgId, setOrgId] = useState(""),
     [viewerRole, setViewerRole] = useState(""),
     [viewerId, setViewerId] = useState(""),
@@ -52,7 +52,7 @@ export default function AdvisorAccessPage() {
       return;
     }
     setViewerId(user.id);
-    const qs=typeof window!=="undefined"?new URLSearchParams(window.location.search):new URLSearchParams();const me:any=await resolveStaffOrganizationContext(c,user.id,qs);
+    const qs=typeof window!=="undefined"?new URLSearchParams(window.location.search):new URLSearchParams();const me:any=await resolveStaffOrganizationContext(c,user.id,qs);setPreviewReadOnly(Boolean(qs.get("previewRole")));
     const memberError=me?.error;
     if (memberError) {
       setLoadError("Your organization membership could not be loaded.");
