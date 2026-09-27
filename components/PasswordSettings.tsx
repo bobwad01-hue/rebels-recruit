@@ -42,7 +42,7 @@ export default function PasswordSettings() {
   return (
     <div className="card p-6">
       <h2 className="font-black text-lg">Password</h2>
-      <p className="muted mt-1">Change the password you use to sign in to Rebels Recruit.</p>
+      <p className="muted mt-1">Change the password you use to sign in to RLTNL Recruiting.</p>
 
       <form onSubmit={updatePassword} className="space-y-4 mt-5">
         <input
