@@ -304,11 +304,13 @@ export default function Exports() {
         .map((m: any) => String(m.user_id));
       const athleteIds = [
         ...new Set(
-          me.role === "owner" ||
-            me.role === "admin" ||
-            me.organization_view_access
-            ? all
-            : (assign || []).map((a: any) => String(a.athlete_user_id)),
+          me.preview && me.role === "advisor" && me.previewAthleteId
+            ? [String(me.previewAthleteId)]
+            : me.role === "owner" ||
+                me.role === "admin" ||
+                me.organization_view_access
+              ? all
+              : (assign || []).map((a: any) => String(a.athlete_user_id)),
         ),
       ];
       setAccessibleIds(athleteIds);
