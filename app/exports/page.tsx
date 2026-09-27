@@ -222,6 +222,7 @@ export default function Exports() {
     [busy, setBusy] = useState(""),
     [msg, setMsg] = useState(""),
     [role, setRole] = useState("advisor"),
+    [readOnlyPreview,setReadOnlyPreview]=useState(false),
     [orgName, setOrgName] = useState("Rebels");
   const [accessibleIds, setAccessibleIds] = useState<string[]>([]),
     [warnings, setWarnings] = useState<Partial<Record<Dataset, string>>>({});
@@ -278,6 +279,7 @@ export default function Exports() {
         return;
       }
       setRole(me.role);
+      setReadOnlyPreview(Boolean(me.preview));
       setOrgName(one(me.organizations)?.name || "Rebels");
       const [
         { data: members, error: membersError },
@@ -1274,7 +1276,8 @@ export default function Exports() {
                       </button>
                       <button
                         className="btn btn-red"
-                        disabled={!!busy || blocked}
+                        disabled={readOnlyPreview || !!busy || blocked}
+                        title={readOnlyPreview?"Downloads are unavailable in read-only preview":undefined}
                         onClick={() => run(r.id, "xlsx")}
                       >
                         <FileSpreadsheet size={16} />
@@ -1285,7 +1288,8 @@ export default function Exports() {
                       {!r.multi && (
                         <button
                           className="btn"
-                          disabled={!!busy || blocked}
+                          disabled={readOnlyPreview || !!busy || blocked}
+                          title={readOnlyPreview?"Downloads are unavailable in read-only preview":undefined}
                           onClick={() => run(r.id, "csv")}
                         >
                           <Download size={16} />
