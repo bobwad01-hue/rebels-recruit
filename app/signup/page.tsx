@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
 import { PrimaryBrand } from '@/components/BrandLogo';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?window.location.origin:'https://rebelsrecruit.com');
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?window.location.origin:'https://rltnl.com');
 
 export default function Signup() {
   const [name, setName] = useState('');
