@@ -52,6 +52,7 @@ export default function OrganizationSetup() {
     [copied, setCopied] = useState(false),
     [teamEdit, setTeamEdit] = useState<Team | null>(null),
     [teamEditName, setTeamEditName] = useState(""),
+    [staffEmail,setStaffEmail]=useState(""),[staffRole,setStaffRole]=useState("advisor"),[staffOrgAccess,setStaffOrgAccess]=useState(false),
     [confirmAction, setConfirmAction] = useState<null | { type: "code" | "archive"; team?: Team }>(null);
   async function load(preferred?: string) {
     setLoading(true);
@@ -478,18 +479,20 @@ export default function OrganizationSetup() {
                 </section>
                 <section className="card p-5 sm:p-6 mt-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="font-black text-lg">Staff Access</h2><p className="muted text-sm mt-1">People who can work inside RLTNL Recruiting for this organization.</p></div>
+                    <div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="font-black text-lg">Staff Access</h2><p className="muted text-sm mt-1">Invite Admins and Advisors, then manage their organization access here.</p></div>
                     {previewReadOnly&&<span className="status-pill bg-amber-50 text-amber-800">Read-only preview</span>}
                   </div>
+                  {!previewReadOnly&&<div className="rounded-xl border bg-slate-50 p-4 mt-5"><div className="font-black text-sm">Invite Staff Member</div><div className="grid md:grid-cols-[1fr_150px_auto] gap-2 mt-3"><input className="input" type="email" placeholder="staff@email.com" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)}/><select className="input" value={staffRole} onChange={e=>{setStaffRole(e.target.value);if(e.target.value==="admin")setStaffOrgAccess(true)}}><option value="advisor">Advisor</option><option value="admin">Admin</option></select><button className="btn btn-red" disabled={busy||!staffEmail.trim()} onClick={async()=>{const d=await act({action:"inviteStaff",organizationId:selected,email:staffEmail,role:staffRole,organizationViewAccess:staffOrgAccess},"Staff invitation created.");if(d)setStaffEmail("")}}><Plus size={16}/>Invite</button></div>{staffRole==="advisor"&&<label className="flex items-center gap-2 text-sm mt-3"><input type="checkbox" checked={staffOrgAccess} onChange={e=>setStaffOrgAccess(e.target.checked)}/> Allow organization-wide recruiting view</label>}<p className="muted text-xs mt-2">Admins receive organization-wide access. Advisors can be limited to assigned players.</p></div>}
+                  {(org.staffInvites||[]).length>0&&<div className="mt-5"><div className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Pending invitations</div><div className="space-y-2">{(org.staffInvites||[]).map((i:any)=><div key={i.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center gap-3"><div className="flex-1 min-w-0"><div className="font-bold truncate">{i.email}</div><div className="text-xs text-amber-800">{i.role==="admin"?"Admin":"Advisor"} · Pending</div></div>{!previewReadOnly&&<button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>act({action:"cancelStaffInvite",organizationId:selected,inviteId:i.id},"Invitation cancelled.")}>Cancel</button>}</div>)}</div></div>}
                   <div className="space-y-2 mt-5">
                     {(org.staff||[]).map((member:any)=><div key={member.user_id} className="rounded-xl border p-3 flex items-center gap-3">
                       <div className="h-10 w-10 rounded-xl bg-slate-100 grid place-items-center">{member.role==="admin"?<ShieldCheck size={18}/>:<UserCog size={18}/>}</div>
                       <div className="min-w-0 flex-1"><div className="font-bold">{member.profile?.full_name||member.profile?.email||"Staff member"}</div><div className="muted text-xs truncate">{member.profile?.email||""}</div></div>
-                      <div className="text-right"><div className="text-xs font-black uppercase tracking-wide">{member.role==="admin"?"Admin":"Advisor"}</div><div className="muted text-[11px]">{member.role==="admin"||member.organization_view_access?"Organization access":"Assigned-player access"}</div></div>
+                      <div className="text-right"><div className="text-xs font-black uppercase tracking-wide">{member.role==="admin"?"Admin":"Advisor"}</div><div className="muted text-[11px]">{member.role==="admin"||member.organization_view_access?"Organization access":"Assigned-player access"}</div></div>{!previewReadOnly&&<div className="flex gap-2"><select aria-label={"Role for "+(member.profile?.full_name||member.profile?.email||"staff")} className="input py-2 text-xs" value={member.role} onChange={e=>act({action:"updateStaff",organizationId:selected,userId:member.user_id,role:e.target.value,organizationViewAccess:e.target.value==="admin"?true:member.organization_view_access},"Staff role updated.")}><option value="advisor">Advisor</option><option value="admin">Admin</option></select><button className="btn px-3 py-2 text-xs" onClick={()=>act({action:"removeStaff",organizationId:selected,userId:member.user_id},"Staff access removed.")}>Remove</button></div>}
                     </div>)}
                     {!(org.staff||[]).length&&<div className="rr-empty-state"><div className="font-black">No staff access found</div><div className="muted text-sm mt-1">Admins and advisors connected to this organization will appear here.</div></div>}
                   </div>
-                  <div className="mt-4 rounded-xl border bg-slate-50 p-4 text-sm"><b>Staff invitations:</b> Staff access can be reviewed here now. Invitation and role-management controls are being kept separate from player access so organization permissions remain explicit.</div>
+                  
                 </section>
               </>
             )}
