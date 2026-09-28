@@ -31,6 +31,7 @@ export async function GET(request: Request) {
   const signupRole = requestUrl.searchParams.get('signup_role')
   const legalSignup = requestUrl.searchParams.get('legal_signup') === '1'
   const age13Plus = requestUrl.searchParams.get('age_13_plus') === '1'
+  const advisorAccountType=requestUrl.searchParams.get('advisor_account_type')
   const supabase = await createClient()
 
   if (code) await supabase.auth.exchangeCodeForSession(code)
@@ -65,6 +66,11 @@ export async function GET(request: Request) {
   if (!profile?.profile_completed_at && (signupRole === 'athlete' || signupRole === 'advisor' || signupRole === 'parent') && profile?.app_role !== signupRole) {
     await supabase.from('profiles').update({ app_role: signupRole }).eq('id', user.id)
     profile = { app_role: signupRole, profile_completed_at: profile?.profile_completed_at ?? null }
+  }
+
+  if((signupRole==='advisor'||user.user_metadata?.app_role==='advisor')&&!profile?.profile_completed_at){
+    const accountType=advisorAccountType||user.user_metadata?.advisor_account_type||'independent'
+    await createAdminClient().from('profiles').update({advisor_account_type:accountType,commercial_status:accountType==='independent'?'pending':'not_required'}).eq('id',user.id)
   }
 
   const {data:accepted,error:acceptError}=await supabase.rpc('has_current_legal_acceptance')
