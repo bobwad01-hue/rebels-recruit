@@ -22,5 +22,18 @@ export async function GET(req:NextRequest){
 export async function POST(req:NextRequest){
  const c=await context(req);if(!c)return NextResponse.json({error:"Admin access is required."},{status:403});const{user,admin,organizationId}=c;const body=await req.json();const action=String(body.action||"");
  if(action==="review"){const id=String(body.requestId||""),decision=String(body.decision||"");const{data:r}=await admin.from("organization_join_requests").select("id,user_id,team_id,role").eq("id",id).eq("organization_id",organizationId).eq("status","pending").maybeSingle();if(!r||!["approved","declined"].includes(decision))return NextResponse.json({error:"Pending request not found."},{status:404});if(decision==="approved"){await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:r.user_id,role:r.role,status:"active",granted_by:user.id,revoked_at:null},{onConflict:"organization_id,user_id,role"});await admin.from("user_roles").upsert({user_id:r.user_id,role:r.role},{onConflict:"user_id,role"});}await admin.from("organization_join_requests").update({status:decision,reviewed_by:user.id,reviewed_at:new Date().toISOString()}).eq("id",id);return NextResponse.json({ok:true});}
+ if(action==="saveAccess"){
+  const target=String(body.userId||""),role=String(body.role||""),enabled=Boolean(body.enabled),selected=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
+  if(!target||!["admin","advisor","athlete","parent"].includes(role))return NextResponse.json({error:"Person and role are required."},{status:400});
+  if(enabled)await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
+  else await admin.from("organization_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("organization_id",organizationId).eq("user_id",target).eq("role",role);
+  if(role!=="admin"){
+   const{data:orgTeams}=await admin.from("teams").select("id").eq("organization_id",organizationId);const ids=(orgTeams||[]).map((t:any)=>t.id);
+   if(ids.length)await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).in("team_id",ids);
+   if(enabled)for(const teamId of selected){if(ids.includes(teamId))await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});}
+  }
+  if(enabled)await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+  return NextResponse.json({ok:true});
+ }
  return NextResponse.json({error:"Unknown action."},{status:400});
 }
