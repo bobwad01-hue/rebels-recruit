@@ -1,0 +1,14 @@
+"use client";
+import {useEffect,useState} from "react";
+import {Check,X} from "lucide-react";
+export default function OrganizationPeopleAccess({organizationId,readOnly=false}:{organizationId:string;readOnly?:boolean}){
+ const[people,setPeople]=useState<any[]>([]),[requests,setRequests]=useState<any[]>([]),[error,setError]=useState(""),[busy,setBusy]=useState(false);
+ async function load(){try{const r=await fetch("/api/organization/access?organizationId="+encodeURIComponent(organizationId),{cache:"no-store"});const d=await r.json();if(!r.ok)throw new Error(d.error);setPeople(d.people||[]);setRequests(d.requests||[])}catch(e){setError(e instanceof Error?e.message:"Could not load people.")}}
+ useEffect(()=>{load()},[organizationId]);
+ async function review(requestId:string,decision:string){setBusy(true);const r=await fetch("/api/organization/access?organizationId="+encodeURIComponent(organizationId),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"review",requestId,decision})});const d=await r.json();if(!r.ok)setError(d.error||"Could not update request.");else await load();setBusy(false)}
+ return <section className="card p-5 sm:p-6 mt-5"><div className="rr-eyebrow">PEOPLE & ACCESS</div><h2 className="font-black text-lg">People</h2><p className="muted text-sm mt-1">A person can hold multiple roles and team relationships without creating another RLTNL account.</p>
+ {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
+ {!!requests.length&&<div className="mt-5"><div className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Admin Approval Requests</div><div className="space-y-2">{requests.map(r=><div key={r.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center gap-3"><div className="flex-1"><div className="font-bold">{r.profile?.full_name||r.profile?.email||"RLTNL user"}</div><div className="text-xs text-amber-800">Requests Admin access</div></div>{!readOnly&&<><button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>review(r.id,"declined")}><X size={14}/>Decline</button><button className="btn btn-red px-3 py-2 text-xs" disabled={busy} onClick={()=>review(r.id,"approved")}><Check size={14}/>Approve</button></>}</div>)}</div></div>}
+ <div className="space-y-2 mt-5">{people.map(p=><div key={p.user_id} className="rounded-xl border p-3"><div className="font-bold">{p.profile?.full_name||p.profile?.email||"RLTNL user"}</div><div className="muted text-xs">{p.profile?.email||""}</div><div className="flex flex-wrap gap-1 mt-2">{p.roles.map((role:string)=><span key={role} className="status-pill text-[10px]">{role}</span>)}</div></div>)}{!people.length&&<div className="rr-empty-state"><div className="font-black">No people found</div></div>}</div>
+ </section>
+}
