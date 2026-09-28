@@ -2,7 +2,6 @@ import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
-import { sendRLTNLEmail } from "@/lib/transactional-email";
 
 function code() {
   return randomBytes(5).toString("hex").toUpperCase();
@@ -66,7 +65,7 @@ export async function GET() {
     if (error) throw new Error(error.message);
     const staffIds = [...new Set((organizations || []).flatMap((o:any)=>(o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>m.user_id)))];
     const {data:staffProfiles}=staffIds.length?await admin.from("profiles").select("id,full_name,email").in("id",staffIds):{data:[] as any[]};
-    const {data:staffInvites}=ids.length?await admin.from("organization_staff_invites").select("id,organization_id,email,role,organization_view_access,status,invited_at").in("organization_id",ids).eq("status","pending"):{data:[] as any[]};
+    const {data:staffInvites}=ids.length?await admin.from("organization_staff_invites").select("id,organization_id,email,role,organization_view_access,status,invited_at,invite_token").in("organization_id",ids).eq("status","pending"):{data:[] as any[]};
     const staffById=new Map((staffProfiles||[]).map((p:any)=>[String(p.id),p]));
     return NextResponse.json({
       canCreate: !!platformOwner,
@@ -172,22 +171,11 @@ export async function POST(req: NextRequest) {
         if(existingMember) return NextResponse.json({error:"That person already has access to this organization."},{status:400});
       }
       await admin.from("organization_staff_invites").update({status:"cancelled"}).eq("organization_id",organizationId).eq("email",email).eq("status","pending");
-      const {data:organization}=await admin.from("organizations").select("name,branch_name").eq("id",organizationId).single();
-      const {data:invite,error}=await admin.from("organization_staff_invites").insert({organization_id:organizationId,email,role,organization_view_access:role==="admin"?true:Boolean(body.organizationViewAccess),invited_by:user.id}).select("id").single();
+      const {data:invite,error}=await admin.from("organization_staff_invites").insert({organization_id:organizationId,email,role,organization_view_access:role==="admin"?true:Boolean(body.organizationViewAccess),invited_by:user.id}).select("id,invite_token").single();
       if(error) throw new Error(error.message);
       const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"https://www.rltnl.com").replace(/\/$/,"");
-      const inviteUrl=`${appUrl}/signup?staff_invite=1&email=${encodeURIComponent(email)}&role=${encodeURIComponent(role)}`;
-      try{
-        await sendRLTNLEmail({
-          to:email,
-          subject:`You're invited to ${organization?.name||"RLTNL Recruiting"}`,
-          html:`<div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#111827"><img src="${appUrl}/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" style="width:240px;max-width:70%;height:auto;margin:8px 0 28px"><h1 style="font-size:26px;margin:0 0 12px">You've been invited to RLTNL Recruiting</h1><p style="font-size:16px;line-height:1.6">You've been invited to join <strong>${organization?.name||"an organization"}${organization?.branch_name?` · ${organization.branch_name}`:""}</strong> as ${role==="admin"?"an Admin":"an Advisor"}.</p><p style="font-size:16px;line-height:1.6">Use the button below to create or sign in to your RLTNL account with <strong>${email}</strong>. Your organization access will be connected automatically after your email is verified.</p><p style="margin:28px 0"><a href="${inviteUrl}" style="display:inline-block;background:#b91c1c;color:#fff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:10px">Activate RLTNL Access</a></p><p style="font-size:13px;color:#64748b">Recruiting happens in the follow-through.</p></div>`
-        });
-      }catch(mailError){
-        await admin.from("organization_staff_invites").update({status:"cancelled"}).eq("id",invite.id);
-        throw mailError;
-      }
-      return NextResponse.json({ok:true});
+      const inviteUrl=`${appUrl}/signup?staff_token=${encodeURIComponent(String(invite.invite_token))}`;
+      return NextResponse.json({ok:true,inviteUrl});
     }
     if (action === "cancelStaffInvite") {
       const {error}=await admin.from("organization_staff_invites").update({status:"cancelled"}).eq("id",String(body.inviteId||"")).eq("organization_id",organizationId).eq("status","pending");
