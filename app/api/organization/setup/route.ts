@@ -58,7 +58,7 @@ export async function GET() {
     const { data: organizations, error } = await admin
       .from("organizations")
       .select(
-        "id,name,branch_name,city,state,join_code,teams(id,name,age_group,archived_at)",
+        "id,name,branch_name,city,state,join_code,teams(id,name,age_group,archived_at),organization_members(user_id,role,status,organization_view_access)",
       )
       .in("id", ids)
       .order("name");
@@ -70,6 +70,7 @@ export async function GET() {
         teams: (o.teams || []).sort((a: any, b: any) =>
           String(a.name).localeCompare(String(b.name)),
         ),
+        staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)),
       })),
     });
   } catch (error) {
