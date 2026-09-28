@@ -17,6 +17,7 @@ import {
 } from "@/lib/recruiting-journey";
 import { cleanDisplayNote } from "@/lib/display-notes";
 import CoachCoverageExplorer from "./CoachCoverageExplorer";
+import { resolveStaffOrganizationContext } from "@/lib/owner-preview";
 
 type Tab =
   | "overview"
@@ -115,29 +116,35 @@ export default function OrganizationCommandCenter() {
       setLoading(false);
       return;
     }
-    const membershipResult = await c
-      .from("organization_members")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("status", "active")
-      .limit(20);
-    if (membershipResult.error) {
+    const search =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search)
+        : new URLSearchParams();
+    const resolved: any = await resolveStaffOrganizationContext(
+      c,
+      user.id,
+      search,
+    );
+    if (resolved?.error) {
       setLoadError(
         "Organization access could not be loaded. Refresh the page and try again.",
       );
       setLoading(false);
       return;
     }
-    const membershipRows = membershipResult.data || [];
-    const m =
-      membershipRows.find((x: any) => ["owner", "admin"].includes(x.role)) ||
-      membershipRows.find((x: any) => x.organization_view_access) ||
-      membershipRows[0];
+    const m = resolved || null;
     setMe(m);
     if (!m) {
       setLoading(false);
       return;
     }
+    const membershipResult = await c
+      .from("organization_members")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(20);
+    const membershipRows = membershipResult.data || [];
     const memberResult = await c
       .from("organization_members")
       .select("*")
@@ -151,9 +158,11 @@ export default function OrganizationCommandCenter() {
     }
     const ms = memberResult.data || [];
     setMembers(ms);
-    const managedOrganizationIds = membershipRows
-      .filter((x: any) => ["owner", "admin"].includes(x.role))
-      .map((x: any) => x.organization_id);
+    const managedOrganizationIds = m.preview
+      ? [m.organization_id]
+      : membershipRows
+          .filter((x: any) => ["owner", "admin"].includes(x.role))
+          .map((x: any) => x.organization_id);
     const managedIds = managedOrganizationIds.length
       ? managedOrganizationIds
       : [m.organization_id];
