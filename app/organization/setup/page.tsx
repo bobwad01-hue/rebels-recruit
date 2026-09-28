@@ -34,6 +34,7 @@ type Organization = {
   join_code: string;
   teams: Team[];
   staff?: any[];
+  staffInvites?: any[];
 };
 const empty = { name: "", branchName: "", city: "", state: "" };
 export default function OrganizationSetup() {
