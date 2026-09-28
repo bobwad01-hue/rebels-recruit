@@ -18,6 +18,7 @@ export default function Signup() {
   const [sent, setSent] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
+  const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">("independent");
   const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed);
 
   function validate(){if(role==='athlete'&&!ageConfirmed){setError('Athlete accounts are available only to players age 13 or older.');return false}if(!legalAccepted){setError('Please agree to the Terms of Service and Privacy Policy to create an account.');return false}return true}
@@ -28,7 +29,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signUp({
       email,
       password,
-      options: { data: { full_name: name, app_role: role, age_13_plus: role==='athlete'?true:undefined, organization_admin_interest:orgIntent||undefined }, emailRedirectTo: `${APP_URL}/auth/callback?legal_signup=1` },
+      options: { data: { full_name: name, app_role: role, age_13_plus: role==='athlete'?true:undefined, organization_admin_interest:orgIntent||undefined, advisor_account_type:role==="advisor"?advisorPath:undefined }, emailRedirectTo: `${APP_URL}/auth/callback?legal_signup=1` },
     });
     if (error) setError(error.message);
     else setSent(true);
@@ -41,7 +42,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}`,
+        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}&advisor_account_type=${role==='advisor'?advisorPath:''}`,
         queryParams: { prompt: 'select_account' },
       },
     });
@@ -60,7 +61,7 @@ export default function Signup() {
         <div className="space-y-4 mt-6">
           <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} required />
           <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-          <label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} onChange={e => {setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select></label>{role==='advisor'&&<label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span className="text-sm leading-5"><b>I want to set up or administer an organization/team.</b><span className="block text-xs text-slate-500 mt-1">New organization access requires RLTNL approval. Creating an account does not automatically give you organization Admin access.</span></span></label>}
+          <label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} onChange={e => {setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select></label>{role==='advisor'&&<div className="rounded-xl border p-3"><div className="text-sm font-bold">Advisor account type</div><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="independent"} onChange={()=>{setAdvisorPath("independent");setOrgIntent(false)}}/> Independent Advisor / consultant</label><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="organization"} onChange={()=>setAdvisorPath("organization")}/> I work with an organization/team</label><p className="text-xs text-slate-500 mt-2">{advisorPath==="independent"?"Independent Advisor accounts require RLTNL approval before live recruiting tools are activated.":"If an organization invited you, use the same email address as the invitation. Organization access comes from that organization."}</p>{advisorPath==="organization"&&<label className="flex items-start gap-2 mt-3 text-sm"><input type="checkbox" className="mt-1" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span>I need to request a new organization. <span className="block text-xs text-slate-500">New organizations require RLTNL approval. Creating an account does not automatically give you Admin access.</span></span></label>}</div>}
           <p className="text-xs text-slate-500 -mt-2">You do not need to belong to an organization. You can connect with an organization or other people later.</p><input className="input" type="password" placeholder="Password (8+ characters)" minLength={8} value={password} onChange={e => setPassword(e.target.value)} required />
           {role==='athlete'&&<label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)}/><span className="text-sm leading-5">I confirm that I am age 13 or older.</span></label>}
           <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
