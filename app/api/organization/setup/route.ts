@@ -162,6 +162,29 @@ export async function POST(req: NextRequest) {
         { error: "Admin access is required for this organization." },
         { status: 403 },
       );
+    if (action === "getJoinLinks") {
+      const {data:organization}=await admin.from("organizations").select("id,name,teams(id,name,age_group,archived_at)").eq("id",organizationId).single();
+      const scopes=[{role:"admin",teamId:null,requiresApproval:true},...((organization?.teams||[]).filter((t:any)=>!t.archived_at).flatMap((t:any)=>["advisor","athlete","parent"].map(role=>({role,teamId:t.id,requiresApproval:false}))))];
+      for(const scope of scopes){
+        const {data:existing}=await admin.from("organization_join_links").select("id").eq("organization_id",organizationId).eq("role",scope.role).eq("active",true).is("team_id",scope.teamId).maybeSingle();
+        if(!existing)await admin.from("organization_join_links").insert({organization_id:organizationId,team_id:scope.teamId,role:scope.role,requires_approval:scope.requiresApproval,created_by:user.id});
+      }
+      const {data:links,error}=await admin.from("organization_join_links").select("id,team_id,role,token,requires_approval,active,created_at").eq("organization_id",organizationId).eq("active",true);
+      if(error)throw new Error(error.message);
+      const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"https://www.rltnl.com").replace(/\/$/,"");
+      return NextResponse.json({ok:true,links:(links||[]).map((x:any)=>({...x,url:`${appUrl}/join/${x.token}`}))});
+    }
+    if (action === "manageUserRole") {
+      const target=String(body.userId||""),role=String(body.role||""),enabled=Boolean(body.enabled),teamIds=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
+      if(!target||!["admin","advisor","athlete","parent"].includes(role))return NextResponse.json({error:"Person and role are required."},{status:400});
+      if(enabled)await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
+      else await admin.from("organization_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("organization_id",organizationId).eq("user_id",target).eq("role",role);
+      if(role!=="admin"){
+        if(!enabled)await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).in("team_id",(await admin.from("teams").select("id").eq("organization_id",organizationId)).data?.map((x:any)=>x.id)||[]);
+        else for(const teamId of teamIds){const {data:team}=await admin.from("teams").select("id").eq("id",teamId).eq("organization_id",organizationId).maybeSingle();if(team)await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});}
+      }
+      return NextResponse.json({ok:true});
+    }
     if (action === "inviteStaff") {
       const email=String(body.email||"").trim().toLowerCase(), role=String(body.role||"advisor");
       if(!email||!["admin","advisor"].includes(role)) return NextResponse.json({error:"A valid staff email and role are required."},{status:400});
