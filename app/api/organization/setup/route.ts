@@ -63,6 +63,9 @@ export async function GET() {
       .in("id", ids)
       .order("name");
     if (error) throw new Error(error.message);
+    const staffIds = [...new Set((organizations || []).flatMap((o:any)=>(o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>m.user_id)))];
+    const {data:staffProfiles}=staffIds.length?await admin.from("profiles").select("id,full_name,email").in("id",staffIds):{data:[] as any[]};
+    const staffById=new Map((staffProfiles||[]).map((p:any)=>[String(p.id),p]));
     return NextResponse.json({
       canCreate: !!platformOwner,
       organizations: (organizations || []).map((o: any) => ({
@@ -70,7 +73,7 @@ export async function GET() {
         teams: (o.teams || []).sort((a: any, b: any) =>
           String(a.name).localeCompare(String(b.name)),
         ),
-        staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)),
+        staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null})),
       })),
     });
   } catch (error) {
