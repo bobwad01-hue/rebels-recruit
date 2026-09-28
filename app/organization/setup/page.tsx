@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Archive,
@@ -12,6 +13,8 @@ import {
   Save,
   Settings2,
   X,
+  ShieldCheck,
+  UserCog,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
@@ -30,9 +33,11 @@ type Organization = {
   state: string;
   join_code: string;
   teams: Team[];
+  staff?: any[];
 };
 const empty = { name: "", branchName: "", city: "", state: "" };
 export default function OrganizationSetup() {
+  const params=useSearchParams();const previewReadOnly=!!params.get("previewRole");
   const [organizations, setOrganizations] = useState<Organization[]>([]),
     [canCreate,setCanCreate]=useState(false),
     [selected, setSelected] = useState(""),
@@ -470,6 +475,21 @@ export default function OrganizationSetup() {
                       </div>
                     </details>
                   )}
+                </section>
+                <section className="card p-5 sm:p-6 mt-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="font-black text-lg">Staff Access</h2><p className="muted text-sm mt-1">People who can work inside RLTNL Recruiting for this organization.</p></div>
+                    {previewReadOnly&&<span className="status-pill bg-amber-50 text-amber-800">Read-only preview</span>}
+                  </div>
+                  <div className="space-y-2 mt-5">
+                    {(org.staff||[]).map((member:any)=><div key={member.user_id} className="rounded-xl border p-3 flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-slate-100 grid place-items-center">{member.role==="admin"?<ShieldCheck size={18}/>:<UserCog size={18}/>}</div>
+                      <div className="min-w-0 flex-1"><div className="font-bold">{member.profile?.full_name||member.profile?.email||"Staff member"}</div><div className="muted text-xs truncate">{member.profile?.email||""}</div></div>
+                      <div className="text-right"><div className="text-xs font-black uppercase tracking-wide">{member.role==="admin"?"Admin":"Advisor"}</div><div className="muted text-[11px]">{member.role==="admin"||member.organization_view_access?"Organization access":"Assigned-player access"}</div></div>
+                    </div>)}
+                    {!(org.staff||[]).length&&<div className="rr-empty-state"><div className="font-black">No staff access found</div><div className="muted text-sm mt-1">Admins and advisors connected to this organization will appear here.</div></div>}
+                  </div>
+                  <div className="mt-4 rounded-xl border bg-slate-50 p-4 text-sm"><b>Staff invitations:</b> Staff access can be reviewed here now. Invitation and role-management controls are being kept separate from player access so organization permissions remain explicit.</div>
                 </section>
               </>
             )}
