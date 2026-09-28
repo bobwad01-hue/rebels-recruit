@@ -311,7 +311,7 @@ export default function Player360() {
     else if (h === "/connections" || h.startsWith("/connections?"))
       h = `/advisors/connections?player=${id}`;
     else if (h === "/discover" || h.startsWith("/discover?"))
-      h = `/advisors/connections?player=${id}`;
+      h = `/advisors/discover?athlete=${id}`;
     else if (h.startsWith("/events/")) h = "/events";
     else if (h.startsWith("/coaches/") || h.startsWith("/colleges/")) {
       const u = new URL(h, "https://preview.local");
