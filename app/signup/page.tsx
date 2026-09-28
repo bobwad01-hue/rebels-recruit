@@ -73,9 +73,10 @@ export default function Signup() {
           {role==='athlete'&&<label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)}/><span className="text-sm leading-5">I confirm that I am age 13 or older.</span></label>}
           <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button disabled={!canContinue} className="btn btn-red w-full">Create Account</button>
+          {!canContinue&&<p className="text-xs font-semibold text-slate-500 text-center">{role==='athlete'&&!ageConfirmed&&!legalAccepted?'Confirm your age and accept the Terms to continue.':role==='athlete'&&!ageConfirmed?'Confirm that you are age 13 or older to continue.':'Accept the Terms of Service and Privacy Policy to continue.'}</p>}
+          <button disabled={!canContinue} className="btn btn-red w-full disabled:opacity-40 disabled:cursor-not-allowed">Create Account</button>
           <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-xs font-bold text-slate-400">OR</span><div className="h-px flex-1 bg-slate-200"/></div>
-          <button type="button" disabled={googleBusy||!canContinue} onClick={continueWithGoogle} className="btn w-full">{googleBusy ? 'Connecting to Google...' : 'Continue with Google'}</button>
+          <button type="button" disabled={googleBusy||!canContinue} onClick={continueWithGoogle} className="btn w-full disabled:opacity-40 disabled:cursor-not-allowed">{googleBusy ? 'Connecting to Google...' : 'Continue with Google'}</button>
         </div>
         <p className="text-sm muted mt-6 text-center">Already have an account? <Link className="font-bold" href="/login">Sign In</Link></p>
       </form>
