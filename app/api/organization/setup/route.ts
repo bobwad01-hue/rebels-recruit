@@ -65,6 +65,7 @@ export async function GET() {
     if (error) throw new Error(error.message);
     const staffIds = [...new Set((organizations || []).flatMap((o:any)=>(o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>m.user_id)))];
     const {data:staffProfiles}=staffIds.length?await admin.from("profiles").select("id,full_name,email").in("id",staffIds):{data:[] as any[]};
+    const {data:staffInvites}=ids.length?await admin.from("organization_staff_invites").select("id,organization_id,email,role,organization_view_access,status,invited_at").in("organization_id",ids).eq("status","pending"):{data:[] as any[]};
     const staffById=new Map((staffProfiles||[]).map((p:any)=>[String(p.id),p]));
     return NextResponse.json({
       canCreate: !!platformOwner,
@@ -74,6 +75,7 @@ export async function GET() {
           String(a.name).localeCompare(String(b.name)),
         ),
         staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null})),
+        staffInvites:(staffInvites||[]).filter((i:any)=>i.organization_id===o.id),
       })),
     });
   } catch (error) {
@@ -160,6 +162,40 @@ export async function POST(req: NextRequest) {
         { error: "Admin access is required for this organization." },
         { status: 403 },
       );
+    if (action === "inviteStaff") {
+      const email=String(body.email||"").trim().toLowerCase(), role=String(body.role||"advisor");
+      if(!email||!["admin","advisor"].includes(role)) return NextResponse.json({error:"A valid staff email and role are required."},{status:400});
+      const {data:existingProfile}=await admin.from("profiles").select("id,email").ilike("email",email).maybeSingle();
+      if(existingProfile){
+        const {data:existingMember}=await admin.from("organization_members").select("id").eq("organization_id",organizationId).eq("user_id",existingProfile.id).maybeSingle();
+        if(existingMember) return NextResponse.json({error:"That person already has access to this organization."},{status:400});
+      }
+      await admin.from("organization_staff_invites").update({status:"cancelled"}).eq("organization_id",organizationId).eq("email",email).eq("status","pending");
+      const {error}=await admin.from("organization_staff_invites").insert({organization_id:organizationId,email,role,organization_view_access:role==="admin"?true:Boolean(body.organizationViewAccess),invited_by:user.id});
+      if(error) throw new Error(error.message);
+      return NextResponse.json({ok:true});
+    }
+    if (action === "cancelStaffInvite") {
+      const {error}=await admin.from("organization_staff_invites").update({status:"cancelled"}).eq("id",String(body.inviteId||"")).eq("organization_id",organizationId).eq("status","pending");
+      if(error) throw new Error(error.message);return NextResponse.json({ok:true});
+    }
+    if (action === "updateStaff") {
+      const target=String(body.userId||""), role=String(body.role||"advisor");
+      if(!target||!["admin","advisor"].includes(role)) return NextResponse.json({error:"Staff member and role are required."},{status:400});
+      const {data:current}=await admin.from("organization_members").select("role,status").eq("organization_id",organizationId).eq("user_id",target).maybeSingle();
+      if(!current) return NextResponse.json({error:"Staff access was not found."},{status:404});
+      if(current.role==="admin"&&role!=="admin"){const {count}=await admin.from("organization_members").select("*",{count:"exact",head:true}).eq("organization_id",organizationId).eq("role","admin").eq("status","active");if((count||0)<=1)return NextResponse.json({error:"Add another Admin before changing the organization's last Admin."},{status:400});}
+      const {error}=await admin.from("organization_members").update({role,organization_view_access:role==="admin"?true:Boolean(body.organizationViewAccess),organization_view_granted_by:role==="admin"||body.organizationViewAccess?user.id:null,organization_view_granted_at:role==="admin"||body.organizationViewAccess?new Date().toISOString():null}).eq("organization_id",organizationId).eq("user_id",target);
+      if(error) throw new Error(error.message);
+      await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+      return NextResponse.json({ok:true});
+    }
+    if (action === "removeStaff") {
+      const target=String(body.userId||"");const {data:current}=await admin.from("organization_members").select("role").eq("organization_id",organizationId).eq("user_id",target).maybeSingle();
+      if(current?.role==="admin"){const {count}=await admin.from("organization_members").select("*",{count:"exact",head:true}).eq("organization_id",organizationId).eq("role","admin").eq("status","active");if((count||0)<=1)return NextResponse.json({error:"You cannot remove the organization's last Admin."},{status:400});}
+      const {error}=await admin.from("organization_members").update({status:"revoked",suspended_at:new Date().toISOString(),suspended_by:user.id}).eq("organization_id",organizationId).eq("user_id",target);
+      if(error) throw new Error(error.message);return NextResponse.json({ok:true});
+    }
     if (action === "update") {
       const name = String(body.name || "").trim(),
         branchName = String(body.branchName || "").trim() || null,
