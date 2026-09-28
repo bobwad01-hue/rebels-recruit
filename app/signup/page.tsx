@@ -8,17 +8,21 @@ import { PrimaryBrand } from '@/components/BrandLogo';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?window.location.origin:'https://rltnl.com');
 
 export default function Signup() {
+  const invite=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;
+  const staffInvite=invite?.get('staff_invite')==='1';
+  const invitedEmail=staffInvite?(invite?.get('email')||''):'';
+  const invitedRole=staffInvite?(invite?.get('role')||'advisor'):'';
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('athlete');
+  const [role, setRole] = useState(staffInvite?'advisor':'athlete');
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
-  const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">("independent");
+  const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
   const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed);
 
   function validate(){if(role==='athlete'&&!ageConfirmed){setError('Athlete accounts are available only to players age 13 or older.');return false}if(!legalAccepted){setError('Please agree to the Terms of Service and Privacy Policy to create an account.');return false}return true}
@@ -57,12 +61,12 @@ export default function Signup() {
     <div className="min-h-screen grid place-items-center p-6 bg-slate-50">
       <form onSubmit={submit} className="card p-8 w-full max-w-md bg-white">
         <Brand/>
-        <h1 className="text-2xl font-black mt-8">Create your account</h1>
+        <h1 className="text-2xl font-black mt-8">{staffInvite?"Activate your RLTNL access":"Create your account"}</h1>{staffInvite&&<p className="muted mt-2">You've been invited as {invitedRole==="admin"?"an Admin":"an Advisor"}. Create or sign in with the invited email address below.</p>}
         <div className="space-y-4 mt-6">
           <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} required />
-          <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-          <label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} onChange={e => {setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select></label>{role==='advisor'&&<div className="rounded-xl border p-3"><div className="text-sm font-bold">Advisor account type</div><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="independent"} onChange={()=>{setAdvisorPath("independent");setOrgIntent(false)}}/> Independent Advisor / consultant</label><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="organization"} onChange={()=>setAdvisorPath("organization")}/> I work with an organization/team</label><p className="text-xs text-slate-500 mt-2">{advisorPath==="independent"?"Independent Advisor accounts require RLTNL approval before live recruiting tools are activated.":"If an organization invited you, use the same email address as the invitation. Organization access comes from that organization."}</p>{advisorPath==="organization"&&<label className="flex items-start gap-2 mt-3 text-sm"><input type="checkbox" className="mt-1" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span>I need to request a new organization. <span className="block text-xs text-slate-500">New organizations require RLTNL approval. Creating an account does not automatically give you Admin access.</span></span></label>}</div>}
-          <p className="text-xs text-slate-500 -mt-2">You do not need to belong to an organization. You can connect with an organization or other people later.</p><input className="input" type="password" placeholder="Password (8+ characters)" minLength={8} value={password} onChange={e => setPassword(e.target.value)} required />
+          <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} readOnly={staffInvite} required />
+          {!staffInvite&&<label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} onChange={e => {setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select></label>{role==='advisor'&&<div className="rounded-xl border p-3"><div className="text-sm font-bold">Advisor account type</div><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="independent"} onChange={()=>{setAdvisorPath("independent");setOrgIntent(false)}}/> Independent Advisor / consultant</label><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="organization"} onChange={()=>setAdvisorPath("organization")}/> I work with an organization/team</label><p className="text-xs text-slate-500 mt-2">{advisorPath==="independent"?"Independent Advisor accounts require RLTNL approval before live recruiting tools are activated.":"If an organization invited you, use the same email address as the invitation. Organization access comes from that organization."}</p>{advisorPath==="organization"&&<label className="flex items-start gap-2 mt-3 text-sm"><input type="checkbox" className="mt-1" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span>I need to request a new organization. <span className="block text-xs text-slate-500">New organizations require RLTNL approval. Creating an account does not automatically give you Admin access.</span></span></label>}</div>}</label>}
+          {!staffInvite&&<p className="text-xs text-slate-500 -mt-2">You do not need to belong to an organization. You can connect with an organization or other people later.</p>}<input className="input" type="password" placeholder="Password (8+ characters)" minLength={8} value={password} onChange={e => setPassword(e.target.value)} required />
           {role==='athlete'&&<label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)}/><span className="text-sm leading-5">I confirm that I am age 13 or older.</span></label>}
           <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
           {error && <p className="text-sm text-red-600">{error}</p>}
