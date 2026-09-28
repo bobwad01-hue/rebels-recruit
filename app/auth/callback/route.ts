@@ -82,6 +82,31 @@ export async function GET(request: Request) {
     }else return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
   }
 
+  // Materialize any verified organization staff invitation for this email.
+  // Access is granted only after Supabase has authenticated the exact invited email.
+  if(user.email){
+    const admin=createAdminClient();
+    const email=user.email.trim().toLowerCase();
+    const{data:invites}=await admin.from('organization_staff_invites').select('id,organization_id,role,organization_view_access').ilike('email',email).eq('status','pending');
+    for(const invite of invites||[]){
+      const role=invite.role==='admin'?'admin':'advisor';
+      const{error:memberError}=await admin.from('organization_members').upsert({
+        organization_id:invite.organization_id,user_id:user.id,role,status:'active',joined_at:new Date().toISOString(),
+        organization_view_access:role==='admin'?true:Boolean(invite.organization_view_access),
+        organization_view_granted_by:role==='admin'||invite.organization_view_access?user.id:null,
+        organization_view_granted_at:role==='admin'||invite.organization_view_access?new Date().toISOString():null
+      },{onConflict:'organization_id,user_id'});
+      if(!memberError){
+        await admin.from('user_roles').upsert({user_id:user.id,role},{onConflict:'user_id,role'});
+        await admin.from('organization_staff_invites').update({status:'accepted'}).eq('id',invite.id);
+        if(!profile?.profile_completed_at&&profile?.app_role!=='advisor'){
+          await admin.from('profiles').update({app_role:'advisor',advisor_account_type:'organization',commercial_status:'not_required'}).eq('id',user.id);
+          profile={app_role:'advisor',profile_completed_at:profile?.profile_completed_at??null};
+        }
+      }
+    }
+  }
+
   const {data:platformRole}=await supabase.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
   if(platformRole?.role==='super_owner'&&profile?.profile_completed_at)return NextResponse.redirect(new URL('/platform-admin',requestUrl.origin))
 
