@@ -14,5 +14,5 @@ export async function POST(req:NextRequest){
  await admin.from("organization_user_roles").upsert({organization_id:link.organization_id,user_id:user.id,role:link.role,status:"active",granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
  if(link.team_id)await admin.from("team_user_roles").upsert({team_id:link.team_id,user_id:user.id,role:link.role,status:"active",granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});
  await admin.from("user_roles").upsert({user_id:user.id,role:link.role},{onConflict:"user_id,role"});
- return NextResponse.json({ok:true,pending:false,role:link.role});
+ return NextResponse.json({ok:true,pending:false,role:link.role,teamId:link.team_id,organizationId:link.organization_id,next:link.role==="parent"&&link.team_id?`/parent/connect?team=${encodeURIComponent(link.team_id)}`:null});
 }
