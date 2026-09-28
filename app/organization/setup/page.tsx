@@ -196,8 +196,8 @@ export default function OrganizationSetup() {
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
         <PageHeader
           eyebrow={canCreate?"PLATFORM SETUP":"ADMIN SETTINGS"}
-          title="Organization Setup"
-          subtitle="Manage organizations, branches, player join codes and teams."
+          title="Organization Management"
+          subtitle="Manage organization details, teams, player access and staff access."
           action={
             <Link href="/organization" className="btn">
               <ArrowLeft size={16} />
@@ -220,7 +220,7 @@ export default function OrganizationSetup() {
         )}
         {loading ? (
           <div className="card p-8 text-center muted">
-            Loading organization setup...
+            Loading organization management...
           </div>
         ) : !organizations.length && !creating ? (
           <div className="card p-6">
