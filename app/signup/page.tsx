@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase-browser';
 import { PrimaryBrand } from '@/components/BrandLogo';
@@ -9,11 +9,14 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?
 
 export default function Signup() {
   const invite=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;
-  const staffInvite=invite?.get('staff_invite')==='1';
-  const invitedEmail=staffInvite?(invite?.get('email')||''):'';
-  const invitedRole=staffInvite?(invite?.get('role')||'advisor'):'';
+  const staffToken=invite?.get('staff_token')||'';
+  const staffInvite=Boolean(staffToken);
+  const [invitedEmail,setInvitedEmail]=useState('');
+  const [invitedRole,setInvitedRole]=useState('advisor');
+  const [inviteOrg,setInviteOrg]=useState('');
+  const [inviteLoading,setInviteLoading]=useState(staffInvite);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(invitedEmail);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState(staffInvite?'advisor':'athlete');
   const [legalAccepted, setLegalAccepted] = useState(false);
@@ -23,7 +26,9 @@ export default function Signup() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
   const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
-  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed);
+  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)));
+
+  useEffect(()=>{if(!staffToken)return;let live=true;(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
 
   function validate(){if(role==='athlete'&&!ageConfirmed){setError('Athlete accounts are available only to players age 13 or older.');return false}if(!legalAccepted){setError('Please agree to the Terms of Service and Privacy Policy to create an account.');return false}return true}
   async function submit(e: React.FormEvent) {
@@ -46,7 +51,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}&advisor_account_type=${role==='advisor'?advisorPath:''}`,
+        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}&advisor_account_type=${role==='advisor'?advisorPath:''}&staff_token=${encodeURIComponent(staffToken)}`,
         queryParams: { prompt: 'select_account' },
       },
     });
@@ -61,7 +66,7 @@ export default function Signup() {
     <div className="min-h-screen grid place-items-center p-6 bg-slate-50">
       <form onSubmit={submit} className="card p-8 w-full max-w-md bg-white">
         <Brand/>
-        <h1 className="text-2xl font-black mt-8">{staffInvite?"Activate your RLTNL access":"Create your account"}</h1>{staffInvite&&<p className="muted mt-2">You've been invited as {invitedRole==="admin"?"an Admin":"an Advisor"}. Create or sign in with the invited email address below.</p>}
+        <h1 className="text-2xl font-black mt-8">{staffInvite?"Activate your RLTNL access":"Create your account"}</h1>{staffInvite&&<p className="muted mt-2">{inviteLoading?"Loading your invitation…":<>You've been invited{inviteOrg?<> to <strong>{inviteOrg}</strong></>:null} as {invitedRole==="admin"?"an Admin":"an Advisor"}. Create or sign in with the invited email address below.</>}</p>}
         <div className="space-y-4 mt-6">
           <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} required />
           <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} readOnly={staffInvite} required />
