@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
+import OrganizationAccessLinks from "@/components/OrganizationAccessLinks";
 
 type Team = {
   id: string;
@@ -479,6 +480,7 @@ export default function OrganizationSetup() {
                     </details>
                   )}
                 </section>
+                <OrganizationAccessLinks organizationId={selected} teams={org.teams} readOnly={previewReadOnly} />
                 <section className="card p-5 sm:p-6 mt-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="font-black text-lg">Staff Access</h2><p className="muted text-sm mt-1">Invite Admins and Advisors, then manage their organization access here.</p></div>
