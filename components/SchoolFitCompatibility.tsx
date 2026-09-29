@@ -1,0 +1,18 @@
+'use client';
+import {useEffect,useMemo,useState} from 'react';
+import Link from 'next/link';
+import {Check,X} from 'lucide-react';
+import {createClient} from '@/lib/supabase-browser';
+
+const norm=(v:any)=>String(v||'').toLowerCase();
+function division(v:any){const d=norm(v).replace(/[^a-z0-9]/g,'');if(d.includes('d1')||d.includes('division1'))return'D1';if(d.includes('d2')||d.includes('division2'))return'D2';if(d.includes('d3')||d.includes('division3'))return'D3';if(d.includes('naia'))return'NAIA';if(d==='jc'||d.includes('juco')||d.includes('njcaa')||d.includes('junior'))return'JUCO';return String(v||'Other')}
+function divFit(v:any,a:string[]=[]){if(!a.length||a.includes('No preference'))return false;const d=division(v);return a.some(x=>(x==='NCAA DI'&&d==='D1')||(x==='NCAA DII'&&d==='D2')||(x==='NCAA DIII'&&d==='D3')||x===d)}
+
+export default function SchoolFitCompatibility({athleteId,school}:{athleteId:string;school:any}){
+ const c=createClient();const[fit,setFit]=useState<any>(null),[drive,setDrive]=useState<any>(null),[loaded,setLoaded]=useState(false);
+ useEffect(()=>{let stop=false;(async()=>{const{data}=await c.from('college_fit_profiles').select('divisions,school_types,max_drive_minutes').eq('user_id',athleteId).maybeSingle();if(stop)return;setFit(data||null);const location=[school?.city,school?.state].filter(Boolean).join(', ');if(location&&data?.max_drive_minutes){try{const r=await fetch('/api/maps/driving-times',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({locations:[location]})});const j=r.ok?await r.json():{};if(!stop)setDrive(j.times?.[location]||null)}catch{}}if(!stop)setLoaded(true)})();return()=>{stop=true}},[athleteId,school?.city,school?.state]);
+ const result=useMemo(()=>{if(!fit)return null;const checks:{label:string;match:boolean}[]=[];const levels=(fit.divisions||[]).filter((x:string)=>x!=='No preference');if(levels.length)checks.push({label:`${division(school?.division)} competitive level`,match:divFit(school?.division,fit.divisions||[])});const types=(fit.school_types||[]).filter((x:string)=>x!=='No preference');if(types.length&&school?.school_type)checks.push({label:`${school.school_type} school type`,match:types.some((x:string)=>norm(school.school_type).includes(norm(x)))});if(fit.max_drive_minutes&&drive)checks.push({label:`Within your selected distance from home`,match:drive.minutes<=fit.max_drive_minutes});if(!checks.length)return null;return{percent:Math.round(checks.filter(x=>x.match).length/checks.length*100),checks}},[fit,drive,school]);
+ if(!loaded)return <div className="mt-4 text-sm muted">Calculating match…</div>;
+ if(!result)return <><div className="mt-4 text-2xl font-black">Not enough data yet</div><p className="muted text-sm mt-1">Add Fit Profile preferences to calculate how well this school matches what matters to you.</p><Link href="/fit-profile" className="text-sm font-black text-red-700 inline-block mt-4">Edit Fit Profile →</Link></>;
+ return <><div className="mt-4 text-3xl font-black">{result.percent}% Match</div><p className="muted text-sm mt-1">Based on the Fit Profile preferences RLTNL can compare with this school.</p><div className="mt-4 space-y-2">{result.checks.map(x=><div key={x.label} className="text-xs font-bold flex items-center gap-2">{x.match?<Check size={14} className="text-emerald-700"/>:<X size={14} className="text-slate-400"/>}{x.label}</div>)}</div><Link href="/fit-profile" className="text-xs font-black text-red-700 inline-block mt-4">Edit Fit Profile →</Link></>
+}
