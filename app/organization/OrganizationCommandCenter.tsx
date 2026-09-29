@@ -1115,7 +1115,7 @@ export default function OrganizationCommandCenter() {
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                 />
                 <input
-                  className="input pl-9"
+                  className="input !pl-10"
                   placeholder="Name or email"
                   value={accountQ}
                   onChange={(event) => setAccountQ(event.target.value)}
