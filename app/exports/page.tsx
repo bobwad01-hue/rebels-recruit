@@ -306,9 +306,7 @@ export default function Exports() {
         ...new Set(
           me.preview && me.role === "advisor" && me.previewAthleteId
             ? [String(me.previewAthleteId)]
-            : me.role === "owner" ||
-                me.role === "admin" ||
-                me.organization_view_access
+            : me.role === "owner" || me.role === "admin"
               ? all
               : (assign || []).map((a: any) => String(a.athlete_user_id)),
         ),
