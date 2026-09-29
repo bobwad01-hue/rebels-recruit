@@ -44,6 +44,7 @@ type Props = {
   autoOpenEmail?: boolean;
   contextualReply?: {interactionId:string;kind:string;choice?:string};
   onEmailSent?: (detail?: any) => void | Promise<void>;
+  staffMode?: boolean;
 };
 export default function CoachActionBar({
   coachId,
@@ -61,16 +62,18 @@ export default function CoachActionBar({
   autoOpenEmail = false,
   contextualReply,
   onEmailSent,
+  staffMode = false,
 }: Props) {
   const c = createClient(),
     params = useSearchParams(),
     opened = useRef(false),
     draftReady = useRef(false),
-    draftKey = `rr-email-draft:${athleteUserId || "self"}:${coachId}`,
+    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}`,
     requested = params.get("emailStarter") as EmailStarterId | null,
     requestedValid = EMAIL_STARTERS.some((s) => s.id === requested),
-    effectiveStarter =
-      requestedValid && requested ? requested : initialEmailStarter,
+    effectiveStarter = staffMode
+      ? "custom"
+      : requestedValid && requested ? requested : initialEmailStarter,
     shouldAutoOpen = autoOpenEmail || !!requestedValid || !!contextualReply;
   const [emailOpen, setEmailOpen] = useState(false),
     [subject, setSubject] = useState(""),
@@ -380,6 +383,7 @@ export default function CoachActionBar({
           emailPurpose: starter,
           attachments,
           recruitingInteractionId: contextualReply?.interactionId || null,
+          staffMode,
         }),
       });
       let d: any = {};
@@ -453,6 +457,11 @@ export default function CoachActionBar({
         : "Reminder created.",
     );
   }
+  function logInitiated(channel: "Text" | "Phone") {
+    const payload = JSON.stringify({coachId,collegeId,athleteUserId:athleteUserId||null,staffMode,channel});
+    try { if (navigator.sendBeacon) { navigator.sendBeacon('/api/communication/initiate', new Blob([payload], {type:'application/json'})); return; } } catch {}
+    void fetch('/api/communication/initiate',{method:'POST',headers:{'Content-Type':'application/json'},body:payload,keepalive:true});
+  }
   const base = compact ? "btn py-1.5 px-2.5 text-xs" : "btn",
     primary = `${base} btn-red`,
     reminderSecondary = `${base} bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-100`,
@@ -480,12 +489,14 @@ export default function CoachActionBar({
         <a
           className={`${cls("text", !phone)} ${phone ? "" : "pointer-events-none"}`}
           href={phone ? `sms:${phone}` : undefined}
+          onClick={() => phone && logInitiated("Text")}
         >
           <MessageCircle size={compact ? 13 : 15} /> Text
         </a>
         <a
           className={`${cls("call", !phone)} ${phone ? "" : "pointer-events-none"}`}
           href={phone ? `tel:${phone}` : undefined}
+          onClick={() => phone && logInitiated("Phone")}
         >
           <Phone size={compact ? 13 : 15} /> Call
         </a>
@@ -604,7 +615,7 @@ export default function CoachActionBar({
                         What are you emailing about?
                       </label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {EMAIL_STARTERS.map((s) => (
+                        {(staffMode ? EMAIL_STARTERS.filter((s) => s.id === "custom") : EMAIL_STARTERS).map((s) => (
                           <button
                             key={s.id}
                             onClick={() => buildStarter(s.id)}
