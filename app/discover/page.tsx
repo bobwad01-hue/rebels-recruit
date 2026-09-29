@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import OrganizationRatingBadge from '@/components/OrganizationRatingBadge';
 import {useEffect,useMemo,useState} from 'react';
 import {Check,CheckCircle2,Compass,Grid2X2,List,MapPin,Plus,Search,Sparkles,ThumbsUp,X} from 'lucide-react';
 import AppShell from '@/components/AppShell';import PageHeader from '@/components/PageHeader';import {CollegeLogo} from '@/components/RebelsRecruitUI';import {createClient} from '@/lib/supabase-browser';
