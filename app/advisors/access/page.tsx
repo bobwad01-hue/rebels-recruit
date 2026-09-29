@@ -260,7 +260,7 @@ export default function AdvisorAccessPage() {
                     className="absolute left-3 top-1/2 -translate-y-1/2 muted"
                   />
                   <input
-                    className="input pl-9"
+                    className="input !pl-10"
                     placeholder="Search players"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
