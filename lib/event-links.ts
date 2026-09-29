@@ -2,7 +2,7 @@ const DOMAIN_RE=/(?<!@)(?:https?:\/\/|www\.)[^\s<>"']+|(?<!@)\b(?:bit\.ly|tinyur
 
 function trimPunctuation(value:string){return value.replace(/[),.;!?]+$/,'')}
 
-export function normalizeEventUrl(value?:string|null){const raw=trimPunctuation(String(value||'').trim());if(!raw)return null;return /^https?:\/\//i.test(raw)?raw:`https://${raw.replace(/^\/\//,'')}`}
+export function normalizeEventUrl(value?:string|null){const raw=trimPunctuation(String(value||'').trim());if(!raw)return null;const normalized=/^https?:\/\//i.test(raw)?raw:`https://${raw.replace(/^\/\//,'')}`;try{const url=new URL(normalized);const host=url.hostname.toLowerCase().replace(/^www\./,'');if(host==='google.com'||host.endsWith('.google.com')){const target=url.searchParams.get('q')||url.searchParams.get('url');if(target){const decoded=decodeURIComponent(target);if(/^https?:\/\//i.test(decoded))return decoded}}}catch{}return normalized}
 
 export function extractEventUrl(...values:(string|null|undefined)[]){for(const value of values){if(!value)continue;DOMAIN_RE.lastIndex=0;const match=DOMAIN_RE.exec(String(value));if(match?.[0])return normalizeEventUrl(match[0])}return null}
 
