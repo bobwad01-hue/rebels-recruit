@@ -25,8 +25,9 @@ export async function POST(req:NextRequest){
   const {data:{user}}=await c.auth.getUser();
   if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
 
-  let {data:athlete}=await c.from('athlete_profiles').select('home_zip').eq('user_id',user.id).maybeSingle();
-  const origin=String(athlete?.home_zip||'').trim()?`${String(athlete.home_zip).trim()}, USA`:FALLBACK_ORIGIN;
+  const {data:athlete}=await c.from('athlete_profiles').select('home_zip').eq('user_id',user.id).maybeSingle();
+  const homeZip=String(athlete?.home_zip||'').trim();
+  const origin=homeZip?`${homeZip}, USA`:FALLBACK_ORIGIN;
   const apiKey=process.env.GOOGLE_MAPS_API_KEY;
   if(!apiKey)return NextResponse.json({configured:false,origin,times:{},error:'Driving-time estimates are not configured yet.'});
 
