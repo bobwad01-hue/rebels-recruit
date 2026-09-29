@@ -185,6 +185,24 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ok:true});
     }
+    if (action === "setStaffRoles") {
+      const target=String(body.userId||""), wantsAdmin=Boolean(body.admin), wantsAdvisor=Boolean(body.advisor);
+      if(!target||(!wantsAdmin&&!wantsAdvisor))return NextResponse.json({error:"Choose Advisor, Admin, or Advisor + Admin."},{status:400});
+      for(const role of ["admin","advisor"]){
+        const enabled=role==="admin"?wantsAdmin:wantsAdvisor;
+        if(enabled){
+          const {error:roleError}=await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});if(roleError)throw new Error(roleError.message);
+          const {error:globalError}=await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});if(globalError)throw new Error(globalError.message);
+        }else{
+          const {error:revokeError}=await admin.from("organization_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("organization_id",organizationId).eq("user_id",target).eq("role",role);if(revokeError)throw new Error(revokeError.message);
+        }
+      }
+      const legacyRole=wantsAdmin?"admin":"advisor";
+      const {data:legacy}=await admin.from("organization_members").select("id").eq("organization_id",organizationId).eq("user_id",target).maybeSingle();
+      if(legacy){const {error:e}=await admin.from("organization_members").update({role:legacyRole,status:"active",organization_view_access:wantsAdmin}).eq("id",legacy.id);if(e)throw new Error(e.message)}
+      else{const {error:e}=await admin.from("organization_members").insert({organization_id:organizationId,user_id:target,role:legacyRole,status:"active",organization_view_access:wantsAdmin,joined_at:new Date().toISOString()});if(e)throw new Error(e.message)}
+      return NextResponse.json({ok:true});
+    }
     if (action === "inviteStaff") {
       const email=String(body.email||"").trim().toLowerCase(), role=String(body.role||"advisor");
       if(!email||!["admin","advisor"].includes(role)) return NextResponse.json({error:"A valid staff email and role are required."},{status:400});
