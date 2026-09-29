@@ -33,8 +33,8 @@ export async function POST(req:NextRequest){
 
   let body:any;
   try{body=await req.json()}catch{return NextResponse.json({error:'Invalid request.'},{status:400})}
-  const raw=Array.isArray(body?.locations)?body.locations:[];
-  const locations=[...new Set(raw.map((v:any)=>String(v||'').trim()).filter(Boolean))].slice(0,500);
+  const raw:any[]=Array.isArray(body?.locations)?body.locations:[];
+  const locations:string[]=[...new Set<string>(raw.map((v:any)=>String(v||'').trim()).filter((v:string)=>Boolean(v)))].slice(0,500);
   if(!locations.length)return NextResponse.json({configured:true,origin,times:{}});
 
   const times:Record<string,{minutes:number;distanceMiles:number}>= {};
