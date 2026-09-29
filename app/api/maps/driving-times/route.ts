@@ -1,4 +1,3 @@
-import {createHash} from 'crypto';
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 
@@ -9,7 +8,7 @@ const CACHE_MAX_AGE_DAYS=180;
 type Drive={minutes:number;distanceMiles:number};
 type MatrixElement={destinationIndex?:number;distanceMeters?:number;duration?:string;condition?:string;status?:{code?:number;message?:string}};
 function parseSeconds(duration?:string){if(!duration)return null;const m=duration.match(/^([0-9]+(?:\.[0-9]+)?)s$/);if(!m)return null;const n=Number(m[1]);return Number.isFinite(n)?n:null}
-function originKey(zip:string){return createHash('sha256').update(`us-zip:\${zip.trim().toLowerCase()}`).digest('hex')}
+function originKey(zip:string){return `us-zip:${zip.trim().toLowerCase()}`;}
 function freshEnough(value?:string|null){if(!value)return false;const age=Date.now()-new Date(value).getTime();return Number.isFinite(age)&&age<=CACHE_MAX_AGE_DAYS*24*60*60*1000}
 
 export async function POST(req:NextRequest){
