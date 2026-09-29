@@ -453,7 +453,7 @@ export default function EventPrep() {
                 <p className="text-sm text-slate-700 mt-1 max-w-3xl">
                   {allTrackedCoachesContacted
                     ? "You have already contacted the coaches you are tracking for this event. No duplicate outreach is needed."
-                    : "Contact the coaches you still need to notify before the event. Rebels Recruit will not ask you to re-email a coach when your outreach is already recorded."}
+                    : "Contact the coaches you still need to notify before the event. RLTNL Recruiting will not ask you to re-email a coach when your outreach is already recorded."}
                 </p>
               </div>
             </div>
@@ -511,13 +511,13 @@ export default function EventPrep() {
             ) : directoryCoaches.length > 0 ? (
               <div className="rounded-xl border bg-white p-4 mt-4">
                 <div className="font-black">We found coaches for {school?.name || "this school"}</div>
-                <p className="muted text-sm mt-1">They are in the shared Rebels Recruit directory but not in your Connections yet. Choose who you want to contact.</p>
+                <p className="muted text-sm mt-1">They are in the shared RLTNL Recruiting directory but not in your Connections yet. Choose who you want to contact.</p>
                 <div className="mt-3 space-y-2">{directoryCoaches.map((x:any)=><div key={x.id} className="border rounded-xl p-3 flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1"><div className="font-black">{[x.first_name,x.last_name].filter(Boolean).join(" ")}</div><div className="muted text-xs">{x.title || "Coach"}{x.email?` · ${x.email}`:""}</div>{x.source_note&&<div className="text-[11px] text-green-700 font-bold mt-1">Verified from official athletics source</div>}</div><button className="btn btn-red self-start" disabled={saving} onClick={()=>trackCoach(x)}>Add to My Connections →</button></div>)}</div>
               </div>
             ) : (
               <div className="rounded-xl border bg-white p-4 mt-4">
                 <div className="font-black">We don't have this school's softball coaches yet.</div>
-                <p className="muted text-sm mt-1">Use the school's official athletics site as the source of truth, then add the coach you want to contact. Rebels Recruit will keep that coach in the shared directory for the next athlete too.</p>
+                <p className="muted text-sm mt-1">Use the school's official athletics site as the source of truth, then add the coach you want to contact. RLTNL Recruiting will keep that coach in the shared directory for the next athlete too.</p>
                 <div className="flex flex-wrap gap-2 mt-3">
                   <a href={`https://www.google.com/search?q=${encodeURIComponent((school?.name || "") + " softball coaching staff official athletics")}`} target="_blank" rel="noreferrer" className="btn">Find Official Coaching Staff →</a>
                   {school?.id&&<Link href={`/coaches/new?college=${school.id}&returnTo=${encodeURIComponent(`/events/${id}/prep#email-coaches`)}`} className="btn btn-red">+ Add Coach</Link>}
@@ -591,7 +591,7 @@ export default function EventPrep() {
           </h2>
           <p className="muted text-sm mt-1">
             Your first saved debrief adds an dated Journey entry. If follow-up
-            is needed, Rebels Recruit creates a Next Step for the next day
+            is needed, RLTNL Recruiting creates a Next Step for the next day
             instead of leaving the event as a dead-end calendar item.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 mt-5">
@@ -679,7 +679,7 @@ export default function EventPrep() {
           </h2>
           <p className="muted text-sm mt-1">
             Your first saved debrief adds an dated Journey entry. If follow-up
-            is needed, Rebels Recruit creates a Next Step for the next day
+            is needed, RLTNL Recruiting creates a Next Step for the next day
             instead of leaving the event as a dead-end calendar item.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 mt-5">
@@ -763,7 +763,7 @@ export default function EventPrep() {
           <h2 className="font-black text-xl">{followupReminder?.status==="completed"?"Follow-Up Complete":"Close the loop"}</h2>
           <p className="text-sm mt-2">{debrief?.follow_up_notes ? <><b>Next step:</b> {debrief.follow_up_notes}</> : "Review your debrief and decide what follow-up is needed."}</p>
           {debrief?.follow_up_needed && followupReminder?.status!=="completed" && <>
-            {coaches.length>0 && <div className="mt-4"><div className="text-sm font-black mb-2">Do the follow-up</div><div className="grid gap-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches);const name=[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach";return <div key={x?.id||i} className="border rounded-xl p-3"><div className="font-black text-sm mb-2">{name}</div><CoachActionBar coachId={x.id} collegeId={event.college_id} coachName={name} collegeName={school?.name} email={x.email} phone={x.phone} compact primaryAction="email" hideReminder initialEmailStarter={event?.type?.toLowerCase?.().includes("visit")?"visit_followup":"post_camp"} onEmailSent={completeFollowUpAfterEmail}/></div>})}</div><p className="muted text-xs mt-2">Send the follow-up here. Once the email is sent successfully, Rebels Recruit logs it in your Journey and completes this step automatically.</p></div>}
+            {coaches.length>0 && <div className="mt-4"><div className="text-sm font-black mb-2">Do the follow-up</div><div className="grid gap-2">{coaches.map((r:any,i)=>{const x=one(r.college_coaches);const name=[x?.first_name,x?.last_name].filter(Boolean).join(" ")||"Coach";return <div key={x?.id||i} className="border rounded-xl p-3"><div className="font-black text-sm mb-2">{name}</div><CoachActionBar coachId={x.id} collegeId={event.college_id} coachName={name} collegeName={school?.name} email={x.email} phone={x.phone} compact primaryAction="email" hideReminder initialEmailStarter={event?.type?.toLowerCase?.().includes("visit")?"visit_followup":"post_camp"} onEmailSent={completeFollowUpAfterEmail}/></div>})}</div><p className="muted text-xs mt-2">Send the follow-up here. Once the email is sent successfully, RLTNL Recruiting logs it in your Journey and completes this step automatically.</p></div>}
             <button className="btn btn-red mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"completed",completed_at:new Date().toISOString()}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be completed. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"completed",completed_at:new Date().toISOString()}:r));setSaveMessage("Follow-Up Completed.");setSaved(true);setSaving(false)}} disabled={saving}><CheckCircle2 size={17}/>Mark Follow-Up Complete</button>
           </>}
           {debrief?.follow_up_needed && followupReminder?.status==="completed" && <button className="btn mt-4" onClick={async()=>{if(!followupReminder?.id)return;setSaving(true);setSaveMessage("");const {error}=await c.from("reminders").update({status:"open",completed_at:null}).eq("id",followupReminder.id);if(error){setSaveMessage("Follow-Up could not be reopened. Please try again.");setSaving(false);return;}setEventReminders(v=>v.map((r:any)=>r.id===followupReminder.id?{...r,status:"open",completed_at:null}:r));setSaveMessage("Follow-Up reopened.");setSaved(true);setSaving(false)}} disabled={saving}>Reopen Follow-Up</button>}

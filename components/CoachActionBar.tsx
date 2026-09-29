@@ -344,7 +344,7 @@ export default function CoachActionBar({
     if (!connected) {
       setEmailStatus("error");
       setMessage(
-        "Connect Gmail before sending. Signing in with Google does not automatically give Rebels Recruit permission to send email.",
+        "Connect Gmail before sending. Signing in with Google does not automatically give RLTNL Recruiting permission to send email.",
       );
       return;
     }
@@ -755,7 +755,7 @@ export default function CoachActionBar({
                             <div className="font-black">Email was not sent</div>
                             <div className="mt-1">
                               {message ||
-                                "Connect Gmail before sending from Rebels Recruit."}
+                                "Connect Gmail before sending from RLTNL Recruiting."}
                             </div>
                           </div>
                         </div>

@@ -202,14 +202,14 @@ export default function Profile() {
   return (
     <AppShell>
       <PageFrame size="5xl">
-        <PageHeader title={isOnboarding ? "Set Up Your Profile" : "Profile"} subtitle={isOnboarding ? "Complete your athlete profile so Rebels Recruit can personalize your experience." : "Keep your athlete, softball, academic and recruiting-contact information current in one place."} />
-        {!isOnboarding && <Link href="/fit-profile" className="rr-priority-card rr-interactive-card mb-5 p-4 flex items-center gap-3"><Sparkles size={21} className="text-red-600" /><div className="flex-1"><div className="rr-eyebrow">SCHOOL DISCOVERY</div><div className="font-black">School Preferences</div><div className="muted text-xs mt-0.5">Tell Rebels Recruit what matters to you so Find Schools and School Fit can work better.</div></div><ChevronRight size={18} /></Link>}
+        <PageHeader title={isOnboarding ? "Set Up Your Profile" : "Profile"} subtitle={isOnboarding ? "Complete your athlete profile so RLTNL Recruiting can personalize your experience." : "Keep your athlete, softball, academic and recruiting-contact information current in one place."} />
+        {!isOnboarding && <Link href="/fit-profile" className="rr-priority-card rr-interactive-card mb-5 p-4 flex items-center gap-3"><Sparkles size={21} className="text-red-600" /><div className="flex-1"><div className="rr-eyebrow">SCHOOL DISCOVERY</div><div className="font-black">School Preferences</div><div className="muted text-xs mt-0.5">Tell RLTNL Recruiting what matters to you so Find Schools and School Fit can work better.</div></div><ChevronRight size={18} /></Link>}
         {loading && <StatePanel title="Loading profile" description="Loading your saved profile information..." />}
         {loadError && <StatePanel title="Profile could not be loaded" description={loadError} tone="error" action={<button className="btn" onClick={() => location.reload()}>Try Again</button>} />}
         {!loading && !loadError && (
           <form onSubmit={save} className="space-y-5">
             <section className="card p-5 sm:p-6">
-              <div className="mb-5"><h2 className="font-black text-lg">Player photo</h2><p className="muted text-sm mt-1">This headshot appears throughout Rebels Recruit, including Big Board and War Room.</p></div>
+              <div className="mb-5"><h2 className="font-black text-lg">Player photo</h2><p className="muted text-sm mt-1">This headshot appears throughout RLTNL Recruiting, including Big Board and War Room.</p></div>
               {userId&&<div className="mb-6 pb-6 border-b"><PlayerPhotoUpload athleteId={userId} name={name||"Player"} initialUrl={avatarUrl} onSaved={setAvatarUrl}/></div>}
               <div className="mb-5"><h2 className="font-black text-lg">Profile essentials</h2><p className="muted text-sm mt-1">All fields below are required. These details drive personalization, filtering and your recruiting identity.</p></div>
               <div className="grid md:grid-cols-2 gap-4">

@@ -13,7 +13,7 @@ athlete:{label:'Athlete',home:'/dashboard',steps:[
 {title:'See your recruiting story.',text:'Conversations, events, follow-ups and milestones become part of your Journey, giving you the context to see how each relationship has developed and what deserves attention next.',icon:Flag,action:'/journey',actionLabel:'Explore Journey'}
 ]},
 parent:{label:'Parent / Guardian',home:'/parent',steps:[
-{title:'Support without taking over.',text:'Rebels Recruit gives you visibility into the athlete’s recruiting while keeping the athlete in control of their relationships and decisions.',icon:Users,action:'/parent',actionLabel:'Explore Parent Home'},
+{title:'Support without taking over.',text:'RLTNL Recruiting gives you visibility into the athlete’s recruiting while keeping the athlete in control of their relationships and decisions.',icon:Users,action:'/parent',actionLabel:'Explore Parent Home'},
 {title:'See the recruiting picture.',text:'Player 360° brings the athlete’s schools, relationships, activity and progress together so you can understand where things stand.',icon:Eye,action:'/parent',actionLabel:'See the overview'},
 {title:'Help them follow through.',text:'Next Steps shows recruiting work that needs attention. Ask how you can help, then let the athlete own the recruiting action.',icon:Target,action:'/parent/goals',actionLabel:'Explore Next Steps'},
 {title:'Help make events count.',text:'See which camps, showcases and visits are coming up, whether the athlete is attending and where preparation or follow-up may help.',icon:CalendarDays,action:'/parent/events',actionLabel:'Explore Events'},

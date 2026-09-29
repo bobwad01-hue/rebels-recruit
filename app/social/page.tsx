@@ -13,7 +13,7 @@ type Connection={id:string;username:string|null;display_name:string|null;profile
 
 const categoryLabel=(value:string)=>({college_coach:'School Coach',college_program:'School Program',softball_organization:'Softball Organization',player:'Player',other:'Other'}[value]||'Other');
 const formatDate=(value:string|null)=>value?new Date(value).toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}):'—';
-const connectionMessage=(code:string|null)=>({x_config:'X connection is not configured yet. The Rebels Recruit X developer credentials need to be added to the production app.',x_oauth_state:'The X authorization session expired or was invalid. Please try Connect X again.',access_denied:'X authorization was cancelled. You can try again whenever you are ready.'}[code||'']||null);
+const connectionMessage=(code:string|null)=>({x_config:'X connection is not configured yet. The RLTNL Recruiting X developer credentials need to be added to the production app.',x_oauth_state:'The X authorization session expired or was invalid. Please try Connect X again.',access_denied:'X authorization was cancelled. You can try again whenever you are ready.'}[code||'']||null);
 
 export default function SocialPage(){
   const supabase=createClient();

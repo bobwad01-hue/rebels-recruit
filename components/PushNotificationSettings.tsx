@@ -88,7 +88,7 @@ export default function PushNotificationSettings() {
       }
       if (isIosPhone() && !isStandalone()) {
         setNeedsHomeScreen(true);
-        throw new Error('On iPhone, first add Rebels Recruit to your Home Screen and open it there.');
+        throw new Error('On iPhone, first add RLTNL Recruiting to your Home Screen and open it there.');
       }
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') throw new Error('Notification permission was not granted.');
@@ -145,7 +145,7 @@ export default function PushNotificationSettings() {
     setBusy(true); setError(''); setMessage('');
     const { error: testError } = await supabase.from('notifications').insert({
       user_id: userId,
-      title: 'Rebels Recruit test alert',
+      title: 'RLTNL Recruiting test alert',
       body: 'Phone alerts are working.',
       kind: 'general',
       url: '/settings',
@@ -167,11 +167,11 @@ export default function PushNotificationSettings() {
       {enabled ? <div className="text-green-700 text-sm font-bold flex items-center gap-1"><CheckCircle2 size={16}/> Enabled</div> : null}
     </div>
 
-    {!phoneDevice && <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><div className="font-bold flex items-center gap-2"><Smartphone size={17}/> Phone-only alerts</div><p className="mt-2">Open Rebels Recruit on your smartphone to enable or test alerts. Notifications will not be sent to this desktop or tablet.</p></div>}
+    {!phoneDevice && <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><div className="font-bold flex items-center gap-2"><Smartphone size={17}/> Phone-only alerts</div><p className="mt-2">Open RLTNL Recruiting on your smartphone to enable or test alerts. Notifications will not be sent to this desktop or tablet.</p></div>}
 
     {needsHomeScreen && <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm">
       <div className="font-bold flex items-center gap-2"><Smartphone size={17}/> iPhone setup</div>
-      <p className="mt-2">In Safari, tap Share, choose Add to Home Screen, open the new Rebels Recruit icon, then return here and tap Enable phone alerts.</p>
+      <p className="mt-2">In Safari, tap Share, choose Add to Home Screen, open the new RLTNL Recruiting icon, then return here and tap Enable phone alerts.</p>
     </div>}
 
     <div className="mt-5 flex flex-wrap gap-2">

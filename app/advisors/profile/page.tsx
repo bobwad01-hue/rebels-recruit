@@ -111,7 +111,7 @@ export default function AdvisorProfile() {
           title={isOnboarding ? "Complete Your Profile" : "My Profile"}
           subtitle={
             isOnboarding
-              ? "Complete your profile before using Rebels Recruit."
+              ? "Complete your profile before using RLTNL Recruiting."
               : "Keep your advisor information up to date."
           }
         />
