@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import OrganizationRatingBadge from '@/components/OrganizationRatingBadge';
 import {useEffect,useMemo,useState} from 'react';
 import {Archive,Plus,School,Search,Users,ChevronDown,ChevronUp} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
