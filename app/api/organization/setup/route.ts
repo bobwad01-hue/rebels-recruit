@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       );
     if (action === "getJoinLinks") {
       const {data:organization}=await admin.from("organizations").select("id,name,teams(id,name,age_group,archived_at)").eq("id",organizationId).single();
-      const scopes=[{role:"admin",teamId:null,requiresApproval:true},...((organization?.teams||[]).filter((t:any)=>!t.archived_at).flatMap((t:any)=>["advisor","athlete","parent"].map(role=>({role,teamId:t.id,requiresApproval:false}))))];
+      const scopes=[{role:"advisor",teamId:null,requiresApproval:false},{role:"admin",teamId:null,requiresApproval:false},{role:"advisor_admin",teamId:null,requiresApproval:false},...((organization?.teams||[]).filter((t:any)=>!t.archived_at).flatMap((t:any)=>["advisor","athlete","parent"].map(role=>({role,teamId:t.id,requiresApproval:false}))))];
       for(const scope of scopes){
         const {data:existing}=await admin.from("organization_join_links").select("id").eq("organization_id",organizationId).eq("role",scope.role).eq("active",true).is("team_id",scope.teamId).maybeSingle();
         if(!existing)await admin.from("organization_join_links").insert({organization_id:organizationId,team_id:scope.teamId,role:scope.role,requires_approval:scope.requiresApproval,created_by:user.id});
