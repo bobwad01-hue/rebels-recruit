@@ -317,13 +317,9 @@ export default async function Dashboard({
         <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
             <div className="min-w-0">
-              <div className="rr-eyebrow">MY RECRUITING SNAPSHOT</div>
-              <h2 className="text-xl sm:text-2xl font-black mt-1">
-                Recruiting Snapshot
-              </h2>
-              <p className="muted text-sm mt-1">
-                The numbers that help you see where things stand.
-              </p>
+              <div className="rr-eyebrow">YOUR RECRUITING · {stageCopy.label.toUpperCase()}</div>
+              <h2 className="text-xl sm:text-2xl font-black mt-1">{stageCopy.title}</h2>
+              <p className="muted text-sm mt-1">{stageCopy.detail}</p>
             </div>
             <Link
               href={ph("/health")}
@@ -404,9 +400,9 @@ export default async function Dashboard({
           </section>
         )}
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
-        <div className="mb-6 w-full min-w-0">
+        {(recruitingStage==="recruit"||recruitingStage==="decide")&&(<div className="mb-6 w-full min-w-0">
           <WeeklyRecruitingMomentum athleteId={preview.active ? uid : undefined} roleOverride={preview.active && preview.role === "athlete" ? "athlete" : undefined} />
-        </div>
+        </div>)}
         <div className="mt-6 w-full min-w-0">
           <HomeUpcomingEvents personalEvents={eventRows} />
         </div>
