@@ -11,8 +11,17 @@ export async function POST(req:NextRequest){
  const supabase=await createClient();const{data:{user}}=await supabase.auth.getUser();if(!user)return NextResponse.json({error:"Sign in or create an account first."},{status:401});
  const{token}=await req.json();const admin=createAdminClient();const{data:link}=await admin.from("organization_join_links").select("id,organization_id,team_id,role,requires_approval").eq("token",String(token||"")).eq("active",true).maybeSingle();if(!link)return NextResponse.json({error:"This join link is no longer active."},{status:404});
  if(link.requires_approval){await admin.from("organization_join_requests").upsert({link_id:link.id,organization_id:link.organization_id,team_id:link.team_id,user_id:user.id,role:link.role,status:"pending",requested_at:new Date().toISOString()},{onConflict:"link_id,user_id"});return NextResponse.json({ok:true,pending:true});}
- await admin.from("organization_user_roles").upsert({organization_id:link.organization_id,user_id:user.id,role:link.role,status:"active",granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
- if(link.team_id)await admin.from("team_user_roles").upsert({team_id:link.team_id,user_id:user.id,role:link.role,status:"active",granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});
- await admin.from("user_roles").upsert({user_id:user.id,role:link.role},{onConflict:"user_id,role"});
+ const roles=link.role==="advisor_admin"?["advisor","admin"]:[link.role];
+ for(const role of roles){
+  await admin.from("organization_user_roles").upsert({organization_id:link.organization_id,user_id:user.id,role,status:"active",granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
+  if(link.team_id)await admin.from("team_user_roles").upsert({team_id:link.team_id,user_id:user.id,role,status:"active",granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});
+  await admin.from("user_roles").upsert({user_id:user.id,role},{onConflict:"user_id,role"});
+ }
+ if(!link.team_id&&roles.some((r:string)=>r==="admin"||r==="advisor")){
+  const legacyRole=roles.includes("admin")?"admin":"advisor";
+  const {data:member}=await admin.from("organization_members").select("id").eq("organization_id",link.organization_id).eq("user_id",user.id).maybeSingle();
+  if(member)await admin.from("organization_members").update({role:legacyRole,status:"active",organization_view_access:roles.includes("admin"),joined_at:new Date().toISOString()}).eq("id",member.id);
+  else await admin.from("organization_members").insert({organization_id:link.organization_id,user_id:user.id,role:legacyRole,status:"active",organization_view_access:roles.includes("admin"),joined_at:new Date().toISOString()});
+ }
  return NextResponse.json({ok:true,pending:false,role:link.role,teamId:link.team_id,organizationId:link.organization_id,next:link.role==="parent"&&link.team_id?`/parent/connect?team=${encodeURIComponent(link.team_id)}`:null});
 }
