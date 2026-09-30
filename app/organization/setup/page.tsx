@@ -57,7 +57,8 @@ export default function OrganizationSetup() {
     [teamEditName, setTeamEditName] = useState(""),
     [staffEmail,setStaffEmail]=useState(""),[staffRole,setStaffRole]=useState("advisor"),[staffOrgAccess,setStaffOrgAccess]=useState(false),
     [inviteLink,setInviteLink]=useState(""),
-    [confirmAction, setConfirmAction] = useState<null | { type: "code" | "archive"; team?: Team }>(null);
+    [confirmAction, setConfirmAction] = useState<null | { type: "code" | "archive"; team?: Team }>(null),
+    [manageTeam,setManageTeam]=useState<Team|null>(null),[teamPanel,setTeamPanel]=useState<"people"|"access">("people"),[staffOpen,setStaffOpen]=useState(false),[orgEditOpen,setOrgEditOpen]=useState(false);
   async function load(preferred?: string) {
     setLoading(true);
     setError("");
@@ -238,245 +239,23 @@ export default function OrganizationSetup() {
           </div>
         ) : (
           <>
-            <div className="card p-4 mb-5 flex flex-col sm:flex-row gap-3 sm:items-end">
-              <label className="text-sm font-bold flex-1">
-                Organization
-                <select
-                  className="input mt-1"
-                  value={creating ? "new" : selected}
-                  onChange={(e) =>
-                    e.target.value === "new"
-                      ? (setCreating(true),
-                        setForm(empty),
-                        setMessage(""),
-                        setError(""))
-                      : choose(e.target.value)
-                  }
-                >
-                  {organizations.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.name}
-                      {o.branch_name ? ` · ${o.branch_name}` : ""}
-                    </option>
-                  ))}
-                  {canCreate&&<option value="new">+ Create another organization</option>}
-                </select>
-              </label>
-            </div>
-            <section className="card p-5 sm:p-6 mb-5">
-              <div className="rr-eyebrow">ORGANIZATION IDENTITY</div>
-              <h2 className="font-black text-lg">
-                {creating ? "Create Organization" : "Organization Details"}
-              </h2>
-              <p className="muted text-sm mt-1">
-                Use Branch only when needed. Organizations and branches never
-                share player or staff access automatically.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-4 mt-5">
-                <label className="text-sm font-bold">
-                  Organization *
-                  <input
-                    className="input mt-1"
-                    value={form.name}
-                    onChange={(e) =>
-                      setForm((v) => ({ ...v, name: e.target.value }))
-                    }
-                    placeholder="KC Rebels"
-                  />
-                </label>
-                <label className="text-sm font-bold">
-                  Branch <span className="font-normal muted">(optional)</span>
-                  <input
-                    className="input mt-1"
-                    value={form.branchName}
-                    onChange={(e) =>
-                      setForm((v) => ({ ...v, branchName: e.target.value }))
-                    }
-                    placeholder="Leave blank if not applicable"
-                  />
-                </label>
-                <label className="text-sm font-bold">
-                  City *
-                  <input
-                    className="input mt-1"
-                    value={form.city}
-                    onChange={(e) =>
-                      setForm((v) => ({ ...v, city: e.target.value }))
-                    }
-                    placeholder="Spring Hill"
-                  />
-                </label>
-                <label className="text-sm font-bold">
-                  State *
-                  <input
-                    className="input mt-1"
-                    value={form.state}
-                    maxLength={2}
-                    onChange={(e) =>
-                      setForm((v) => ({
-                        ...v,
-                        state: e.target.value.toUpperCase(),
-                      }))
-                    }
-                    placeholder="KS"
-                  />
-                </label>
-              </div>
-              <button
-                className="btn btn-red mt-5"
-                disabled={
-                  busy ||
-                  !form.name.trim() ||
-                  !form.city.trim() ||
-                  !form.state.trim()
-                }
-                onClick={saveOrganization}
-              >
-                <Save size={16} />
-                {busy
-                  ? "Saving..."
-                  : creating
-                    ? "Create Organization"
-                    : "Save Details"}
-              </button>
-            </section>
+            {org&&<section className="card p-5 sm:p-6 mb-5"><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><div className="rr-eyebrow">ORGANIZATION</div><h2 className="text-2xl font-black">{org.name}{org.branch_name?` · ${org.branch_name}`:""}</h2><p className="muted text-sm mt-1">{[org.city,org.state].filter(Boolean).join(", ")}</p></div><div className="flex gap-2"><button className="btn" onClick={()=>setOrgEditOpen(true)} disabled={previewReadOnly}><Settings2 size={15}/>Edit Organization</button><button className="btn" onClick={()=>setStaffOpen(true)}><UserCog size={15}/>Manage Admins & Staff</button></div></div></section>}
             {!creating && org && (
               <>
                 <section className="card p-5 sm:p-6">
-                  <div className="rr-eyebrow">ROSTER STRUCTURE</div>
-                  <h2 className="font-black text-lg">Teams</h2>
-                  <p className="muted text-sm mt-1">
-                    Teams are visible only inside this organization. Team names
-                    do not need to repeat the organization name.
-                  </p>
-                  <div className="grid lg:grid-cols-[1fr_160px_auto] gap-3 mt-5">
-                    <input
-                      className="input"
-                      value={teamName}
-                      onChange={(e) => setTeamName(e.target.value)}
-                      placeholder="16 Regional Lickel"
-                    />
-                    <input
-                      className="input"
-                      value={ageGroup}
-                      onChange={(e) => setAgeGroup(e.target.value)}
-                      placeholder="Age group (optional)"
-                    />
-                    <button
-                      className="btn btn-red"
-                      disabled={busy || !teamName.trim()}
-                      onClick={addTeam}
-                    >
-                      <Plus size={16} />
-                      Add Team
-                    </button>
-                  </div>
-                  <div className="space-y-2 mt-5">
-                    {org.teams
-                      .filter((t) => !t.archived_at)
-                      .map((team) => (
-                        <div
-                          key={team.id}
-                          className="rounded-xl border p-3 flex items-center gap-3"
-                        >
-                          <div className="flex-1">
-                            <div className="font-bold">{team.name}</div>
-                            {team.age_group && (
-                              <div className="muted text-xs mt-0.5">
-                                {team.age_group}
-                              </div>
-                            )}
-                          </div>
-                          <button
-                            className="btn px-3 py-2 text-xs"
-                            onClick={() => editTeam(team)}
-                          >
-                            <Settings2 size={14} />
-                            Rename
-                          </button>
-                          <button
-                            className="btn px-3 py-2 text-xs"
-                            disabled={busy}
-                            onClick={() => setConfirmAction({ type: "archive", team })}
-                          >
-                            <Archive size={14} />
-                            Archive
-                          </button>
-                        </div>
-                      ))}
-                    {!org.teams.filter((t) => !t.archived_at).length && (
-                      <div className="rr-empty-state">
-                        <div className="font-black">No active teams</div>
-                      </div>
-                    )}
-                  </div>
-                  {org.teams.some((t) => t.archived_at) && (
-                    <details className="mt-5">
-                      <summary className="font-bold text-sm cursor-pointer">
-                        Archived teams
-                      </summary>
-                      <div className="space-y-2 mt-3">
-                        {org.teams
-                          .filter((t) => t.archived_at)
-                          .map((team) => (
-                            <div
-                              key={team.id}
-                              className="rounded-xl border bg-slate-50 p-3 flex items-center"
-                            >
-                              <span className="font-bold flex-1">
-                                {team.name}
-                              </span>
-                              <button
-                                className="btn px-3 py-2 text-xs"
-                                disabled={busy}
-                                onClick={() =>
-                                  act(
-                                    {
-                                      action: "restoreTeam",
-                                      organizationId: selected,
-                                      teamId: team.id,
-                                    },
-                                    "Team restored.",
-                                  )
-                                }
-                              >
-                                <RotateCcw size={14} />
-                                Restore
-                              </button>
-                            </div>
-                          ))}
-                      </div>
-                    </details>
-                  )}
-                </section>
-                <OrganizationAccessLinks organizationId={selected} teams={org.teams} readOnly={previewReadOnly} />
-                <section className="card p-5 sm:p-6 mt-5">
-                  <div className="rr-eyebrow">TEAM ROSTERS & ACCESS</div><h2 className="font-black text-lg">Manage access where people belong</h2><p className="muted text-sm mt-1">See Athletes, Parents and Advisors by team. Parents show the athlete relationship that grants their access.</p>
-                  <div className="space-y-4 mt-5">{org.teams.filter(t=>!t.archived_at).map(team=>{const roster=(org.roster||[]).find((r:any)=>r.teamId===team.id)?.members||[];return <details key={team.id} className="rounded-xl border"><summary className="cursor-pointer list-none p-4 flex justify-between gap-3"><span><b>{team.name}</b>{team.age_group&&<span className="muted text-xs block">{team.age_group}</span>}</span><span className="text-xs font-bold text-slate-500">{roster.length} roster entr{roster.length===1?'y':'ies'}</span></summary><div className="border-t divide-y">{roster.length?roster.map((m:any,i:number)=><div key={m.userId+'-'+m.role+'-'+i} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1 min-w-0"><div className="font-bold">{m.profile?.full_name||m.profile?.email||'RLTNL user'}</div><div className="text-xs text-slate-500">{m.role.charAt(0).toUpperCase()+m.role.slice(1)}{m.role==='parent'&&m.linkedAthletes?.length?<> · <b>Linked to {m.linkedAthletes.map((a:any)=>a.name).join(', ')}</b></>:null}</div></div>{!previewReadOnly&&<div className="flex gap-2"><button className="btn px-3 py-2 text-xs" onClick={async()=>{const otherTeams=(org.roster||[]).filter((r:any)=>r.teamId!==team.id&&r.members?.some((x:any)=>x.userId===m.userId)).length;const scope=otherTeams&&confirm((m.profile?.full_name||'This person')+' also has access on another team. OK removes access from all teams; Cancel removes only '+team.name+'.')?'allTeams':'team';await act({action:'setTeamAccess',organizationId:selected,teamId:team.id,userId:m.userId,mode:'suspend',scope},'Access suspended.')}}>Suspend</button><button className="btn px-3 py-2 text-xs text-red-700" onClick={async()=>{const otherTeams=(org.roster||[]).filter((r:any)=>r.teamId!==team.id&&r.members?.some((x:any)=>x.userId===m.userId)).length;const all=otherTeams&&confirm((m.profile?.full_name||'This person')+' also has access on another team. OK removes access from all teams; Cancel removes only '+team.name+'.');await act({action:'setTeamAccess',organizationId:selected,teamId:team.id,userId:m.userId,mode:'remove',scope:all?'allTeams':'team'},all?'All team access removed.':'Team access removed.')}}>Remove</button></div>}</div>):<div className="p-4 muted text-sm">No roster entries yet.</div>}</div></details>})}</div>
-                </section>
-                <section className="card p-5 sm:p-6 mt-5">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="font-black text-lg">Staff Access</h2><p className="muted text-sm mt-1">Invite Admins and Advisors, then manage their organization access here.</p></div>
-                    {previewReadOnly&&<span className="status-pill bg-amber-50 text-amber-800">Read-only preview</span>}
-                  </div>
-                  {!previewReadOnly&&<div className="rounded-xl border bg-slate-50 p-4 mt-5"><div className="font-black text-sm">Invite Staff Member</div><div className="grid md:grid-cols-[1fr_150px_auto] gap-2 mt-3"><input className="input" type="email" placeholder="staff@email.com" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)}/><select className="input" value={staffRole} onChange={e=>{setStaffRole(e.target.value);if(e.target.value==="admin")setStaffOrgAccess(true)}}><option value="advisor">Advisor</option><option value="admin">Admin</option></select><button className="btn btn-red" disabled={busy||!staffEmail.trim()} onClick={async()=>{const d=await act({action:"inviteStaff",organizationId:selected,email:staffEmail,role:staffRole,organizationViewAccess:staffOrgAccess},"Secure invite link created.");if(d){setStaffEmail("");setInviteLink(d.inviteUrl||"")}}}><Plus size={16}/>Invite</button></div>{staffRole==="advisor"&&<label className="flex items-center gap-2 text-sm mt-3"><input type="checkbox" checked={staffOrgAccess} onChange={e=>setStaffOrgAccess(e.target.checked)}/> Allow organization-wide recruiting view</label>}<p className="muted text-xs mt-2">Admins receive organization-wide access. Advisors can be limited to assigned players.</p></div>}
-                  {inviteLink&&<div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4"><div className="font-black text-sm">Invite link ready</div><p className="text-xs text-green-900 mt-1">Send this secure link directly to the staff member through Sprocket, text, or your normal team communication.</p><div className="flex gap-2 mt-3"><input className="input text-xs" readOnly value={inviteLink}/><button type="button" className="btn btn-red shrink-0" onClick={async()=>{await navigator.clipboard.writeText(inviteLink);setMessage("Invite link copied.")}}>Copy Link</button></div></div>}
-                  {(org.staffInvites||[]).length>0&&<div className="mt-5"><div className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Pending invitations</div><div className="space-y-2">{(org.staffInvites||[]).map((i:any)=><div key={i.id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center gap-3"><div className="flex-1 min-w-0"><div className="font-bold truncate">{i.email}</div><div className="text-xs text-amber-800">{i.role==="admin"?"Admin":"Advisor"} · Pending</div></div>{!previewReadOnly&&<button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>act({action:"cancelStaffInvite",organizationId:selected,inviteId:i.id},"Invitation cancelled.")}>Cancel</button>}</div>)}</div></div>}
-                  <div className="space-y-2 mt-5">
-                    {(org.staff||[]).map((member:any)=><div key={member.user_id} className="rounded-xl border p-3 flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-xl bg-slate-100 grid place-items-center">{member.role==="admin"?<ShieldCheck size={18}/>:<UserCog size={18}/>}</div>
-                      <div className="min-w-0 flex-1"><div className="font-bold">{member.profile?.full_name||member.profile?.email||"Staff member"}</div><div className="muted text-xs truncate">{member.profile?.email||""}</div></div>
-                      <div className="text-right"><div className="text-xs font-black uppercase tracking-wide">{member.roles?.includes("admin")&&member.roles?.includes("advisor")?"Advisor + Admin":member.roles?.includes("admin")?"Admin":"Advisor"}</div><div className="muted text-[11px]">{member.roles?.includes("admin")?"Switchable staff access":"Assigned-player access"}</div></div>{!previewReadOnly&&<div className="flex gap-2"><select aria-label={"Role for "+(member.profile?.full_name||member.profile?.email||"staff")} className="input py-2 text-xs" value={member.roles?.includes("admin")&&member.roles?.includes("advisor")?"both":member.roles?.includes("admin")?"admin":"advisor"} onChange={async e=>{const v=e.target.value;await act({action:"setStaffRoles",organizationId:selected,userId:member.user_id,admin:v==="admin"||v==="both",advisor:v==="advisor"||v==="both"},"Staff roles updated.")}}><option value="advisor">Advisor</option><option value="admin">Admin</option><option value="both">Advisor + Admin</option></select><button className="btn px-3 py-2 text-xs" onClick={()=>act({action:"removeStaff",organizationId:selected,userId:member.user_id},"Staff access removed.")}>Remove</button></div>}
-                    </div>)}
-                    {!(org.staff||[]).length&&<div className="rr-empty-state"><div className="font-black">No staff access found</div><div className="muted text-sm mt-1">Admins and advisors connected to this organization will appear here.</div></div>}
-                  </div>
-                  
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3"><div><div className="rr-eyebrow">TEAMS</div><h2 className="font-black text-lg">Teams & Access</h2><p className="muted text-sm mt-1">Manage each team's roster, parent links, advisors and onboarding from one place.</p></div></div>
+                  <div className="grid lg:grid-cols-[1fr_160px_auto] gap-3 mt-5"><input className="input" value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder="New team name"/><input className="input" value={ageGroup} onChange={e=>setAgeGroup(e.target.value)} placeholder="Age group (optional)"/><button className="btn btn-red" disabled={busy||!teamName.trim()} onClick={addTeam}><Plus size={16}/>Add Team</button></div>
+                  <div className="space-y-3 mt-5">{org.teams.filter(t=>!t.archived_at).map(team=>{const roster=(org.roster||[]).find((r:any)=>r.teamId===team.id)?.members||[];const athletes=roster.filter((m:any)=>m.role==="athlete").length,parents=roster.filter((m:any)=>m.role==="parent").length,advisors=roster.filter((m:any)=>m.role==="advisor").length;return <div key={team.id} className="rounded-2xl border p-4"><div className="flex flex-col lg:flex-row lg:items-center gap-4"><div className="flex-1"><div className="font-black text-base">{team.name}</div><div className="muted text-xs mt-1">{team.age_group||"No age group"} · {athletes} Athletes · {parents} Parents · {advisors} Advisors</div></div><div className="flex flex-wrap gap-2"><button className="btn px-3 py-2 text-xs" onClick={()=>{setManageTeam(team);setTeamPanel("people")}}><UserCog size={14}/>Manage People</button><button className="btn px-3 py-2 text-xs" onClick={()=>{setManageTeam(team);setTeamPanel("access")}}><Copy size={14}/>Access & Invite</button><button className="btn px-3 py-2 text-xs" onClick={()=>editTeam(team)}><Settings2 size={14}/>Rename</button><button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>setConfirmAction({type:"archive",team})}><Archive size={14}/>Archive</button></div></div></div>})}</div>
+                  {org.teams.some(t=>t.archived_at)&&<details className="mt-5"><summary className="font-bold text-sm cursor-pointer">Archived teams</summary><div className="space-y-2 mt-3">{org.teams.filter(t=>t.archived_at).map(team=><div key={team.id} className="rounded-xl border bg-slate-50 p-3 flex items-center"><span className="font-bold flex-1">{team.name}</span><button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>act({action:"restoreTeam",organizationId:selected,teamId:team.id},"Team restored.")}><RotateCcw size={14}/>Restore</button></div>)}</div></details>}
                 </section>
               </>
             )}
           </>
         )}
       </div>
+      {orgEditOpen&&org&&<div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOrgEditOpen(false)}}><div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl"><div className="flex justify-between gap-3"><div><div className="rr-eyebrow">ORGANIZATION</div><h2 className="text-xl font-black">Edit Organization Details</h2></div><button className="btn p-2" onClick={()=>setOrgEditOpen(false)}><X size={16}/></button></div><div className="grid sm:grid-cols-2 gap-4 mt-5"><label className="text-sm font-bold">Organization *<input className="input mt-1" value={form.name} onChange={e=>setForm(v=>({...v,name:e.target.value}))}/></label><label className="text-sm font-bold">Branch <span className="font-normal muted">(optional)</span><input className="input mt-1" value={form.branchName} onChange={e=>setForm(v=>({...v,branchName:e.target.value}))}/></label><label className="text-sm font-bold">City *<input className="input mt-1" value={form.city} onChange={e=>setForm(v=>({...v,city:e.target.value}))}/></label><label className="text-sm font-bold">State *<input className="input mt-1" maxLength={2} value={form.state} onChange={e=>setForm(v=>({...v,state:e.target.value.toUpperCase()}))}/></label></div><div className="flex justify-end gap-2 mt-6"><button className="btn" onClick={()=>setOrgEditOpen(false)}>Cancel</button><button className="btn btn-red" disabled={busy||!form.name.trim()||!form.city.trim()||!form.state.trim()} onClick={async()=>{await saveOrganization();setOrgEditOpen(false)}}><Save size={15}/>Save Details</button></div></div></div>}
+      {manageTeam&&org&&<div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setManageTeam(null)}}><div className="w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"><div className="sticky top-0 bg-white border-b p-5 flex justify-between gap-3 z-10"><div><div className="rr-eyebrow">{manageTeam.age_group||"TEAM"}</div><h2 className="text-xl font-black">{manageTeam.name}</h2><div className="flex gap-2 mt-3"><button className={`btn ${teamPanel==="people"?"bg-slate-900 text-white":""}`} onClick={()=>setTeamPanel("people")}>People</button><button className={`btn ${teamPanel==="access"?"bg-slate-900 text-white":""}`} onClick={()=>setTeamPanel("access")}>Access & Invite</button></div></div><button className="btn p-2 h-fit" onClick={()=>setManageTeam(null)}><X size={16}/></button></div><div className="p-5">{teamPanel==="access"?<OrganizationAccessLinks organizationId={selected} teams={[manageTeam]} readOnly={previewReadOnly}/>:<div><p className="muted text-sm mb-4">Athletes, Parents and Advisors with access to this team. Parent access shows the athlete relationship behind it.</p><div className="divide-y rounded-xl border">{(()=>{const roster=(org.roster||[]).find((r:any)=>r.teamId===manageTeam.id)?.members||[];return roster.length?roster.map((m:any,i:number)=><div key={m.userId+"-"+m.role+"-"+i} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1"><div className="font-bold">{m.profile?.full_name||m.profile?.email||"RLTNL user"}</div><div className="text-xs text-slate-500">{m.role.charAt(0).toUpperCase()+m.role.slice(1)}{m.role==="parent"&&m.linkedAthletes?.length?<> · <b>Linked to {m.linkedAthletes.map((a:any)=>a.name).join(", ")}</b></>:null}</div></div>{!previewReadOnly&&<div className="flex gap-2"><button className="btn px-3 py-2 text-xs" onClick={()=>act({action:"setTeamAccess",organizationId:selected,teamId:manageTeam.id,userId:m.userId,mode:"suspend",scope:"team"},"Team access suspended.")}>Suspend</button><button className="btn px-3 py-2 text-xs text-red-700" onClick={()=>act({action:"setTeamAccess",organizationId:selected,teamId:manageTeam.id,userId:m.userId,mode:"remove",scope:"team"},"Team access removed.")}>Remove</button></div>}</div>):<div className="p-5 muted text-sm">No people have joined this team yet.</div>})()}</div></div>}</div></div></div>}
+      {staffOpen&&org&&<div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setStaffOpen(false)}}><div className="w-full max-w-4xl max-h-[88vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"><div className="flex justify-between gap-3"><div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="text-xl font-black">Admins & Staff</h2><p className="muted text-sm mt-1">Manage organization roles here. Team assignments remain with each team.</p></div><button className="btn p-2 h-fit" onClick={()=>setStaffOpen(false)}><X size={16}/></button></div>{!previewReadOnly&&<div className="rounded-xl border bg-slate-50 p-4 mt-5"><div className="font-black text-sm">Invite Staff Member</div><div className="grid md:grid-cols-[1fr_150px_auto] gap-2 mt-3"><input className="input" type="email" placeholder="staff@email.com" value={staffEmail} onChange={e=>setStaffEmail(e.target.value)}/><select className="input" value={staffRole} onChange={e=>{setStaffRole(e.target.value);if(e.target.value==="admin")setStaffOrgAccess(true)}}><option value="advisor">Advisor</option><option value="admin">Admin</option></select><button className="btn btn-red" disabled={busy||!staffEmail.trim()} onClick={async()=>{const d=await act({action:"inviteStaff",organizationId:selected,email:staffEmail,role:staffRole,organizationViewAccess:staffOrgAccess},"Secure invite link created.");if(d){setStaffEmail("");setInviteLink(d.inviteUrl||"")}}}><Plus size={16}/>Invite</button></div>{staffRole==="advisor"&&<label className="flex items-center gap-2 text-sm mt-3"><input type="checkbox" checked={staffOrgAccess} onChange={e=>setStaffOrgAccess(e.target.checked)}/> Allow organization-wide recruiting view</label>}</div>}{inviteLink&&<div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4"><div className="font-black text-sm">Invite link ready</div><div className="flex gap-2 mt-3"><input className="input text-xs" readOnly value={inviteLink}/><button className="btn btn-red" onClick={()=>navigator.clipboard.writeText(inviteLink)}>Copy Link</button></div></div>}<div className="space-y-2 mt-5">{(org.staff||[]).map((member:any)=><div key={member.user_id} className="rounded-xl border p-3 flex items-center gap-3"><div className="h-10 w-10 rounded-xl bg-slate-100 grid place-items-center">{member.roles?.includes("admin")?<ShieldCheck size={18}/>:<UserCog size={18}/>}</div><div className="min-w-0 flex-1"><div className="font-bold">{member.profile?.full_name||member.profile?.email||"Staff member"}</div><div className="muted text-xs">{member.profile?.email||""}</div></div><select className="input py-2 text-xs w-auto" value={member.roles?.includes("admin")&&member.roles?.includes("advisor")?"both":member.roles?.includes("admin")?"admin":"advisor"} onChange={e=>{const v=e.target.value;act({action:"setStaffRoles",organizationId:selected,userId:member.user_id,admin:v==="admin"||v==="both",advisor:v==="advisor"||v==="both"},"Staff roles updated.")}}><option value="advisor">Advisor</option><option value="admin">Admin</option><option value="both">Advisor + Admin</option></select>{!previewReadOnly&&<button className="btn px-3 py-2 text-xs" onClick={()=>act({action:"removeStaff",organizationId:selected,userId:member.user_id},"Staff access removed.")}>Remove</button>}</div>)}</div></div></div>}
       {(teamEdit || confirmAction) && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/55 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget && !busy) { setTeamEdit(null); setConfirmAction(null); } }}>
           <div role="dialog" aria-modal="true" aria-labelledby="setup-modal-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
