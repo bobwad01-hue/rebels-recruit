@@ -772,31 +772,13 @@ export default function Exports() {
       }));
   }
   function schoolInterestRows() {
-    const m = new Map<string, any>();
-    colleges.filter(schoolOK).forEach((x) => {
-      const s = one(x.colleges) || {},
-        k = x.college_id || s.name,
-        v = m.get(k) || {
-          school: s.name,
-          division: s.division,
-          players: [],
-          stages: [],
-        };
-      v.players.push(name(String(x.athlete_user_id)));
-      v.stages.push(normalizeJourneyStage(x.status));
-      m.set(k, v);
-    });
-    return [...m.values()]
-      .map((v) => ({
-        School: v.school,
-        Division: v.division,
-        "Players Pursuing": v.players.length,
-        Players: v.players.join(", "),
-        Stages: v.stages.join(", "),
-      }))
-      .sort(
-        (a, b) => Number(b["Players Pursuing"]) - Number(a["Players Pursuing"]),
-      );
+    return colleges.filter(schoolOK).map((x) => {
+      const school=one(x.colleges)||{}, athleteId=String(x.athlete_user_id);
+      const relCoaches=coaches.filter(c=>String(c.athlete_user_id)===athleteId&&c.college_id===x.college_id&&!c.archived_at);
+      const relInts=interactions.filter(i=>String(i.athlete_user_id)===athleteId&&i.college_id===x.college_id);
+      const dated=relInts.filter(i=>i.date_precision==="exact"&&i.date).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+      return {School:school.name||"",Division:school.division||"",Conference:school.conference||"",Player:name(athleteId),Team:team(athleteId),"Class Year":am.get(athleteId)?.class_year||"","Journey Stage":normalizeJourneyStage(x.status),"Coach Relationships":relCoaches.length,"Last Contact":dated[0]?.date||"","Last Initiator":dated[0]?.initiated_by||"","Recorded Activity":relInts.length};
+    }).sort((a,b)=>String(a.School).localeCompare(String(b.School))||String(a.Player).localeCompare(String(b.Player)));
   }
   function outcomeRows() {
     return colleges
