@@ -10,6 +10,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?
 export default function Signup() {
   const invite=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;
   const staffToken=invite?.get('staff_token')||'';
+  const joinToken=invite?.get('join_token')||'';
   const staffInvite=Boolean(staffToken);
   const [invitedEmail,setInvitedEmail]=useState('');
   const [invitedRole,setInvitedRole]=useState('advisor');
@@ -38,7 +39,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signUp({
       email,
       password,
-      options: { data: { full_name: name, app_role: role, age_13_plus: role==='athlete'?true:undefined, organization_admin_interest:orgIntent||undefined, advisor_account_type:role==="advisor"?advisorPath:undefined }, emailRedirectTo: `${APP_URL}/auth/callback?legal_signup=1` },
+      options: { data: { full_name: name, app_role: role, age_13_plus: role==='athlete'?true:undefined, organization_admin_interest:orgIntent||undefined, advisor_account_type:role==="advisor"?advisorPath:undefined }, emailRedirectTo: `${APP_URL}/auth/callback?legal_signup=1&join_token=${encodeURIComponent(joinToken)}` },
     });
     if (error) setError(error.message);
     else setSent(true);
@@ -51,7 +52,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}&advisor_account_type=${role==='advisor'?advisorPath:''}&staff_token=${encodeURIComponent(staffToken)}`,
+        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}&advisor_account_type=${role==='advisor'?advisorPath:''}&staff_token=${encodeURIComponent(staffToken)}&join_token=${encodeURIComponent(joinToken)}`,
         queryParams: { prompt: 'select_account' },
       },
     });
