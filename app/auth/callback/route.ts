@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   const legalSignup = requestUrl.searchParams.get('legal_signup') === '1'
   const age13Plus = requestUrl.searchParams.get('age_13_plus') === '1'
   const advisorAccountType=requestUrl.searchParams.get('advisor_account_type')
+  const joinToken=requestUrl.searchParams.get('join_token')
   const supabase = await createClient()
 
   if (code) await supabase.auth.exchangeCodeForSession(code)
@@ -105,6 +106,13 @@ export async function GET(request: Request) {
         }
       }
     }
+  }
+
+  // Preserve relationship-based team/org access through first-time signup.
+  // The join endpoint is additive: it adds organization/team roles without replacing existing access.
+  if(joinToken){
+    const joinUrl=new URL('/join/'+encodeURIComponent(joinToken),requestUrl.origin)
+    return NextResponse.redirect(joinUrl)
   }
 
   const {data:platformRole}=await supabase.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
