@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
-import {Check,Copy,Link2} from "lucide-react";
+import {Check,Copy} from "lucide-react";
 
 type Team={id:string;name:string;age_group?:string|null;archived_at?:string|null};
 type AccessLink={id:string;team_id:string|null;role:"admin"|"advisor"|"athlete"|"parent";url:string;requires_approval:boolean};
@@ -8,14 +8,14 @@ type AccessLink={id:string;team_id:string|null;role:"admin"|"advisor"|"athlete"|
 export default function OrganizationAccessLinks({organizationId,teams,readOnly=false}:{organizationId:string;teams:Team[];readOnly?:boolean}){
  const [links,setLinks]=useState<AccessLink[]>([]),[loading,setLoading]=useState(false),[error,setError]=useState(""),[copied,setCopied]=useState("");
  async function load(){if(readOnly)return;setLoading(true);setError("");try{const r=await fetch("/api/organization/setup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"getJoinLinks",organizationId})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Could not prepare access links.");setLinks(d.links||[])}catch(e){setError(e instanceof Error?e.message:"Could not prepare access links.")}finally{setLoading(false)}}
- useEffect(()=>{setLinks([]);setError("");setCopied("")},[organizationId]);
+ useEffect(()=>{setLinks([]);setError("");setCopied("");if(!readOnly)load()},[organizationId,readOnly]);
  async function copy(link:AccessLink,label:string){await navigator.clipboard.writeText(link.url);setCopied(link.id);window.setTimeout(()=>setCopied(""),1600)}
  const active=teams.filter(t=>!t.archived_at);
  return <section className="card p-5 sm:p-6 mt-5">
   <div className="rr-eyebrow">ACCESS & ONBOARDING</div><h2 className="font-black text-lg">Reusable Access Links</h2>
   <p className="muted text-sm mt-1">Share these links through Sprocket, text, or your normal team communication. Existing users add access to their current RLTNL account.</p>
   {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-  {!readOnly&&!links.length&&<button className="btn btn-red mt-5" disabled={loading} onClick={load}><Link2 size={16}/>{loading?"Preparing Links...":"View Access Links"}</button>}
+  {loading&&!links.length&&<div className="mt-5 rounded-xl border bg-slate-50 p-4 text-sm font-semibold text-slate-600">Loading access links...</div>}
   {!!links.length&&<div className="mt-5 space-y-5">
    <div><div className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Organization</div>
     {links.filter(l=>l.role==="admin"&&!l.team_id).map(l=><div key={l.id} className="rounded-xl border p-3 flex items-center gap-3"><div className="flex-1"><div className="font-bold">Admin Link</div><div className="muted text-xs">Reusable · Admin access requires approval.</div></div><button className="btn px-3 py-2 text-xs" onClick={()=>copy(l,"Admin")}>{copied===l.id?<Check size={14}/>:<Copy size={14}/>}Copy</button></div>)}
