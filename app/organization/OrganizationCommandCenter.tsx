@@ -16,14 +16,12 @@ import {
   normalizeJourneyStage,
 } from "@/lib/recruiting-journey";
 import { cleanDisplayNote } from "@/lib/display-notes";
-import CoachCoverageExplorer from "./CoachCoverageExplorer";
+
 import { resolveStaffOrganizationContext } from "@/lib/owner-preview";
 
 type Tab =
   | "overview"
   | "players"
-  | "colleges"
-  | "coaches"
   | "activity"
   | "advisors"
   | "accounts";
@@ -556,13 +554,11 @@ export default function OrganizationCommandCenter() {
     ? [
         "overview",
         "players",
-        "colleges",
-        "coaches",
         "activity",
         "advisors",
         "accounts",
       ]
-    : ["overview", "players", "colleges", "coaches", "activity", "advisors"];
+    : ["overview", "players", "activity", "advisors"];
   const stageCount = (s: string) =>
     colleges.filter((x) => normalizeJourneyStage(x.status) === s).length;
   const metric = (label: string, value: any, dest: Tab) => (
@@ -579,7 +575,7 @@ export default function OrganizationCommandCenter() {
     </button>
   );
   const tabLabel = (t: Tab) =>
-    t === "colleges" ? "Schools" : t.charAt(0).toUpperCase() + t.slice(1);
+    t.charAt(0).toUpperCase() + t.slice(1);
   return (
     <>
       {partialWarning && (
@@ -686,16 +682,8 @@ export default function OrganizationCommandCenter() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
             {metric("Players", athletes.length, "players")}
-            {metric(
-              "Schools",
-              new Set(colleges.map((x) => x.college_id)).size,
-              "colleges",
-            )}
-            {metric(
-              "Coaches",
-              new Set(coaches.map((x) => x.coach_id)).size,
-              "coaches",
-            )}
+            
+            
             {metric(
               "Recorded Activity",
               activityAvailable ? activity.length : "—",
@@ -892,23 +880,8 @@ export default function OrganizationCommandCenter() {
           </div>
         </section>
       )}
-      {tab === "colleges" && (
-        <RelationshipBreakdown
-          kind="college"
-          rows={colleges}
-          activity={activity}
-          pm={pm}
-          csv={csv}
-        />
-      )}{" "}
-      {tab === "coaches" && (
-        <CoachCoverageExplorer
-          rows={coaches}
-          activity={activity}
-          pm={pm}
-          csv={csv}
-        />
-      )}
+{" "}
+
       {tab === "activity" && (
         <section className="card p-4 sm:p-5">
           <Header
