@@ -586,17 +586,6 @@ export default function OrganizationCommandCenter() {
           {partialWarning}
         </div>
       )}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-5 -mx-1 px-1">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`min-h-11 sm:min-h-0 px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap ${tab === t ? "bg-slate-900 text-white" : "bg-white border hover:border-slate-400"}`}
-          >
-            {tabLabel(t)}
-          </button>
-        ))}
-      </div>
       {msg && (
         <div className="mb-4 rounded-xl border bg-white p-3 text-sm font-semibold">
           {msg}
@@ -777,34 +766,6 @@ export default function OrganizationCommandCenter() {
               </div>
             </section>
           </div>
-          <section className="card p-4 sm:p-5 mt-6">
-            <div className="flex justify-between gap-3">
-              <div>
-                <div className="rr-eyebrow">RECENT</div>
-                <h2 className="rr-section-title flex items-center gap-2">
-                  <Activity size={20} />
-                  Organization Activity
-                </h2>
-                <p className="rr-section-subtitle">
-                  Recent recruiting activity recorded across your players.
-                </p>
-              </div>
-              <button
-                className="font-bold text-sm"
-                onClick={() => setTab("activity")}
-              >
-                Review All Activity
-              </button>
-            </div>
-            {activityAvailable ? (
-              <ActivityRows rows={activity.slice(0, 12)} pm={pm} />
-            ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 mt-4 text-sm font-semibold">
-                Recruiting activity is temporarily unavailable, so recent
-                activity and follow-up signals are not being shown as zero.
-              </div>
-            )}
-          </section>
         </>
       )}
       {tab === "players" && (
