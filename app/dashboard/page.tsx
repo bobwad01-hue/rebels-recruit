@@ -279,7 +279,7 @@ export default async function Dashboard({
   activeColleges.forEach((r: any) => {
     stageCounts[normalizeJourneyStage(r.status)]++;
   });
-  const name = profile.data?.full_name?.split(" ")[0];
+  const classYear=Number(athleteProfile.data?.class_year||0);const yearsAway=classYear?classYear-new Date().getFullYear():null;const recruitingStage=yearsAway===null?'build':yearsAway>=4?'explore':yearsAway===3?'build':yearsAway===2?'recruit':'decide';const stageCopy={explore:{label:'Explore',title:'Build your foundation',detail:'Focus on learning what you want in a college, exploring schools, and building your first relationships.'},build:{label:'Build',title:'Build your recruiting list',detail:'Keep refining your school list, learning programs, attending events, and starting coach relationships.'},recruit:{label:'Recruit',title:'Work your relationships',detail:'Consistent communication, follow-up, events, and clear next steps matter most right now.'},decide:{label:'Decide',title:'Know where you stand',detail:'Focus on active relationships, visits, offers, deadlines, and the decisions ahead.'}}[recruitingStage];const name = profile.data?.full_name?.split(" ")[0];
   const timezone = profile.data?.timezone || DEFAULT_TIMEZONE;
   const greeting = getGreetingForTimezone(timezone);
   const recent = interactionRows.slice(0, 6);
