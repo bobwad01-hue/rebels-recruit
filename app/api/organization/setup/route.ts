@@ -41,6 +41,30 @@ async function uniqueCode(admin: any) {
   }
   throw new Error("Could not generate a unique organization code. Try again.");
 }
+function inferredAge(name:string,ageGroup?:string|null){
+  const source=`${ageGroup||""} ${name||""}`.trim();
+  const m=source.match(/(?:^|\s)(1[0-9]|[8-9])\s*u?\b/i);
+  return m?Number(m[1]):0;
+}
+function teamRank(team:any,type:string){
+  const name=String(team.name||"").toLowerCase(),age=inferredAge(name,team.age_group);
+  if(type==="high_school"){
+    const level=name.includes("varsity")&&!name.includes("junior")?400:name.includes("junior varsity")||/\bjv\b/.test(name)?300:name.includes("c-team")||name.includes("c team")?200:name.includes("freshman")?100:0;
+    return [level,0,String(team.name||"")];
+  }
+  const label=/\bpremier\b/.test(name)?90:/\bplatinum\b/.test(name)?85:/\bnational\b/.test(name)?80:/\bgold\b/.test(name)?70:/\bregional\b/.test(name)?60:/\b[a]\b/.test(name)||new RegExp(`\\b${age}a\\b`).test(name)?50:/\b[b]\b/.test(name)||new RegExp(`\\b${age}b\\b`).test(name)?40:10;
+  return [age,label,String(team.name||"")];
+}
+function smartSort(teams:any[],type:string){
+  return [...teams].sort((a,b)=>{const A=teamRank(a,type),B=teamRank(b,type);return Number(B[0])-Number(A[0])||Number(B[1])-Number(A[1])||String(A[2]).localeCompare(String(B[2]));});
+}
+async function applySmartOrder(admin:any,organizationId:string,type:string){
+  const {data:teams,error}=await admin.from("teams").select("id,name,age_group,archived_at").eq("organization_id",organizationId).is("archived_at",null);
+  if(error)throw new Error(error.message);
+  const sorted=smartSort(teams||[],type);
+  for(let i=0;i<sorted.length;i++){const {error:e}=await admin.from("teams").update({sort_order:(i+1)*10}).eq("id",sorted[i].id);if(e)throw new Error(e.message);}
+}
+
 
 export async function GET() {
   const user = await viewer();
@@ -281,11 +305,13 @@ export async function POST(req: NextRequest) {
           { error: "Organization, city and state are required." },
           { status: 400 },
         );
+      const {data:before}=await admin.from("organizations").select("organization_type").eq("id",organizationId).single();
       const { error } = await admin
         .from("organizations")
         .update({ name, branch_name: branchName, city, state, organization_type: organizationType })
         .eq("id", organizationId);
       if (error) throw new Error(error.message);
+      if(organizationType && before?.organization_type!==organizationType) await applySmartOrder(admin,organizationId,organizationType);
       return NextResponse.json({ ok: true });
     }
     if (action === "regenerateCode") {
@@ -299,7 +325,8 @@ export async function POST(req: NextRequest) {
     }
     if (action === "addTeam") {
       const name = String(body.name || "").trim(),
-        ageGroup = String(body.ageGroup || "").trim() || null;
+        ageGroupInput = String(body.ageGroup || "").trim(),
+        ageGroup = ageGroupInput || (inferredAge(name) ? `${inferredAge(name)}U` : null);
       const {data:existingTeams}=await admin.from("teams").select("id,name,age_group,sort_order").eq("organization_id",organizationId).is("archived_at",null);
       const nextSort=(existingTeams||[]).reduce((m:any,t:any)=>Math.max(m,Number(t.sort_order||0)),0)+10;
       if (!name)
@@ -316,6 +343,8 @@ export async function POST(req: NextRequest) {
             ? "That team already exists in this organization."
             : error.message,
         );
+      const {data:o}=await admin.from("organizations").select("organization_type").eq("id",organizationId).single();
+      if(o?.organization_type) await applySmartOrder(admin,organizationId,o.organization_type);
       return NextResponse.json({ ok: true });
     }
     if (action === "renameTeam") {
