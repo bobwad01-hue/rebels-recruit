@@ -15,7 +15,7 @@ export default function OrganizationAccessLinks({organizationId,teams,readOnly=f
   <div className="rr-eyebrow">ACCESS & ONBOARDING</div><h2 className="font-black text-lg">Reusable Access Links</h2>
   <p className="muted text-sm mt-1">Share these links through Sprocket, text, or your normal team communication. Existing users add access to their current RLTNL account.</p>
   {error&&<div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</div>}
-  {!readOnly&&!links.length&&<button className="btn btn-red mt-5" disabled={loading} onClick={load}><Link2 size={16}/>{loading?"Preparing Links...":"Generate / View Access Links"}</button>}
+  {!readOnly&&!links.length&&<button className="btn btn-red mt-5" disabled={loading} onClick={load}><Link2 size={16}/>{loading?"Preparing Links...":"View Access Links"}</button>}
   {!!links.length&&<div className="mt-5 space-y-5">
    <div><div className="text-xs font-black uppercase tracking-wide text-slate-500 mb-2">Organization</div>
     {links.filter(l=>l.role==="admin"&&!l.team_id).map(l=><div key={l.id} className="rounded-xl border p-3 flex items-center gap-3"><div className="flex-1"><div className="font-bold">Admin Link</div><div className="muted text-xs">Reusable · Admin access requires approval.</div></div><button className="btn px-3 py-2 text-xs" onClick={()=>copy(l,"Admin")}>{copied===l.id?<Check size={14}/>:<Copy size={14}/>}Copy</button></div>)}
