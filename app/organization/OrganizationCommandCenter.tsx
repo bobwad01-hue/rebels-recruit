@@ -408,12 +408,14 @@ export default function OrganizationCommandCenter() {
         );
       })
     : [];
-  const overdue = reminders.filter(
+  const overdueFollowUps = reminders.filter(
     (r) =>
-      ["open", "overdue"].includes(r.status) &&
+      ["open", "overdue", "snoozed"].includes(r.status) &&
       r.due_date &&
       r.due_date < today,
   );
+  const overdueTasks = tasks.filter((t) => t.status !== "completed" && t.due_date && t.due_date < today);
+  const overdue = [...overdueTasks, ...overdueFollowUps];
   const openTasks = tasks.filter((t) => t.status !== "completed");
   const noCoach = athletes.filter(
     (a) => !coaches.some((c) => c.athlete_user_id === a.user_id),
@@ -744,7 +746,7 @@ export default function OrganizationCommandCenter() {
                   className="w-full border rounded-xl p-3 hover:bg-slate-50 flex justify-between gap-3"
                 >
                   <span>
-                    <b>{overdue.length}</b> overdue follow-ups
+                    <b>{overdue.length}</b> overdue Next Steps / follow-ups
                   </span>
                   <ArrowRight size={16} />
                 </Link>
