@@ -31,7 +31,7 @@ export default function AdvisorTasks(){
   if(hasOrgAccess)pids=(members||[]).filter((m:any)=>m.role==='athlete').map((m:any)=>m.user_id);
   else{const {data:rels,error:relsError}=await c.from('athlete_advisor_assignments').select('athlete_user_id').eq('advisor_user_id',user.id).eq('status','active');if(relsError){setLoadError('Your assigned players could not be loaded.');setLoading(false);return}pids=[...new Set((rels||[]).map((x:any)=>x.athlete_user_id))] as string[];}
   const playerRows=pids.map(id=>pm.get(id)||{id,full_name:'Player'});setPlayers(playerRows);
-  const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;const requested=params?.get('player');if(requested&&playerRows.some((p:any)=>p.id===requested)){setMode('individual');setAthlete(requested)}
+  const params=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;const requested=params?.get('player');if(requested&&playerRows.some((p:any)=>p.id===requested)){setMode('individual');setAthlete(requested)}const requestedStatus=params?.get('status');if(requestedStatus&&['open','overdue','completed','all'].includes(requestedStatus))setStatusFilter(requestedStatus as 'open'|'overdue'|'completed'|'all');
   const requestedTitle=params?.get('title');const requestedDescription=params?.get('description');if(requestedTitle&&!title)setTitle(requestedTitle);if(requestedDescription&&!description)setDescription(requestedDescription);
   const {data:gs,error:groupsError}=await c.from('advisor_player_groups').select('id,name').eq('owner_user_id',user.id).order('name');
   if(groupsError)setWarnings(w=>[...w,'Saved player groups could not be loaded.']);
