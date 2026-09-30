@@ -11,6 +11,7 @@ export default function Signup() {
   const invite=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;
   const staffToken=invite?.get('staff_token')||'';
   const joinToken=invite?.get('join_token')||'';
+  const accessLinkSignup=Boolean(joinToken);
   const staffInvite=Boolean(staffToken);
   const [invitedEmail,setInvitedEmail]=useState('');
   const [invitedRole,setInvitedRole]=useState('advisor');
@@ -24,6 +25,7 @@ export default function Signup() {
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [joining, setJoining] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
   const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
@@ -36,13 +38,22 @@ export default function Signup() {
     e.preventDefault();
     setError('');
     if (!validate()) return;
-    const { error } = await createClient().auth.signUp({
+    const client=createClient();
+    const { data:signupData, error } = await client.auth.signUp({
       email,
       password,
       options: { data: { full_name: name, app_role: role, age_13_plus: role==='athlete'?true:undefined, organization_admin_interest:orgIntent||undefined, advisor_account_type:role==="advisor"?advisorPath:undefined }, emailRedirectTo: `${APP_URL}/auth/callback?legal_signup=1&join_token=${encodeURIComponent(joinToken)}` },
     });
-    if (error) setError(error.message);
-    else setSent(true);
+    if (error) { setError(error.message); return; }
+    if(accessLinkSignup&&signupData.session){
+      setJoining(true);
+      const joined=await fetch('/api/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:joinToken})});
+      const result=await joined.json();
+      if(!joined.ok){setJoining(false);setError(result.error||'Your account was created, but we could not add team access. Please use the access link again.');return}
+      window.location.assign(result.next||'/auth/callback?legal_signup=1');
+      return;
+    }
+    setSent(true);
   }
 
   async function continueWithGoogle() {
@@ -60,6 +71,8 @@ export default function Signup() {
   }
 
   const Brand=()=> <PrimaryBrand className="text-xl justify-center"/>;
+
+  if (joining) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><Brand/><h1 className="text-2xl font-black mt-8">Adding your team access…</h1><p className="muted mt-2">Your RLTNL account is ready. We’re connecting it to the organization and team from your access link.</p></div></div>;
 
   if (sent) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><Brand/><h1 className="text-2xl font-black mt-8">Check your email</h1><p className="muted mt-2">We sent a verification link to {email}. After you verify your account, you'll complete your profile before entering RLTNL Recruiting.</p></div></div>;
 
