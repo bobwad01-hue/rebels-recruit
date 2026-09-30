@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Save,
   Settings2,
+  Pencil,
   X,
   ShieldCheck,
   UserCog,
@@ -55,6 +56,7 @@ export default function OrganizationSetup() {
     [copied, setCopied] = useState(false),
     [teamEdit, setTeamEdit] = useState<Team | null>(null),
     [teamEditName, setTeamEditName] = useState(""),
+    [teamEditAgeGroup, setTeamEditAgeGroup] = useState(""),
     [staffLinks,setStaffLinks]=useState<any[]>([]),[staffLinksLoading,setStaffLinksLoading]=useState(false),[staffCopied,setStaffCopied]=useState(""),
     [confirmAction, setConfirmAction] = useState<null | { type: "code" | "archive"; team?: Team }>(null),
     [manageTeam,setManageTeam]=useState<Team|null>(null),[teamPanel,setTeamPanel]=useState<"people"|"access">("people"),[staffOpen,setStaffOpen]=useState(false),[orgEditOpen,setOrgEditOpen]=useState(false);
@@ -154,9 +156,11 @@ export default function OrganizationSetup() {
   function editTeam(team: Team) {
     setTeamEdit(team);
     setTeamEditName(team.name);
+    setTeamEditAgeGroup(team.age_group || "");
   }
   async function saveTeamEdit() {
-    if (!teamEdit || !teamEditName.trim() || teamEditName.trim() === teamEdit.name) {
+    if (!teamEdit || !teamEditName.trim()) return;
+    if (teamEditName.trim() === teamEdit.name && teamEditAgeGroup.trim() === (teamEdit.age_group || "")) {
       setTeamEdit(null);
       return;
     }
@@ -166,7 +170,7 @@ export default function OrganizationSetup() {
         organizationId: selected,
         teamId: teamEdit.id,
         name: teamEditName.trim(),
-        ageGroup: teamEdit.age_group || "",
+        ageGroup: teamEditAgeGroup.trim(),
       },
       "Team updated.",
     );
@@ -244,7 +248,7 @@ export default function OrganizationSetup() {
                 <section className="card p-5 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3"><div><div className="rr-eyebrow">TEAMS</div><h2 className="font-black text-lg">Teams & Access</h2><p className="muted text-sm mt-1">Manage each team's roster, parent links, advisors and onboarding from one place.</p></div></div>
                   <div className="grid lg:grid-cols-[1fr_160px_auto] gap-3 mt-5"><input className="input" value={teamName} onChange={e=>setTeamName(e.target.value)} placeholder="New team name"/><input className="input" value={ageGroup} onChange={e=>setAgeGroup(e.target.value)} placeholder="Age group (optional)"/><button className="btn btn-red" disabled={busy||!teamName.trim()} onClick={addTeam}><Plus size={16}/>Add Team</button></div>
-                  <div className="space-y-3 mt-5">{org.teams.filter(t=>!t.archived_at).map(team=>{const roster=(org.roster||[]).find((r:any)=>r.teamId===team.id)?.members||[];const athletes=roster.filter((m:any)=>m.role==="athlete").length,parents=roster.filter((m:any)=>m.role==="parent").length,advisors=roster.filter((m:any)=>m.role==="advisor").length;return <div key={team.id} className="rounded-2xl border p-4"><div className="flex flex-col lg:flex-row lg:items-center gap-4"><div className="flex-1"><div className="font-black text-base">{team.name}</div><div className="muted text-xs mt-1">{team.age_group||"No age group"} · {athletes} Athletes · {parents} Parents · {advisors} Advisors</div></div><div className="flex flex-wrap gap-2"><button className="btn px-3 py-2 text-xs" onClick={()=>{setManageTeam(team);setTeamPanel("people")}}><UserCog size={14}/>Manage People</button><button className="btn px-3 py-2 text-xs" onClick={()=>{setManageTeam(team);setTeamPanel("access")}}><Copy size={14}/>Access & Invite</button><button className="btn px-3 py-2 text-xs" onClick={()=>editTeam(team)}><Settings2 size={14}/>Rename</button><button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>setConfirmAction({type:"archive",team})}><Archive size={14}/>Archive</button></div></div></div>})}</div>
+                  <div className="space-y-3 mt-5">{org.teams.filter(t=>!t.archived_at).map(team=>{const roster=(org.roster||[]).find((r:any)=>r.teamId===team.id)?.members||[];const athletes=roster.filter((m:any)=>m.role==="athlete").length,parents=roster.filter((m:any)=>m.role==="parent").length,advisors=roster.filter((m:any)=>m.role==="advisor").length;return <div key={team.id} className="rounded-2xl border p-4"><div className="flex flex-col lg:flex-row lg:items-center gap-4"><div className="flex-1"><div className="flex items-center gap-2"><div className="font-black text-base">{team.name}</div>{!previewReadOnly&&<button type="button" className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-800" aria-label={`Edit ${team.name}`} title="Edit team" onClick={()=>editTeam(team)}><Pencil size={14}/></button>}</div><div className="muted text-xs mt-1">{team.age_group||"No age group"} · {athletes} Athletes · {parents} Parents · {advisors} Advisors</div></div><div className="flex flex-wrap gap-2"><button className="btn px-3 py-2 text-xs" onClick={()=>{setManageTeam(team);setTeamPanel("people")}}><UserCog size={14}/>Manage People</button><button className="btn px-3 py-2 text-xs" onClick={()=>{setManageTeam(team);setTeamPanel("access")}}><Copy size={14}/>Access & Invite</button><button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>setConfirmAction({type:"archive",team})}><Archive size={14}/>Archive</button></div></div></div>})}</div>
                   {org.teams.some(t=>t.archived_at)&&<details className="mt-5"><summary className="font-bold text-sm cursor-pointer">Archived teams</summary><div className="space-y-2 mt-3">{org.teams.filter(t=>t.archived_at).map(team=><div key={team.id} className="rounded-xl border bg-slate-50 p-3 flex items-center"><span className="font-bold flex-1">{team.name}</span><button className="btn px-3 py-2 text-xs" disabled={busy} onClick={()=>act({action:"restoreTeam",organizationId:selected,teamId:team.id},"Team restored.")}><RotateCcw size={14}/>Restore</button></div>)}</div></details>}
                 </section>
               </>
@@ -262,17 +266,22 @@ export default function OrganizationSetup() {
               <div>
                 <div className="rr-eyebrow">{teamEdit ? "EDIT TEAM" : "CONFIRM CHANGE"}</div>
                 <h2 id="setup-modal-title" className="mt-1 text-xl font-black">
-                  {teamEdit ? "Rename team" : confirmAction?.type === "code" ? "Generate a new organization code?" : "Archive this team?"}
+                  {teamEdit ? "Edit team" : confirmAction?.type === "code" ? "Generate a new organization code?" : "Archive this team?"}
                 </h2>
               </div>
               <button type="button" className="btn p-2" aria-label="Close" disabled={busy} onClick={() => { setTeamEdit(null); setConfirmAction(null); }}><X size={16}/></button>
             </div>
             {teamEdit ? (
               <>
-                <label className="mt-5 block text-sm font-bold">Team name
-                  <input autoFocus className="input mt-1" value={teamEditName} onChange={(e)=>setTeamEditName(e.target.value)} onKeyDown={(e)=>{if(e.key==="Enter") saveTeamEdit();}} />
-                </label>
-                <p className="muted text-sm mt-3">This changes the team name everywhere inside this organization. Player history and access stay connected.</p>
+                <div className="grid sm:grid-cols-2 gap-4 mt-5">
+                  <label className="block text-sm font-bold">Team name
+                    <input autoFocus className="input mt-1" value={teamEditName} onChange={(e)=>setTeamEditName(e.target.value)} onKeyDown={(e)=>{if(e.key==="Enter") saveTeamEdit();}} />
+                  </label>
+                  <label className="block text-sm font-bold">Age group <span className="font-normal muted">(optional)</span>
+                    <input className="input mt-1" value={teamEditAgeGroup} onChange={(e)=>setTeamEditAgeGroup(e.target.value)} onKeyDown={(e)=>{if(e.key==="Enter") saveTeamEdit();}} placeholder="e.g. 16U" />
+                  </label>
+                </div>
+                <p className="muted text-sm mt-3">Update the team name or age group. Player history and access stay connected.</p>
               </>
             ) : confirmAction?.type === "code" ? (
               <p className="mt-4 text-sm">Generate a new private join code for <b>{org?.name}{org?.branch_name ? ` · ${org.branch_name}` : ""}</b>? The current code will stop working immediately.</p>
@@ -282,7 +291,7 @@ export default function OrganizationSetup() {
             <div className="mt-6 flex justify-end gap-3">
               <button className="btn" disabled={busy} onClick={() => { setTeamEdit(null); setConfirmAction(null); }}>Cancel</button>
               <button className={confirmAction?.type === "archive" ? "btn btn-red" : "btn bg-slate-900 text-white"} disabled={busy || (!!teamEdit && !teamEditName.trim())} onClick={teamEdit ? saveTeamEdit : runConfirmedAction}>
-                {busy ? "Working..." : teamEdit ? "Save Team Name" : confirmAction?.type === "code" ? "Generate New Code" : "Archive Team"}
+                {busy ? "Working..." : teamEdit ? "Save Changes" : confirmAction?.type === "code" ? "Generate New Code" : "Archive Team"}
               </button>
             </div>
           </div>
