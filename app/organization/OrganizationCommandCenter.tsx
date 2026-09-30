@@ -565,7 +565,7 @@ export default function OrganizationCommandCenter() {
     <button
       type="button"
       onClick={() => setTab(dest)}
-      className="rr-metric-card p-3 sm:p-4 text-left group hover:border-slate-400 hover:bg-white transition"
+      className={`rr-metric-card p-4 text-left group transition hover:-translate-y-0.5 hover:shadow-sm ${["Overdue","Need Follow-Up","Open Follow-Ups"].includes(label)&&Number(value)>0?"border-amber-200 bg-amber-50/50 hover:bg-amber-50":"hover:border-slate-400 hover:bg-white"}`}
     >
       <div className="flex flex-col sm:flex-row sm:justify-between gap-2">
         <div className="rr-metric-label">{label}</div>
@@ -667,9 +667,10 @@ export default function OrganizationCommandCenter() {
           </div>,
           document.body,
         )}
+      {tab!=="overview"&&<div className="mb-4 flex items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3"><button className="btn" onClick={()=>setTab("overview")}>← Back to Organizational Health</button><span className="text-xs font-bold uppercase tracking-wide text-slate-500">{tabLabel(tab)}</span></div>}
       {tab === "overview" && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 gap-3">
             {metric("Players", athletes.length, "players")}
             
             
