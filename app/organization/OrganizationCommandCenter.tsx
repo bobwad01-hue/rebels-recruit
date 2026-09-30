@@ -697,7 +697,7 @@ export default function OrganizationCommandCenter() {
               "players",
             )}
             {metric("Advisors / Staff", advisors.length, "advisors")}
-            {metric("Commitments", stageCount("Committed"), "colleges")}
+            <Link href="/insights" className="card p-4 hover:border-slate-400"><div className="muted text-xs">Commitments</div><div className="font-black text-2xl mt-1">{stageCount("Committed")}</div><div className="muted text-xs mt-1">View in Recruiting Insights</div></Link>
             {metric(
               "Open Follow-Ups",
               reminders.filter((x) =>
