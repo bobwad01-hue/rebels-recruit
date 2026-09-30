@@ -63,8 +63,15 @@ export async function GET() {
       .in("id", ids)
       .order("name");
     if (error) throw new Error(error.message);
-    const staffIds = [...new Set((organizations || []).flatMap((o:any)=>(o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>m.user_id)))];
-    const {data:staffProfiles}=staffIds.length?await admin.from("profiles").select("id,full_name,email").in("id",staffIds):{data:[] as any[]};
+    const teamIds=[...new Set((organizations||[]).flatMap((o:any)=>(o.teams||[]).map((t:any)=>t.id)))];
+    const [{data:teamMembers},{data:teamRoles},{data:orgRoles},{data:parentLinks}]=await Promise.all([
+      teamIds.length?admin.from("team_members").select("team_id,user_id").in("team_id",teamIds):Promise.resolve({data:[] as any[]}),
+      teamIds.length?admin.from("team_user_roles").select("team_id,user_id,role,status").in("team_id",teamIds).eq("status","active"):Promise.resolve({data:[] as any[]}),
+      admin.from("organization_user_roles").select("organization_id,user_id,role,status").in("organization_id",ids).eq("status","active"),
+      admin.from("parent_guardian_access").select("parent_user_id,athlete_user_id,status").eq("status","active")
+    ]);
+    const allUserIds=[...new Set([...(organizations||[]).flatMap((o:any)=>(o.organization_members||[]).map((m:any)=>m.user_id)),...(teamMembers||[]).map((x:any)=>x.user_id),...(teamRoles||[]).map((x:any)=>x.user_id),...(parentLinks||[]).flatMap((x:any)=>[x.parent_user_id,x.athlete_user_id])])];
+    const {data:staffProfiles}=allUserIds.length?await admin.from("profiles").select("id,full_name,email").in("id",allUserIds):{data:[] as any[]};
     const {data:staffInvites}=ids.length?await admin.from("organization_staff_invites").select("id,organization_id,email,role,organization_view_access,status,invited_at,invite_token").in("organization_id",ids).eq("status","pending"):{data:[] as any[]};
     const staffById=new Map((staffProfiles||[]).map((p:any)=>[String(p.id),p]));
     return NextResponse.json({
@@ -74,7 +81,8 @@ export async function GET() {
         teams: (o.teams || []).sort((a: any, b: any) =>
           String(a.name).localeCompare(String(b.name)),
         ),
-        staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null})),
+        staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null,roles:(orgRoles||[]).filter((r:any)=>r.organization_id===o.id&&r.user_id===m.user_id).map((r:any)=>r.role)})),
+        roster: (o.teams||[]).map((t:any)=>({teamId:t.id,members:[...(teamMembers||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:"athlete"})),...(teamRoles||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:x.role}))].filter((x:any,i:number,a:any[])=>a.findIndex((y:any)=>y.userId===x.userId&&y.role===x.role)===i).map((x:any)=>({...x,profile:staffById.get(String(x.userId))||null,linkedAthletes:x.role==="parent"?(parentLinks||[]).filter((p:any)=>p.parent_user_id===x.userId).map((p:any)=>({id:p.athlete_user_id,name:staffById.get(String(p.athlete_user_id))?.full_name||"Athlete"})):[]}))})),
         staffInvites:(staffInvites||[]).filter((i:any)=>i.organization_id===o.id),
       })),
     });
@@ -238,6 +246,25 @@ export async function POST(req: NextRequest) {
       if(current?.role==="admin"){const {count}=await admin.from("organization_members").select("*",{count:"exact",head:true}).eq("organization_id",organizationId).eq("role","admin").eq("status","active");if((count||0)<=1)return NextResponse.json({error:"You cannot remove the organization's last Admin."},{status:400});}
       const {error}=await admin.from("organization_members").update({status:"revoked",suspended_at:new Date().toISOString(),suspended_by:user.id}).eq("organization_id",organizationId).eq("user_id",target);
       if(error) throw new Error(error.message);return NextResponse.json({ok:true});
+    }
+    if (action === "setTeamAccess") {
+      const target=String(body.userId||""),teamId=String(body.teamId||""),mode=String(body.mode||"remove");
+      const {data:team}=await admin.from("teams").select("id").eq("id",teamId).eq("organization_id",organizationId).maybeSingle();
+      if(!target||!team)return NextResponse.json({error:"Team access was not found."},{status:404});
+      const teamIds=((await admin.from("teams").select("id").eq("organization_id",organizationId)).data||[]).map((x:any)=>x.id);
+      const targetTeams=body.scope==="organization"?teamIds:body.scope==="allTeams"?teamIds:[teamId];
+      if(mode==="suspend"){
+        await admin.from("team_user_roles").update({status:"suspended",revoked_at:new Date().toISOString()}).eq("user_id",target).in("team_id",targetTeams);
+      }else{
+        await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).in("team_id",targetTeams);
+        await admin.from("team_members").delete().eq("user_id",target).in("team_id",targetTeams);
+      }
+      if(body.scope==="organization"){
+        const {data:member}=await admin.from("organization_members").select("role").eq("organization_id",organizationId).eq("user_id",target).maybeSingle();
+        if(member?.role==="admin"){const {count}=await admin.from("organization_members").select("*",{count:"exact",head:true}).eq("organization_id",organizationId).eq("role","admin").eq("status","active");if((count||0)<=1)return NextResponse.json({error:"You cannot remove or suspend the organization's last Admin."},{status:400});}
+        await admin.from("organization_members").update({status:mode==="suspend"?"suspended":"revoked",suspended_at:new Date().toISOString(),suspended_by:user.id}).eq("organization_id",organizationId).eq("user_id",target);
+      }
+      return NextResponse.json({ok:true});
     }
     if (action === "update") {
       const name = String(body.name || "").trim(),
