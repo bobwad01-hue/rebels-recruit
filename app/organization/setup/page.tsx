@@ -34,6 +34,7 @@ type Organization = {
   state: string;
   join_code: string;
   teams: Team[];
+  roster?: any[];
   staff?: any[];
   staffInvites?: any[];
 };
@@ -205,8 +206,8 @@ export default function OrganizationSetup() {
       <div className="max-w-5xl mx-auto px-4 sm:px-5 md:px-8 py-6">
         <PageHeader
           eyebrow={canCreate?"PLATFORM SETUP":"ADMIN SETTINGS"}
-          title="Organization Management"
-          subtitle="Manage organization details, teams, player access and staff access."
+          title="Teams & Staff"
+          subtitle="Manage organization details, team rosters, onboarding links and staff roles in one place."
           action={
             <Link href="/organization" className="btn">
               <ArrowLeft size={16} />
@@ -341,38 +342,6 @@ export default function OrganizationSetup() {
             </section>
             {!creating && org && (
               <>
-                <section className="rr-priority-card p-5 sm:p-6 mb-5">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="flex-1">
-                      <div className="rr-eyebrow">PLAYER ACCESS</div>
-                      <h2 className="font-black text-lg">
-                        Private Organization Code
-                      </h2>
-                      <div className="font-black text-2xl tracking-widest mt-3">
-                        {org.join_code}
-                      </div>
-                      <p className="text-sm mt-2">
-                        Players enter this code under Settings → Organizations.
-                        It joins them only to {org.name}
-                        {org.branch_name ? ` · ${org.branch_name}` : ""}.
-                      </p>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <button className="btn" onClick={copy}>
-                        {copied ? <Check size={16} /> : <Copy size={16} />}{" "}
-                        {copied ? "Copied" : "Copy Code"}
-                      </button>
-                      <button
-                        className="btn"
-                        disabled={busy}
-                        onClick={() => setConfirmAction({ type: "code" })}
-                      >
-                        <RefreshCw size={16} />
-                        New Code
-                      </button>
-                    </div>
-                  </div>
-                </section>
                 <section className="card p-5 sm:p-6">
                   <div className="rr-eyebrow">ROSTER STRUCTURE</div>
                   <h2 className="font-black text-lg">Teams</h2>
@@ -481,6 +450,10 @@ export default function OrganizationSetup() {
                   )}
                 </section>
                 <OrganizationAccessLinks organizationId={selected} teams={org.teams} readOnly={previewReadOnly} />
+                <section className="card p-5 sm:p-6 mt-5">
+                  <div className="rr-eyebrow">TEAM ROSTERS & ACCESS</div><h2 className="font-black text-lg">Manage access where people belong</h2><p className="muted text-sm mt-1">See Athletes, Parents and Advisors by team. Parents show the athlete relationship that grants their access.</p>
+                  <div className="space-y-4 mt-5">{org.teams.filter(t=>!t.archived_at).map(team=>{const roster=(org.roster||[]).find((r:any)=>r.teamId===team.id)?.members||[];return <details key={team.id} className="rounded-xl border"><summary className="cursor-pointer list-none p-4 flex justify-between gap-3"><span><b>{team.name}</b>{team.age_group&&<span className="muted text-xs block">{team.age_group}</span>}</span><span className="text-xs font-bold text-slate-500">{roster.length} roster entr{roster.length===1?'y':'ies'}</span></summary><div className="border-t divide-y">{roster.length?roster.map((m:any,i:number)=><div key={m.userId+'-'+m.role+'-'+i} className="p-4 flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1 min-w-0"><div className="font-bold">{m.profile?.full_name||m.profile?.email||'RLTNL user'}</div><div className="text-xs text-slate-500">{m.role.charAt(0).toUpperCase()+m.role.slice(1)}{m.role==='parent'&&m.linkedAthletes?.length?<> · <b>Linked to {m.linkedAthletes.map((a:any)=>a.name).join(', ')}</b></>:null}</div></div>{!previewReadOnly&&<div className="flex gap-2"><button className="btn px-3 py-2 text-xs" onClick={async()=>{const otherTeams=(org.roster||[]).filter((r:any)=>r.teamId!==team.id&&r.members?.some((x:any)=>x.userId===m.userId)).length;const scope=otherTeams&&confirm((m.profile?.full_name||'This person')+' also has access on another team. OK removes access from all teams; Cancel removes only '+team.name+'.')?'allTeams':'team';await act({action:'setTeamAccess',organizationId:selected,teamId:team.id,userId:m.userId,mode:'suspend',scope},'Access suspended.')}}>Suspend</button><button className="btn px-3 py-2 text-xs text-red-700" onClick={async()=>{const otherTeams=(org.roster||[]).filter((r:any)=>r.teamId!==team.id&&r.members?.some((x:any)=>x.userId===m.userId)).length;const all=otherTeams&&confirm((m.profile?.full_name||'This person')+' also has access on another team. OK removes access from all teams; Cancel removes only '+team.name+'.');await act({action:'setTeamAccess',organizationId:selected,teamId:team.id,userId:m.userId,mode:'remove',scope:all?'allTeams':'team'},all?'All team access removed.':'Team access removed.')}}>Remove</button></div>}</div>):<div className="p-4 muted text-sm">No roster entries yet.</div>}</div></details>})}</div>
+                </section>
                 <section className="card p-5 sm:p-6 mt-5">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div><div className="rr-eyebrow">ORGANIZATION ACCESS</div><h2 className="font-black text-lg">Staff Access</h2><p className="muted text-sm mt-1">Invite Admins and Advisors, then manage their organization access here.</p></div>
