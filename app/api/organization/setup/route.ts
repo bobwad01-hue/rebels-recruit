@@ -58,7 +58,7 @@ export async function GET() {
     const { data: organizations, error } = await admin
       .from("organizations")
       .select(
-        "id,name,branch_name,city,state,join_code,teams(id,name,age_group,archived_at),organization_members(user_id,role,status,organization_view_access)",
+        "id,name,branch_name,city,state,join_code,organization_type,teams(id,name,age_group,archived_at,sort_order),organization_members(user_id,role,status,organization_view_access)",
       )
       .in("id", ids)
       .order("name");
@@ -79,7 +79,7 @@ export async function GET() {
       organizations: (organizations || []).map((o: any) => ({
         ...o,
         teams: (o.teams || []).sort((a: any, b: any) =>
-          String(a.name).localeCompare(String(b.name)),
+          (Number(a.sort_order ?? 999999) - Number(b.sort_order ?? 999999)) || String(a.name).localeCompare(String(b.name)),
         ),
         staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null,roles:(orgRoles||[]).filter((r:any)=>r.organization_id===o.id&&r.user_id===m.user_id).map((r:any)=>r.role)})),
         roster: (o.teams||[]).map((t:any)=>({teamId:t.id,members:[...(teamMembers||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:"athlete"})),...(teamRoles||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:x.role}))].filter((x:any,i:number,a:any[])=>a.findIndex((y:any)=>y.userId===x.userId&&y.role===x.role)===i).map((x:any)=>({...x,profile:staffById.get(String(x.userId))||null,linkedAthletes:x.role==="parent"?(parentLinks||[]).filter((p:any)=>p.parent_user_id===x.userId).map((p:any)=>({id:p.athlete_user_id,name:staffById.get(String(p.athlete_user_id))?.full_name||"Athlete"})):[]}))})),
@@ -127,7 +127,8 @@ export async function POST(req: NextRequest) {
         city = String(body.city || "").trim(),
         state = String(body.state || "")
           .trim()
-          .toUpperCase();
+          .toUpperCase(),
+        organizationType = ["travel_club","high_school"].includes(String(body.organizationType||"")) ? String(body.organizationType) : null;
       if (!name || !city || !state)
         return NextResponse.json(
           { error: "Organization, city and state are required." },
@@ -142,8 +143,9 @@ export async function POST(req: NextRequest) {
           city,
           state,
           join_code: joinCode,
+          organization_type: organizationType,
         })
-        .select("id,name,branch_name,city,state,join_code")
+        .select("id,name,branch_name,city,state,join_code,organization_type")
         .single();
       if (error) throw new Error(error.message);
       const { data: platformRole } = await admin.from("platform_roles").select("role").eq("user_id", user.id).eq("role", "super_owner").maybeSingle();
@@ -272,7 +274,8 @@ export async function POST(req: NextRequest) {
         city = String(body.city || "").trim(),
         state = String(body.state || "")
           .trim()
-          .toUpperCase();
+          .toUpperCase(),
+        organizationType = ["travel_club","high_school"].includes(String(body.organizationType||"")) ? String(body.organizationType) : null;
       if (!name || !city || !state)
         return NextResponse.json(
           { error: "Organization, city and state are required." },
@@ -280,7 +283,7 @@ export async function POST(req: NextRequest) {
         );
       const { error } = await admin
         .from("organizations")
-        .update({ name, branch_name: branchName, city, state })
+        .update({ name, branch_name: branchName, city, state, organization_type: organizationType })
         .eq("id", organizationId);
       if (error) throw new Error(error.message);
       return NextResponse.json({ ok: true });
@@ -297,6 +300,8 @@ export async function POST(req: NextRequest) {
     if (action === "addTeam") {
       const name = String(body.name || "").trim(),
         ageGroup = String(body.ageGroup || "").trim() || null;
+      const {data:existingTeams}=await admin.from("teams").select("id,name,age_group,sort_order").eq("organization_id",organizationId).is("archived_at",null);
+      const nextSort=(existingTeams||[]).reduce((m:any,t:any)=>Math.max(m,Number(t.sort_order||0)),0)+10;
       if (!name)
         return NextResponse.json(
           { error: "Team name is required." },
@@ -304,7 +309,7 @@ export async function POST(req: NextRequest) {
         );
       const { error } = await admin
         .from("teams")
-        .insert({ organization_id: organizationId, name, age_group: ageGroup });
+        .insert({ organization_id: organizationId, name, age_group: ageGroup, sort_order: nextSort });
       if (error)
         throw new Error(
           error.code === "23505"
@@ -334,6 +339,13 @@ export async function POST(req: NextRequest) {
             : error.message,
         );
       return NextResponse.json({ ok: true });
+    }
+    if (action === "reorderTeams") {
+      const teamIds=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
+      const {data:owned}=await admin.from("teams").select("id").eq("organization_id",organizationId).in("id",teamIds);
+      if(!teamIds.length||(owned||[]).length!==teamIds.length)return NextResponse.json({error:"Team order is invalid."},{status:400});
+      for(let i=0;i<teamIds.length;i++){const {error}=await admin.from("teams").update({sort_order:(i+1)*10}).eq("id",teamIds[i]).eq("organization_id",organizationId);if(error)throw new Error(error.message);}
+      return NextResponse.json({ok:true});
     }
     if (action === "archiveTeam") {
       const teamId = String(body.teamId || "");
