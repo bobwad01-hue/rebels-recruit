@@ -321,7 +321,7 @@ export default async function Dashboard({
               <h2 className="text-xl sm:text-2xl font-black mt-1">{stageCopy.title}</h2>
               <p className="muted text-sm mt-1">{stageCopy.detail}</p>
             </div>
-            <Link
+            {(recruitingStage==="recruit"||recruitingStage==="decide")&&(<Link
               href={ph("/health")}
               className="rounded-xl border bg-slate-50 px-4 py-3 w-full min-w-0 lg:w-auto lg:min-w-[160px] block hover:bg-slate-100 transition-colors"
             >
@@ -330,7 +330,7 @@ export default async function Dashboard({
               <div className="text-xs font-black mt-2 inline-flex items-center gap-1">
                 See what affects it <ArrowRight size={12} />
               </div>
-            </Link>
+            </Link>)}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 mt-5 min-w-0 rounded-xl border bg-slate-50/60 divide-x divide-y md:divide-y-0 overflow-hidden">
             <SnapshotMetric
