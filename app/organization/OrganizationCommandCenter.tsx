@@ -669,23 +669,38 @@ export default function OrganizationCommandCenter() {
       {tab!=="overview"&&<div className="mb-4 flex items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3"><button className="btn" onClick={()=>setTab("overview")}>← Back to Organizational Health</button><span className="text-xs font-bold uppercase tracking-wide text-slate-500">{tabLabel(tab)}</span></div>}
       {tab === "overview" && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {metric("Recruitable Players", athletes.length, "players")}
-            {metric(
-              "Recorded Activity Last 7 Days",
-              activityAvailable
-                ? activity.filter((a) => {
-                    const d = exactDate(a);
-                    if (!d) return false;
-                    const activityDate = new Date(`${d}T12:00:00`).getTime();
-                    return Date.now() - activityDate <= 7 * 86400000;
-                  }).length
-                : "—",
-              "activity",
-            )}
-            {metric("Advisors / Staff", advisors.length, "advisors")}
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["Recruitable Players", athletes.length, "players" as Tab],
+              [
+                "Recorded Activity Last 7 Days",
+                activityAvailable
+                  ? activity.filter((a) => {
+                      const d = exactDate(a);
+                      if (!d) return false;
+                      const activityDate = new Date(`${d}T12:00:00`).getTime();
+                      return Date.now() - activityDate <= 7 * 86400000;
+                    }).length
+                  : "—",
+                "activity" as Tab,
+              ],
+              ["Advisors / Staff", advisors.length, "advisors" as Tab],
+            ].map(([label, value, dest]) => (
+              <button
+                type="button"
+                key={String(label)}
+                onClick={() => setTab(dest as Tab)}
+                className="group inline-flex items-center gap-3 rounded-lg border bg-white px-3 py-2 text-left hover:border-slate-400 hover:bg-slate-50"
+              >
+                <span>
+                  <span className="block text-[11px] font-bold text-slate-500">{label}</span>
+                  <span className="block text-lg font-black leading-tight text-slate-900">{value}</span>
+                </span>
+                <ArrowRight size={13} className="opacity-40 group-hover:opacity-100" />
+              </button>
+            ))}
           </div>
-          <section className="mt-5 border-t pt-4">
+          <section className="mt-4 border-t pt-4">
             <div>
               <h2 className="text-base font-black leading-tight text-slate-900">Where Relationships Stand</h2>
               <p className="rr-section-subtitle mt-1">
