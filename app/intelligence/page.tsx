@@ -17,6 +17,7 @@ const fmt=(d?:string|null)=>d?new Date(`${String(d).slice(0,10)}T12:00:00`).toLo
 const enc=(v:any)=>encodeURIComponent(String(v||''));
 const taskHref=(athleteId:string,title:string,description:string)=>`/advisors/tasks?player=${enc(athleteId)}&title=${enc(title)}&description=${enc(description)}`;
 const coachLastName=(name:string)=>String(name||'').trim().split(/\s+/).pop()||'';
+const schoolSortName=(name:string)=>String(name||'').trim().replace(/^the\s+/i,'').replace(/^university\s+of\s+/i,'').trim();
 
 export default function RecruitingInsights(){
  const c=createClient();
@@ -116,7 +117,7 @@ function CoverageView({kind,groups,teams,search,setSearch,openDetail}:{kind:'sch
  const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();
  const divisions=useMemo(()=>[...new Set(groups.map((g:any)=>String(g.division||'').trim()).filter(Boolean))].sort(),[groups]);
  const stages=useMemo(()=>school?[...new Set(groups.flatMap((g:any)=>[...g.athletes.values()].map((a:any)=>a.stage)).filter(Boolean))].sort():[],[groups,school]);
- const filtered=useMemo(()=>groups.map((g:any)=>{const athletes=new Map([...g.athletes.entries()].filter(([,a]:any)=>team==='all'||a.teamIds?.includes(team)).filter(([,a]:any)=>!school||stage==='all'||a.stage===stage));return {...g,athletes}}).filter((g:any)=>g.athletes.size>0&&(division==='all'||g.division===division)).sort((a:any,b:any)=>sort==='name'?a.name.localeCompare(b.name):sort==='coaches'&&school?b.coaches.size-a.coaches.size||b.athletes.size-a.athletes.size||a.name.localeCompare(b.name):sort==='school'&&!school?String(a.school||'').localeCompare(String(b.school||''))||coachLastName(a.name).localeCompare(coachLastName(b.name)):sort==='coach'&&!school?coachLastName(a.name).localeCompare(coachLastName(b.name))||a.name.localeCompare(b.name):b.athletes.size-a.athletes.size||a.name.localeCompare(b.name)),[groups,team,division,stage,sort,school]);
+ const filtered=useMemo(()=>groups.map((g:any)=>{const athletes=new Map([...g.athletes.entries()].filter(([,a]:any)=>team==='all'||a.teamIds?.includes(team)).filter(([,a]:any)=>!school||stage==='all'||a.stage===stage));return {...g,athletes}}).filter((g:any)=>g.athletes.size>0&&(division==='all'||g.division===division)).sort((a:any,b:any)=>sort==='name'?a.name.localeCompare(b.name):sort==='coaches'&&school?b.coaches.size-a.coaches.size||b.athletes.size-a.athletes.size||a.name.localeCompare(b.name):sort==='school'&&!school?String(a.school||'').localeCompare(String(b.school||''))||coachLastName(a.name).localeCompare(coachLastName(b.name)):sort==='coach'&&!school?coachLastName(a.name).localeCompare(coachLastName(b.name))||a.name.localeCompare(b.name):b.athletes.size-a.athletes.size||(school?schoolSortName(a.name).localeCompare(schoolSortName(b.name)):coachLastName(a.name).localeCompare(coachLastName(b.name)))||a.name.localeCompare(b.name)),[groups,team,division,stage,sort,school]);
  const searching=Boolean(search.trim()),shown=searching||expanded?filtered:filtered.slice(0,5),sectionId=school?'school-relationships':'coach-relationships';
  const collapse=()=>{setExpanded(false);setTimeout(()=>document.getElementById(sectionId)?.scrollIntoView({behavior:'smooth',block:'start'}),0)};
  return <section id={sectionId} className="card overflow-hidden scroll-mt-4">
