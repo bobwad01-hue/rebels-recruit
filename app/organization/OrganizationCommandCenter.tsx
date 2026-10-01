@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Activity,
-  AlertTriangle,
   ArrowRight,
   Download,
   Search,
@@ -670,76 +669,23 @@ export default function OrganizationCommandCenter() {
       {tab!=="overview"&&<div className="mb-4 flex items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3"><button className="btn" onClick={()=>setTab("overview")}>← Back to Organizational Health</button><span className="text-xs font-bold uppercase tracking-wide text-slate-500">{tabLabel(tab)}</span></div>}
       {tab === "overview" && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-4 gap-3">
-            {metric("Players", athletes.length, "players")}
-            
-            
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {metric("Recruitable Players", athletes.length, "players")}
             {metric(
-              "Recorded Activity",
-              activityAvailable ? activity.length : "—",
+              "Recorded Activity Last 7 Days",
+              activityAvailable
+                ? activity.filter((a) => {
+                    const d = exactDate(a);
+                    if (!d) return false;
+                    const activityDate = new Date(`${d}T12:00:00`).getTime();
+                    return Date.now() - activityDate <= 7 * 86400000;
+                  }).length
+                : "—",
               "activity",
             )}
-            {metric("Open Next Steps", openTasks.length, "players")}
-            {metric("Overdue", overdue.length, "players")}
-            {metric(
-              "Need Follow-Up",
-              activityAvailable ? stale.length : "—",
-              "players",
-            )}
             {metric("Advisors / Staff", advisors.length, "advisors")}
-            <Link href="/insights" className="card p-4 hover:border-slate-400"><div className="muted text-xs">Commitments</div><div className="font-black text-2xl mt-1">{stageCount("Committed")}</div><div className="muted text-xs mt-1">View in Recruiting Insights</div></Link>
-            {metric(
-              "Open Follow-Ups",
-              reminders.filter((x) =>
-                ["open", "overdue", "snoozed"].includes(x.status),
-              ).length,
-              "players",
-            )}
           </div>
-          <div className="grid xl:grid-cols-2 gap-5 sm:gap-6 mt-6">
-            <section className="card p-4 sm:p-5">
-              <div className="rr-eyebrow">PRIORITY</div>
-              <h2 className="rr-section-title flex items-center gap-2">
-                <AlertTriangle size={20} />
-                Where Staff Should Focus
-              </h2>
-              <p className="rr-section-subtitle">
-                These are the clearest places where staff support may help. Open
-                an item to review the player or work behind it before deciding
-                what to do.
-              </p>
-              <div className="mt-4 space-y-2">
-                <button
-                  className="w-full text-left border rounded-xl p-3 hover:bg-slate-50 flex justify-between gap-3"
-                  onClick={() => setTab("players")}
-                >
-                  <span>
-                    <b>{stale.length}</b> players may need relationship
-                    follow-up
-                  </span>
-                  <ArrowRight size={16} />
-                </button>
-                <Link
-                  href="/advisors/tasks?status=overdue"
-                  className="w-full border rounded-xl p-3 hover:bg-slate-50 flex justify-between gap-3"
-                >
-                  <span>
-                    <b>{overdue.length}</b> overdue Next Steps / follow-ups
-                  </span>
-                  <ArrowRight size={16} />
-                </Link>
-                <button
-                  className="w-full text-left border rounded-xl p-3 hover:bg-slate-50 flex justify-between gap-3"
-                  onClick={() => setTab("players")}
-                >
-                  <span>
-                    <b>{noCoach.length}</b> players have no coach relationships
-                    yet
-                  </span>
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-            </section>
+          <div className="mt-6">
             <section className="card p-4 sm:p-5">
               <div className="rr-eyebrow">RECRUITING JOURNEY</div>
               <h2 className="rr-section-title">Where Relationships Stand</h2>
