@@ -252,7 +252,8 @@ export default function Exports() {
       report: Report;
       sheets: Sheet[];
     } | null>(null),
-    [sheetIndex, setSheetIndex] = useState(0);
+    [sheetIndex, setSheetIndex] = useState(0),
+    [missingProfilesOpen,setMissingProfilesOpen]=useState(false);
 
   async function load() {
     setLoading(true);
@@ -531,7 +532,8 @@ export default function Exports() {
     (divisionFilter === "all" ||
       String(one(x.colleges)?.division || "") === divisionFilter) &&
     (stageFilter === "all" || normalizeJourneyStage(x.status) === stageFilter);
-  const missingProfileCount = accessibleIds.filter((id) => !am.has(id)).length;
+  const missingProfileIds = accessibleIds.filter((id) => !am.has(id));
+  const missingProfileCount = missingProfileIds.length;
 
   function playerRows() {
     return ids.map((id) => {
@@ -1089,6 +1091,7 @@ export default function Exports() {
               tone="warning"
               title="Some players have not completed their recruiting profile"
               description={`${missingProfileCount} accessible player${missingProfileCount === 1 ? " is" : "s are"} still included in organization reports, but profile-only fields such as class year may be blank.`}
+              action={<button className="btn" onClick={()=>setMissingProfilesOpen(true)}>View Players</button>}
             />
           </div>
         )}
@@ -1290,6 +1293,14 @@ export default function Exports() {
           </>
         )}
       </PageFrame>
+      {missingProfilesOpen&&(
+        <div className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-3" onMouseDown={e=>{if(e.currentTarget===e.target)setMissingProfilesOpen(false)}}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[80vh] overflow-hidden" role="dialog" aria-modal="true" aria-label="Players with incomplete recruiting profiles">
+            <div className="px-5 py-4 border-b flex items-start justify-between gap-4"><div><div className="text-xs font-black tracking-widest text-red-700">PROFILE DETAILS</div><h2 className="text-xl font-black mt-1">Players With Incomplete Profiles</h2></div><button onClick={()=>setMissingProfilesOpen(false)} aria-label="Close" className="h-10 w-10 inline-flex items-center justify-center"><X size={20}/></button></div>
+            <div className="divide-y overflow-auto max-h-[60vh]">{missingProfileIds.map(id=><div key={id} className="px-5 py-4 flex items-center justify-between gap-4"><div><div className="font-black">{name(id)}</div><div className="muted text-sm">{team(id)||'No team listed'}</div></div><div className="text-sm font-bold text-amber-700">Recruiting profile incomplete</div></div>)}</div>
+          </div>
+        </div>
+      )}
       {preview && (
         <div
           className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-3"
