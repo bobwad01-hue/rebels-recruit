@@ -685,34 +685,32 @@ export default function OrganizationCommandCenter() {
             )}
             {metric("Advisors / Staff", advisors.length, "advisors")}
           </div>
-          <div className="mt-6">
-            <section className="card p-4 sm:p-5">
-              <div className="rr-eyebrow">RECRUITING JOURNEY</div>
-              <h2 className="rr-section-title">Where Relationships Stand</h2>
-              <p className="rr-section-subtitle">
-                See how many school relationships are at each Journey stage.
-                Open a stage to review the relationships behind it.
-              </p>
-              <div className="mt-4 space-y-2">
-                {RECRUITING_JOURNEY.map((s) => (
-                  <Link
-                    href={`/advisors/colleges?stage=${encodeURIComponent(s)}`}
-                    className="flex justify-between items-center text-sm rounded-lg px-2 py-1.5 hover:bg-slate-50 group"
-                    key={s}
-                  >
-                    <span>{s}</span>
-                    <span className="flex items-center gap-2">
-                      <b>{stageCount(s)}</b>
-                      <ArrowRight
-                        size={13}
-                        className="opacity-40 group-hover:opacity-100"
-                      />
-                    </span>
-                  </Link>
-                ))}
+          <section className="mt-5 border-t pt-4">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <div className="rr-eyebrow">RECRUITING JOURNEY</div>
+                <h2 className="rr-section-title">Where Relationships Stand</h2>
               </div>
-            </section>
-          </div>
+              <p className="rr-section-subtitle sm:text-right">
+                Open a stage to review its relationships.
+              </p>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {RECRUITING_JOURNEY.map((stage) => (
+                <Link
+                  href={`/advisors/colleges?stage=${encodeURIComponent(stage)}`}
+                  className="inline-flex min-w-[132px] items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm hover:border-slate-400 hover:bg-slate-50 group"
+                  key={stage}
+                >
+                  <span>{stage}</span>
+                  <span className="flex items-center gap-1.5">
+                    <b>{stageCount(stage)}</b>
+                    <ArrowRight size={13} className="opacity-40 group-hover:opacity-100" />
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
         </>
       )}
       {tab === "players" && (
