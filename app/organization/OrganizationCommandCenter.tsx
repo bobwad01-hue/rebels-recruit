@@ -686,12 +686,9 @@ export default function OrganizationCommandCenter() {
             {metric("Advisors / Staff", advisors.length, "advisors")}
           </div>
           <section className="mt-5 border-t pt-4">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="rr-eyebrow">RECRUITING JOURNEY</div>
-                <h2 className="text-base font-black leading-tight text-slate-900">Where Relationships Stand</h2>
-              </div>
-              <p className="rr-section-subtitle sm:text-right">
+            <div>
+              <h2 className="text-base font-black leading-tight text-slate-900">Where Relationships Stand</h2>
+              <p className="rr-section-subtitle mt-1">
                 Open a stage to review its relationships.
               </p>
             </div>
