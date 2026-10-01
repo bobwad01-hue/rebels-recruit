@@ -68,8 +68,93 @@ export default function RecruitingInsights(){
  </>}
  {coverageDetail&&<CoverageModal detail={coverageDetail} close={()=>setCoverageDetail(null)}/>} 
  </div></AppShell>}
-function AdminOverview(props:any){const {profiles,insights,activeRelationships,needsAttention,athletesNeedingAttention,cooling,rising,stale14,upcomingEvents}=props;const [athlete,setAthlete]=useState('all'),[status,setStatus]=useState('attention');const pm=useMemo(()=>new Map(profiles.map(p=>[p.id,p])),[profiles]);const rows=insights.filter((r:any)=>(athlete==='all'||r.athleteUserId===athlete)&&(status==='all'||(status==='attention'?(r.momentum==='Cooling'||(r.daysSinceContact!==999&&r.daysSinceContact>=14)):status==='stale14'?(r.daysSinceContact!==999&&r.daysSinceContact>=14):r.momentum===status)).sort((a:any,b:any)=>{const aa=a.momentum==='Cooling'?3:(a.daysSinceContact!==999&&a.daysSinceContact>=14)?2:a.momentum==='Rising'?1:0,bb=b.momentum==='Cooling'?3:(b.daysSinceContact!==999&&b.daysSinceContact>=14)?2:b.momentum==='Rising'?1:0;return bb-aa||b.daysSinceContact-a.daysSinceContact}).slice(0,25);return <><section className="card overflow-hidden"><div className="p-5"><div className="rr-eyebrow">ORGANIZATION SNAPSHOT</div><h2 className="font-black text-xl">Recruiting relationship health</h2><p className="muted text-sm mt-1">A high-level view of what is happening across the recruiting program. Use Schools and Coaches for deeper relationship context.</p></div><div className="border-t grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0"><HealthStat label="Active relationships" value={activeRelationships} detail="coach relationships being tracked"/><HealthStat label="Athletes needing attention" value={athletesNeedingAttention} detail={`${needsAttention} relationships need review`}/><HealthStat label="Cooling" value={cooling} detail={`${stale14} have 14+ day contact gaps`}/><HealthStat label="Upcoming events" value={upcomingEvents} detail="future recruiting events"/></div></section><section className="card overflow-hidden mt-6"><div className="p-5 flex flex-col xl:flex-row xl:items-end justify-between gap-4"><div><h2 className="font-black text-xl">Relationship Health</h2><p className="muted text-sm mt-1 max-w-3xl">Understand which athlete relationships may need support. This view is informational; advisors and athletes manage the recruiting work.</p></div><div className="flex flex-col sm:flex-row gap-2"><select className="input sm:w-60" value={athlete} onChange={e=>setAthlete(e.target.value)}><option value="all">All athletes</option>{profiles.map(p=><option key={p.id} value={p.id}>{p.full_name||p.email||'Athlete'}</option>)}</select><select className="input sm:w-52" value={status} onChange={e=>setStatus(e.target.value)}><option value="attention">Needs attention</option><option value="all">All relationships</option><option value="stale14">14+ day gaps</option><option value="Cooling">Cooling</option><option value="Rising">Rising</option><option value="Steady">Steady</option></select></div></div><div className="border-t"><div className="hidden md:grid grid-cols-[1.1fr_1.2fr_1fr_150px_130px] gap-4 px-5 py-2.5 bg-slate-50 text-[11px] font-black text-slate-500"><span>Athlete</span><span>School</span><span>Coach</span><span>Status</span><span>Last contact</span></div><div className="divide-y">{rows.map((r:any)=>{const name=pm.get(r.athleteUserId)?.full_name||'Athlete';return <Link key={r.id} href={r.coachId?`/coaches/${r.coachId}?athlete=${r.athleteUserId}`:`/advisors/colleges?player=${r.athleteUserId}`} className="grid md:grid-cols-[1.1fr_1.2fr_1fr_150px_130px] gap-2 md:gap-4 px-5 py-3.5 items-center hover:bg-slate-50 group"><b className="text-sm">{name}</b><span className="text-sm">{r.college}</span><span className="text-sm text-slate-600">{r.coach}</span><span><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${r.momentum==='Cooling'?'bg-red-100 text-red-700':r.momentum==='Rising'?'bg-slate-900 text-white':'bg-slate-100 text-slate-700'}`}>{r.momentum}</span></span><span className="text-xs text-slate-500 flex items-center justify-between">{r.daysSinceContact===999?'Not recorded':`${r.daysSinceContact}d ago`}<ArrowRight size={13} className="opacity-0 group-hover:opacity-100"/></span></Link>})}{!rows.length&&<Empty text="No relationships match this view."/>}</div></div></section></>}
-function HealthStat({label,value,detail}:{label:string;value:any;detail:string}){return <div className="p-4 md:p-5 bg-white"><div className="text-xs font-bold text-slate-500">{label}</div><div className="font-black text-2xl mt-1">{value}</div><div className="text-xs text-slate-500 mt-1">{detail}</div></div>}
+function AdminOverview(props:any){
+ const {profiles,insights,activeRelationships,needsAttention,athletesNeedingAttention,cooling,stale14,upcomingEvents}=props;
+ const [athlete,setAthlete]=useState('all');
+ const [status,setStatus]=useState('attention');
+ const pm=useMemo(()=>new Map(profiles.map((p:any)=>[p.id,p])),[profiles]);
+ const rows=insights
+  .filter((r:any)=>{
+   const athleteMatch=athlete==='all'||r.athleteUserId===athlete;
+   const statusMatch=status==='all'
+    ? true
+    : status==='attention'
+      ? r.momentum==='Cooling'||(r.daysSinceContact!==999&&r.daysSinceContact>=14)
+      : status==='stale14'
+        ? r.daysSinceContact!==999&&r.daysSinceContact>=14
+        : r.momentum===status;
+   return athleteMatch&&statusMatch;
+  })
+  .sort((a:any,b:any)=>{
+   const priority=(r:any)=>r.momentum==='Cooling'?3:(r.daysSinceContact!==999&&r.daysSinceContact>=14)?2:r.momentum==='Rising'?1:0;
+   return priority(b)-priority(a)||b.daysSinceContact-a.daysSinceContact;
+  })
+  .slice(0,25);
+ return <>
+  <section className="card overflow-hidden">
+   <div className="p-5">
+    <div className="rr-eyebrow">ORGANIZATION SNAPSHOT</div>
+    <h2 className="font-black text-xl">Recruiting relationship health</h2>
+    <p className="muted text-sm mt-1">A high-level view of what is happening across the recruiting program. Use Schools and Coaches for deeper relationship context.</p>
+   </div>
+   <div className="border-t grid grid-cols-2 lg:grid-cols-4 divide-x divide-y lg:divide-y-0">
+    <HealthStat label="Active relationships" value={activeRelationships} detail="coach relationships being tracked"/>
+    <HealthStat label="Athletes needing attention" value={athletesNeedingAttention} detail={`${needsAttention} relationships need review`}/>
+    <HealthStat label="Cooling" value={cooling} detail={`${stale14} have 14+ day contact gaps`}/>
+    <HealthStat label="Upcoming events" value={upcomingEvents} detail="future recruiting events"/>
+   </div>
+  </section>
+  <section className="card overflow-hidden mt-6">
+   <div className="p-5 flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+    <div>
+     <h2 className="font-black text-xl">Relationship Health</h2>
+     <p className="muted text-sm mt-1 max-w-3xl">Understand which athlete relationships may need support. This view is informational; advisors and athletes manage the recruiting work.</p>
+    </div>
+    <div className="flex flex-col sm:flex-row gap-2">
+     <select className="input sm:w-60" value={athlete} onChange={e=>setAthlete(e.target.value)}>
+      <option value="all">All athletes</option>
+      {profiles.map((p:any)=><option key={p.id} value={p.id}>{p.full_name||p.email||'Athlete'}</option>)}
+     </select>
+     <select className="input sm:w-52" value={status} onChange={e=>setStatus(e.target.value)}>
+      <option value="attention">Needs attention</option>
+      <option value="all">All relationships</option>
+      <option value="stale14">14+ day gaps</option>
+      <option value="Cooling">Cooling</option>
+      <option value="Rising">Rising</option>
+      <option value="Steady">Steady</option>
+     </select>
+    </div>
+   </div>
+   <div className="border-t">
+    <div className="hidden md:grid grid-cols-[1.1fr_1.2fr_1fr_150px_130px] gap-4 px-5 py-2.5 bg-slate-50 text-[11px] font-black text-slate-500">
+     <span>Athlete</span><span>School</span><span>Coach</span><span>Status</span><span>Last contact</span>
+    </div>
+    <div className="divide-y">
+     {rows.map((r:any)=>{
+      const profile:any=pm.get(r.athleteUserId);
+      const name=profile?.full_name||profile?.email||'Athlete';
+      const href=r.coachId?`/coaches/${r.coachId}?athlete=${r.athleteUserId}`:`/advisors/colleges?player=${r.athleteUserId}`;
+      return <Link key={r.id} href={href} className="grid md:grid-cols-[1.1fr_1.2fr_1fr_150px_130px] gap-2 md:gap-4 px-5 py-3.5 items-center hover:bg-slate-50 group">
+       <b className="text-sm">{name}</b>
+       <span className="text-sm">{r.college}</span>
+       <span className="text-sm text-slate-600">{r.coach}</span>
+       <span><span className={`rounded-full px-2 py-1 text-[11px] font-bold ${r.momentum==='Cooling'?'bg-red-100 text-red-700':r.momentum==='Rising'?'bg-slate-900 text-white':'bg-slate-100 text-slate-700'}`}>{r.momentum}</span></span>
+       <span className="text-xs text-slate-500 flex items-center justify-between">{r.daysSinceContact===999?'Not recorded':`${r.daysSinceContact}d ago`}<ArrowRight size={13} className="opacity-0 group-hover:opacity-100"/></span>
+      </Link>;
+     })}
+     {!rows.length&&<Empty text="No relationships match this view."/>}
+    </div>
+   </div>
+  </section>
+ </>;
+}
+function HealthStat({label,value,detail}:{label:string;value:any;detail:string}){
+ return <div className="p-4 md:p-5 bg-white">
+  <div className="text-xs font-bold text-slate-500">{label}</div>
+  <div className="font-black text-2xl mt-1">{value}</div>
+  <div className="text-xs text-slate-500 mt-1">{detail}</div>
+ </div>;
+}
 function CoverageView({kind,groups,search,setSearch,openDetail}:{kind:'school'|'coach';groups:any[];search:string;setSearch:(v:string)=>void;openDetail:(k:'school'|'coach',g:any,a:any)=>void}){const school=kind==='school';const [expanded,setExpanded]=useState(false);const searching=Boolean(search.trim());const shown=searching||expanded?groups:groups.slice(0,5);const sectionId=school?'school-relationships':'coach-relationships';const collapse=()=>{setExpanded(false);setTimeout(()=>document.getElementById(sectionId)?.scrollIntoView({behavior:'smooth',block:'start'}),0)};const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]).join('').toUpperCase();return <section id={sectionId} className="card overflow-hidden scroll-mt-4"><div className="px-5 py-5 bg-white flex flex-col md:flex-row md:items-end justify-between gap-4"><div><h2 className="font-black text-xl">{school?'School Relationships':'Coach Relationships'}</h2><p className="muted text-sm mt-1">{school?'Select an athlete to open their relationship with that school.':'Select an athlete to open their relationship with that coach.'}</p></div><input className="input md:w-80" placeholder={school?'Search schools or athletes':'Search coaches, schools or athletes'} value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="border-t divide-y divide-slate-200">{shown.map((g:any)=><div key={g.id} className="grid md:grid-cols-[260px_1fr] bg-white"><div className="p-5 bg-slate-50 border-b md:border-b-0 md:border-r flex items-start gap-3">{school?(g.logoUrl?<img src={g.logoUrl} alt="" className="h-14 w-14 rounded-xl object-contain bg-white border p-1.5 shrink-0"/>:<div className="h-14 w-14 rounded-xl border bg-white flex items-center justify-center text-xs font-black text-slate-500 shrink-0">{initials(g.name)}</div>):<div className="h-12 w-12 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shrink-0">{initials(g.name)}</div>}<div className="min-w-0 pt-1"><Link href={school?`/colleges/${g.id}?staff=1`:`/coaches/${g.id}?staff=1`} className="font-black text-base leading-tight hover:text-red-700">{g.name} <ArrowRight size={14} className="inline"/></Link>{!school&&<div className="muted text-xs mt-1">{g.school}</div>}</div></div><div className="px-4 py-3 flex flex-col justify-center">{[...g.athletes.values()].map((a:any,i:number)=><button key={a.id} type="button" onClick={()=>openDetail(kind,g,a)} className={`group w-full flex items-center justify-between gap-3 py-2.5 text-left hover:text-red-700 ${i?'border-t border-slate-100':''}`}><div className="flex items-center gap-3 min-w-0"><b className="text-sm">{a.name}</b><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${!school&&a.momentum==='Cooling'?'bg-red-100 text-red-700':!school&&a.momentum==='Rising'?'bg-slate-900 text-white':'bg-slate-100 text-slate-600'}`}>{school?a.stage:a.momentum}{!school&&a.days!==999?` · ${a.days}d`:''}</span></div><ArrowRight size={14} className="text-slate-300 group-hover:text-red-700 shrink-0"/></button>)}{school&&g.historical.length>0&&<div className="pt-2 mt-1 border-t text-xs text-slate-400">Historical: {g.historical.slice(0,5).map((h:any)=>`${h.athlete_name}${h.graduation_year?' · '+h.graduation_year:''}`).join(' · ')}</div>}</div></div>)}{!groups.length&&<Empty text={school?'No schools match this search.':'No coaches match this search.'}/>}</div>{!searching&&groups.length>5&&<div className="border-t bg-white"><button type="button" className="w-full px-5 py-4 text-sm font-black hover:bg-slate-50 transition" onClick={expanded?collapse:()=>setExpanded(true)}>{expanded?`Show fewer ${school?'schools':'coaches'} ↑`:`Show ${groups.length-5} more ${school?'schools':'coaches'} ↓`}</button></div>}</section>}
 function CoverageModal({detail,close}:{detail:any;close:()=>void}){return <div className="fixed inset-0 z-50 bg-slate-950/45 flex items-center justify-center p-4" onMouseDown={close}><div className="bg-white rounded-2xl shadow-2xl border w-full max-w-2xl max-h-[80vh] overflow-auto p-5" onMouseDown={e=>e.stopPropagation()}><div className="flex justify-between gap-4"><div><div className="rr-eyebrow">{detail.kind==='school'?'ATHLETE + SCHOOL':'ATHLETE + COACH'}</div><h2 className="font-black text-xl">{detail.athlete.name}</h2><div className="muted text-sm">{detail.kind==='school'?detail.group.name:`${detail.group.name} · ${detail.group.school}`}</div></div><button className="btn" onClick={close}>Close</button></div><div className="mt-4 space-y-3">{detail.related.length?detail.related.map((r:any)=><div key={r.id} className="rounded-xl border p-4"><div className="flex gap-2 items-center flex-wrap"><b>{r.coach}</b><span className="pill">{r.momentum}</span><span className="text-xs font-black">{r.score}/100</span></div><div className="muted text-sm mt-1">{r.college}</div><div className="grid grid-cols-2 gap-2 mt-3 text-xs"><div className="rounded-lg border bg-slate-50 p-2"><div className="muted">Last recorded contact</div><b>{r.daysSinceContact===999?'Not available':`${r.daysSinceContact} days ago`}</b></div><div className="rounded-lg border bg-slate-50 p-2"><div className="muted">Meaningful contacts</div><b>{r.meaningfulContacts} of {r.totalContacts}</b></div></div><div className="text-sm mt-3"><b>Signal:</b> {r.responseSignal||'No signal yet'}</div></div>):<div className="rounded-xl border bg-slate-50 p-4 text-sm">No coach-level activity has been recorded for this relationship yet.</div>}</div><div className="flex flex-wrap gap-2 mt-5"><Link className="btn" href={`/advisors/player/${detail.athlete.id}`}>Player 360°</Link>{detail.kind==='school'?<Link className="btn" href={`/colleges/${detail.group.id}?staff=1`}>School Details</Link>:<Link className="btn" href={`/coaches/${detail.group.id}?athlete=${detail.athlete.id}`}>Coach Relationship</Link>}</div></div></div>}
 
