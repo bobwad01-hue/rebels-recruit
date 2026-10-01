@@ -689,7 +689,7 @@ export default function OrganizationCommandCenter() {
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <div className="rr-eyebrow">RECRUITING JOURNEY</div>
-                <h2 className="rr-section-title">Where Relationships Stand</h2>
+                <h2 className="text-base font-black leading-tight text-slate-900">Where Relationships Stand</h2>
               </div>
               <p className="rr-section-subtitle sm:text-right">
                 Open a stage to review its relationships.
