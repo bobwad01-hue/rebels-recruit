@@ -1,4 +1,4 @@
 'use client';
 import dynamic from 'next/dynamic';
 const OrganizationCommandCenter=dynamic(()=>import('./OrganizationCommandCenter'),{ssr:false,loading:()=> <div className="rr-soft-surface p-6 text-sm text-slate-500">Loading organizational health…</div>});
-export default function OrganizationOverview(){return <section className="mt-7 border-t pt-6"><div className="card"><div className="p-5 border-b"><h2 className="font-black text-lg">Organizational Health</h2><p className="muted text-sm mt-1">A quick view of player support, follow-ups and recruiting progress across the organization.</p></div><div className="p-5"><OrganizationCommandCenter/></div></div></section>}
+export default function OrganizationOverview(){return <section className="mt-7 border-t pt-6"><OrganizationCommandCenter/></section>}
