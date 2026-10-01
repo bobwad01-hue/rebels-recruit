@@ -699,11 +699,11 @@ export default function OrganizationCommandCenter() {
               {RECRUITING_JOURNEY.map((stage) => (
                 <Link
                   href={`/advisors/colleges?stage=${encodeURIComponent(stage)}`}
-                  className="inline-flex min-w-[132px] items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm hover:border-slate-400 hover:bg-slate-50 group"
+                  className="inline-flex items-center gap-2 rounded-md border bg-white px-2.5 py-1.5 text-xs hover:border-slate-400 hover:bg-slate-50 group"
                   key={stage}
                 >
                   <span>{stage}</span>
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1">
                     <b>{stageCount(stage)}</b>
                     <ArrowRight size={13} className="opacity-40 group-hover:opacity-100" />
                   </span>
