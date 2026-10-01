@@ -674,7 +674,7 @@ export default function OrganizationCommandCenter() {
             <p className="muted text-sm mt-1">
               A quick view of player support, follow-ups and recruiting progress across the organization.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
               {[
                 ["Recruitable Players", athletes.length, "players" as Tab],
                 [
@@ -695,7 +695,7 @@ export default function OrganizationCommandCenter() {
                   type="button"
                   key={String(label)}
                   onClick={() => setTab(dest as Tab)}
-                  className="group inline-flex items-center gap-3 rounded-lg border bg-white px-3 py-2 text-left hover:border-slate-400 hover:bg-slate-50"
+                  className="group flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2 text-left hover:border-slate-400 hover:bg-slate-50"
                 >
                   <span>
                     <span className="block text-[11px] font-bold text-slate-500">{label}</span>
@@ -712,11 +712,11 @@ export default function OrganizationCommandCenter() {
             <p className="muted text-sm mt-1">
               Open a stage to review its relationships.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {RECRUITING_JOURNEY.map((stage) => (
                 <Link
                   href={`/advisors/colleges?stage=${encodeURIComponent(stage)}`}
-                  className="inline-flex items-center gap-2 rounded-md border bg-white px-2.5 py-1.5 text-xs hover:border-slate-400 hover:bg-slate-50 group"
+                  className="group flex items-center justify-between gap-2 rounded-md border bg-white px-2.5 py-1.5 text-xs hover:border-slate-400 hover:bg-slate-50"
                   key={stage}
                 >
                   <span>{stage}</span>
