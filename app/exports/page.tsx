@@ -1295,7 +1295,7 @@ export default function Exports() {
       </PageFrame>
       {missingProfilesOpen&&(
         <div className="fixed inset-0 z-50 bg-slate-950/50 flex items-center justify-center p-3" onMouseDown={e=>{if(e.currentTarget===e.target)setMissingProfilesOpen(false)}}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-hidden" role="dialog" aria-modal="true" aria-label="Players with incomplete recruiting profiles">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-h-[80vh] overflow-hidden" style={{maxWidth:'42rem'}} role="dialog" aria-modal="true" aria-label="Players with incomplete recruiting profiles">
             <div className="px-5 py-4 border-b flex items-start justify-between gap-4"><div><div className="text-xs font-black tracking-widest text-red-700">PROFILE DETAILS</div><h2 className="text-xl font-black mt-1">Players With Incomplete Profiles</h2></div><button onClick={()=>setMissingProfilesOpen(false)} aria-label="Close" className="h-10 w-10 inline-flex items-center justify-center"><X size={20}/></button></div>
             <div className="divide-y overflow-auto max-h-[60vh]">{missingProfileIds.map(id=><div key={id} className="px-5 py-4 flex items-center justify-between gap-4"><div><div className="font-black">{name(id)}</div><div className="muted text-sm">{team(id)||'No team listed'}</div></div><div className="text-sm font-bold text-amber-700">Recruiting profile incomplete</div></div>)}</div>
           </div>
