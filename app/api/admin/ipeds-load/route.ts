@@ -13,8 +13,8 @@ async function textCsv(url:string){const r=await fetch(url,{headers:{'User-Agent
 export async function GET(req:Request){if(new URL(req.url).searchParams.get('token')!==TOKEN)return NextResponse.json({error:'forbidden'},{status:403});try{
  const sb=createAdminClient();
  const [hd,comp,cips]=await Promise.all([
-  zipCsv('https://nces.ed.gov/ipeds/datacenter/data/HD2025.zip','HD2025'),
-  zipCsv('https://nces.ed.gov/ipeds/datacenter/data/C2025_A.zip','C2025_A'),
+  zipCsv('https://nces.ed.gov/ipeds/complete-data-files/HD2025.zip','HD2025'),
+  zipCsv('https://nces.ed.gov/ipeds/complete-data-files/C2025_A.zip','C2025_A'),
   textCsv('https://nces.ed.gov/ipeds/cipcode/Files/CIPCode2020.csv')
  ]);
  const titles=new Map(cips.filter((r:any)=>/^\d{2}\.\d{4}$/.test(String(r.CIPCODE||r['CIP CODE']||''))).map((r:any)=>[String(r.CIPCODE||r['CIP CODE']),String(r.CIPTITLE||r['CIP TITLE']||'').replace(/\.$/,'')]));
