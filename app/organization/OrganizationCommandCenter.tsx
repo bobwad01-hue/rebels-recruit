@@ -678,7 +678,7 @@ export default function OrganizationCommandCenter() {
               {[
                 ["Recruitable Players", athletes.length, "players" as Tab],
                 [
-                  "Recorded Activity Last 7 Days",
+                  "Activity Last 7 Days",
                   activityAvailable
                     ? activity.filter((a) => {
                         const d = exactDate(a);
