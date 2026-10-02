@@ -921,7 +921,7 @@ export default function Exports() {
   async function excel(kind: string, ss: Sheet[]) {
     const ExcelJS = (await import("exceljs-hardened")).default,
       wb = new ExcelJS.Workbook();
-    wb.creator = "Rebels Recruit";
+    wb.creator = "RLTNL Recruiting";
     ss.forEach((s) => {
       const h = s.rows.length ? Object.keys(s.rows[0]) : ["No data"],
         data = s.rows.length
