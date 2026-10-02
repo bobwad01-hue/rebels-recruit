@@ -17,8 +17,9 @@ export async function GET(req:Request){if(new URL(req.url).searchParams.get('tok
   zipCsv('https://nces.ed.gov/ipeds/complete-data-files/C2025_A.zip','C2025_A'),
   textCsv('https://nces.ed.gov/ipeds/cipcode/Files/CIPCode2020.csv')
  ]);
- const titles=new Map(cips.filter((r:any)=>/^\d{2}\.\d{4}$/.test(String(r.CIPCODE||r['CIP CODE']||''))).map((r:any)=>[String(r.CIPCODE||r['CIP CODE']),String(r.CIPTITLE||r['CIP TITLE']||'').replace(/\.$/,'')]));
- const{data:schools,error}=await sb.from('colleges').select('id,name,state');if(error)throw error;
+ const cipCode=(r:any)=>String(r.CIPCODE||r['CIP CODE']||'').replace(/^=\"|\"$/g,'').trim();
+ const titles=new Map(cips.filter((r:any)=>/^\d{2}\.\d{4}$/.test(cipCode(r))).map((r:any)=>[cipCode(r),String(r.CIPTITLE||r['CIP TITLE']||'').replace(/\.$/,'')]));
+ const schools:any[]=[];for(let from=0;;from+=1000){const{data,error}=await sb.from('colleges').select('id,name,state').range(from,from+999);if(error)throw error;schools.push(...(data||[]));if(!data||data.length<1000)break}
  const exact=new Map<string,any[]>(),looseMap=new Map<string,any[]>();
  for(const r of hd){const st=String(r.STABBR||'').toUpperCase(),e=norm(r.INSTNM)+'|'+st,l=loose(r.INSTNM,st)+'|'+st;(exact.get(e)||exact.set(e,[]).get(e)!).push(r);(looseMap.get(l)||looseMap.set(l,[]).get(l)!).push(r)}
  const matched=new Map<number,string>(),unmatched:string[]=[];
