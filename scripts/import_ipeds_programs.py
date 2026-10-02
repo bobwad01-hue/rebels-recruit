@@ -54,7 +54,7 @@ for r in rows(comp):
     if not college_id: continue
     # Bachelor's, master's, doctoral and post-baccalaureate/post-master's levels.
     level=int(r.get("AWLEVEL") or 0)
-    if level not in (5,6,7,8,17,18,19): continue
+    # Associate and bachelor's programs are the relevant recruiting filters for JUCO and four-year schools.\n    if level not in (3,5): continue
     total=int(float(r.get("CTOTALT") or 0))
     if total<=0: continue
     cip=(r.get("CIPCODE") or "").strip()
