@@ -33,7 +33,7 @@ export async function GET(req:NextRequest){
   const admin=createAdminClient();const scope=req.nextUrl.searchParams.get('scope')||'me';
   if(scope==='me'){const players=await buildTargets(admin,[user.id]);return NextResponse.json({targets:players[0]?.targets||[]})}
   const {data:member}=await admin.from('organization_members').select('organization_id,role,organization_view_access').eq('user_id',user.id).eq('status','active').maybeSingle();if(!member)return NextResponse.json({players:[]});
-  const canAll=member.role==='owner'||member.role==='admin'||!!member.organization_view_access;let athleteIds:string[]=[];
+  const canAll=member.role==='owner'||member.role==='admin';let athleteIds:string[]=[];
   if(canAll){const {data:ms}=await admin.from('organization_members').select('user_id,role').eq('organization_id',member.organization_id).eq('status','active');athleteIds=(ms||[]).filter((m:any)=>m.role==='athlete').map((m:any)=>m.user_id)}else{const {data:as}=await admin.from('athlete_advisor_assignments').select('athlete_user_id').eq('advisor_user_id',user.id).eq('status','active');athleteIds=(as||[]).map((a:any)=>a.athlete_user_id)}
   return NextResponse.json({players:await buildTargets(admin,athleteIds)});
 }
