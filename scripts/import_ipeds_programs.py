@@ -2,7 +2,7 @@
 """Import IPEDS majors into RLTNL.
 
 Usage:
-  python scripts/import_ipeds_programs.py HD2025.csv C2025_A.csv
+  python scripts/import_ipeds_programs.py HD2025.csv C2025_A.csv CIPCode2020.csv
 
 Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
 Uses only Python standard library. Matches RLTNL colleges to IPEDS institutions by
@@ -30,9 +30,19 @@ def norm(s):
 def rows(path):
     with open(path,encoding="utf-8-sig",newline="") as f: yield from csv.DictReader(f)
 
-if len(sys.argv)!=3:
-    raise SystemExit("Pass HD20XX.csv and C20XX_A.csv")
-hd,comp=sys.argv[1:]
+if len(sys.argv)!=4:
+    raise SystemExit("Pass HD20XX.csv, C20XX_A.csv and CIPCode2020.csv")
+hd,comp,cip_path=sys.argv[1:]
+def clean_cip(v):
+    s=(v or '').strip().lstrip('=').strip(chr(34))
+    return s[:2]+'.'+s[2:] if re.fullmatch(r'\\d{6}',s) else s
+
+titles={}
+for r in rows(cip_path):
+    code=clean_cip(r.get('CIPCode') or r.get('CIPCODE'))
+    title=(r.get('CIPTitle') or r.get('CIPTITLE') or '').rstrip('.')
+    if re.fullmatch(r'\\d{2}\\.\\d{4}',code) and title: titles[code]=title
+
 institutions={}
 for r in rows(hd):
     institutions[(norm(r.get("INSTNM")), (r.get("STABBR") or "").upper())]=int(r["UNITID"])
@@ -57,8 +67,8 @@ for r in rows(comp):
     # Associate and bachelor's programs are the relevant recruiting filters for JUCO and four-year schools.\n    if level not in (3,5): continue
     total=int(float(r.get("CTOTALT") or 0))
     if total<=0: continue
-    cip=(r.get("CIPCODE") or "").strip()
-    title=(r.get("CIPTITLE") or r.get("CIPDESC") or "").strip()
+    cip=clean_cip(r.get("CIPCODE"))
+    title=titles.get(cip,"")
     if not cip or not title: continue
     programs[(college_id,cip,level)]={"college_id":college_id,"ipeds_unitid":unit,"cip_code":cip,"cip_title":title,"award_level":level,"completions":total,"reporting_year":year,"source":"IPEDS"}
 
