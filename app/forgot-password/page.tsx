@@ -33,7 +33,7 @@ export default function ForgotPassword() {
       <form onSubmit={submit} className="card p-8 w-full max-w-md">
         <div className="font-black text-2xl"><span className="text-red-600">REBELS</span> RECRUIT</div>
         <h1 className="text-2xl font-black mt-8">Forgot your password?</h1>
-        <p className="muted mt-1">Enter the email address you use for Rebels Recruit and we'll send you a secure reset link.</p>
+        <p className="muted mt-1">Enter the email address you use for RLTNL Recruiting and we'll send you a secure reset link.</p>
 
         <div className="space-y-4 mt-6">
           <input
