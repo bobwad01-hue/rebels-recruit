@@ -31,7 +31,7 @@ export default function AdvisorAccessPage() {
     [viewerRole, setViewerRole] = useState(""),
     [viewerId, setViewerId] = useState(""),
     [players, setPlayers] = useState<any[]>([]),
-    [assignments, setAssignments] = useState<any[]>([]);
+    [assignments, setAssignments] = useState<any[]>([]), [teams,setTeams]=useState<any[]>([]), [teamMembers,setTeamMembers]=useState<any[]>([]), [selectedTeam,setSelectedTeam]=useState("all");
   useEffect(() => {
     load();
   }, []);
@@ -69,7 +69,7 @@ export default function AdvisorAccessPage() {
     }
     setOrgId(me.organization_id);
     setViewerRole(String(me.role||""));
-    const [membersResult, assignmentResult] = await Promise.all([
+    const [membersResult, assignmentResult, teamsResult] = await Promise.all([
       c
         .from("organization_members")
         .select("user_id,role,status")
@@ -82,8 +82,9 @@ export default function AdvisorAccessPage() {
         )
         .eq("organization_id", me.organization_id)
         .eq("advisor_user_id", user.id),
+      c.from("teams").select("id,name,age_group,sort_order").eq("organization_id",me.organization_id).is("archived_at",null).order("sort_order"),
     ]);
-    if (membersResult.error || assignmentResult.error) {
+    if (membersResult.error || assignmentResult.error || teamsResult.error) {
       setLoadError(
         "The organization roster or your player assignments could not be loaded.",
       );
@@ -107,6 +108,9 @@ export default function AdvisorAccessPage() {
       return;
     }
     const profiles = profileResult.data || [];
+    const teamResult=athleteIds.length?await c.from("team_members").select("team_id,user_id").in("user_id",athleteIds):{data:[] as any[],error:null};
+    if(teamResult.error){setLoadError("Player team assignments could not be loaded.");setLoading(false);return}
+    setTeams(teamsResult.data||[]);setTeamMembers(teamResult.data||[]);
     setPlayers(
       (profiles || []).sort((a: any, b: any) =>
         text(a.full_name || a.email).localeCompare(
@@ -121,7 +125,9 @@ export default function AdvisorAccessPage() {
     () => new Map(assignments.map((a) => [String(a.athlete_user_id), a])),
     [assignments],
   );
-  const filtered = players.filter(
+  const teamAthleteIds=useMemo(()=>selectedTeam==="all"?null:new Set(teamMembers.filter((m:any)=>String(m.team_id)===selectedTeam).map((m:any)=>String(m.user_id))),[teamMembers,selectedTeam]);
+  const scopedPlayers=players.filter((p:any)=>!teamAthleteIds||teamAthleteIds.has(String(p.id)));
+  const filtered = scopedPlayers.filter(
     (p) =>
       !search ||
       [p.full_name, p.email]
@@ -185,9 +191,9 @@ export default function AdvisorAccessPage() {
     setBusy("");
   }
   const counts = {
-    active: assignments.filter((a) => a.status === "active").length,
-    pending: assignments.filter((a) => a.status === "pending").length,
-    available: players.filter(
+    active: scopedPlayers.filter((p:any)=>byAthlete.get(String(p.id))?.status==="active").length,
+    pending: scopedPlayers.filter((p:any)=>byAthlete.get(String(p.id))?.status==="pending").length,
+    available: scopedPlayers.filter(
       (p) =>
         !["active", "pending"].includes(byAthlete.get(String(p.id))?.status),
     ).length,
@@ -267,6 +273,7 @@ export default function AdvisorAccessPage() {
                   />
                 </div>
               </div>
+              {!independent&&teams.length>0&&<div className="mt-4"><div className="text-xs font-black text-slate-500 mb-2">TEAM</div><div className="flex flex-wrap gap-2"><button type="button" className={`btn py-1.5 px-3 text-xs ${selectedTeam==="all"?"bg-slate-900 text-white":""}`} onClick={()=>setSelectedTeam("all")}>All Teams</button>{teams.map((t:any)=><button key={t.id} type="button" className={`btn py-1.5 px-3 text-xs ${selectedTeam===String(t.id)?"bg-slate-900 text-white":""}`} onClick={()=>setSelectedTeam(String(t.id))}>{t.name}{t.age_group?` · ${t.age_group}`:""}</button>)}</div></div>}
               {message && (
                 <div className="mt-4 rounded-xl border bg-slate-50 px-4 py-3 text-sm font-semibold">
                   {message}
