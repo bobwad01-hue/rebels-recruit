@@ -6,8 +6,7 @@ Usage:
 
 Requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.
 Uses only Python standard library. Matches RLTNL colleges to IPEDS institutions by
-normalized school name + state, stores UNITID, then imports bachelor's-or-higher
-programs with at least one completion. Re-running replaces the current IPEDS snapshot.
+normalized school name + state, preserves verified UNITID mappings, then imports associate and bachelor programs with at least one completion. Re-running replaces the current IPEDS snapshot.
 """
 import csv,json,os,re,sys,urllib.request
 from collections import defaultdict
@@ -47,11 +46,11 @@ institutions={}
 for r in rows(hd):
     institutions[(norm(r.get("INSTNM")), (r.get("STABBR") or "").upper())]=int(r["UNITID"])
 
-colleges=req("colleges?select=id,name,state&limit=5000") or []
+colleges=req("colleges?select=id,name,state,ipeds_unitid&limit=5000") or []
 unit_to_college={}
 updates=[]
 for c in colleges:
-    u=institutions.get((norm(c["name"]), (c.get("state") or "").upper()))
+    u=int(c['ipeds_unitid']) if c.get('ipeds_unitid') else institutions.get((norm(c["name"]), (c.get("state") or "").upper()))
     if u:
         unit_to_college[u]=c["id"]
         req("colleges?id=eq."+c["id"],"PATCH",{"ipeds_unitid":u})
@@ -62,9 +61,9 @@ for r in rows(comp):
     unit=int(r["UNITID"])
     college_id=unit_to_college.get(unit)
     if not college_id: continue
-    # Bachelor's, master's, doctoral and post-baccalaureate/post-master's levels.
     level=int(r.get("AWLEVEL") or 0)
-    # Associate and bachelor's programs are the relevant recruiting filters for JUCO and four-year schools.\n    if level not in (3,5): continue
+    # Associate and bachelor's programs are the relevant recruiting filters for JUCO and four-year schools.
+    if level not in (3,5): continue
     total=int(float(r.get("CTOTALT") or 0))
     if total<=0: continue
     cip=clean_cip(r.get("CIPCODE"))
