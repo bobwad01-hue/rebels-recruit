@@ -54,7 +54,7 @@ export default function ResetPassword() {
       <form onSubmit={submit} className="card p-8 w-full max-w-md">
         <div className="font-black text-2xl"><span className="text-red-600">REBELS</span> RECRUIT</div>
         <h1 className="text-2xl font-black mt-8">Set a new password</h1>
-        <p className="muted mt-1">Choose a new password for your Rebels Recruit account.</p>
+        <p className="muted mt-1">Choose a new password for your RLTNL Recruiting account.</p>
 
         {ready && (
           <div className="space-y-4 mt-6">
