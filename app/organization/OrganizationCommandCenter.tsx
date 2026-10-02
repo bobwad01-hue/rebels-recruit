@@ -698,7 +698,7 @@ export default function OrganizationCommandCenter() {
                   className="group flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2 text-left hover:border-slate-400 hover:bg-slate-50"
                 >
                   <span>
-                    <span className="block text-[11px] font-bold leading-tight text-slate-500">{label === "Recruitable Players" ? <span className="whitespace-nowrap">Recruitable Players</span> : label === "Recorded Activity Last 7 Days" ? <>Recorded Activity<br />Last 7 Days</> : label}</span>
+                    <span className="block text-[11px] font-bold leading-tight text-slate-500">{label === "Recruitable Players" ? <span className="whitespace-nowrap">Recruitable Players</span> : label === "Activity Last 7 Days" ? <span className="whitespace-nowrap text-[10px]">Activity Last 7 Days</span> : label}</span>
                     <span className="block text-lg font-black leading-tight text-slate-900">{value}</span>
                   </span>
                   <ArrowRight size={13} className="opacity-40 group-hover:opacity-100" />
