@@ -17,7 +17,8 @@ export async function GET(req:Request){if(new URL(req.url).searchParams.get('tok
   zipCsv('https://nces.ed.gov/ipeds/complete-data-files/C2025_A.zip','C2025_A'),
   textCsv('https://nces.ed.gov/ipeds/cipcode/Files/CIPCode2020.csv')
  ]);
- const cipCode=(r:any)=>String(r.CIPCODE||r['CIP CODE']||'').replace(/^=\"|\"$/g,'').trim();
+ const cleanCip=(v:any)=>{let s=String(v||'').trim().replace(/^=/,'').replace(/^\"|\"$/g,'').trim();if(/^\d{6}$/.test(s))s=s.slice(0,2)+'.'+s.slice(2);return s};
+ const cipCode=(r:any)=>cleanCip(r.CIPCODE||r['CIP CODE']);
  const titles=new Map(cips.filter((r:any)=>/^\d{2}\.\d{4}$/.test(cipCode(r))).map((r:any)=>[cipCode(r),String(r.CIPTITLE||r['CIP TITLE']||'').replace(/\.$/,'')]));
  const schools:any[]=[];for(let from=0;;from+=1000){const{data,error}=await sb.from('colleges').select('id,name,state').range(from,from+999);if(error)throw error;schools.push(...(data||[]));if(!data||data.length<1000)break}
  const exact=new Map<string,any[]>(),looseMap=new Map<string,any[]>();
@@ -25,8 +26,8 @@ export async function GET(req:Request){if(new URL(req.url).searchParams.get('tok
  const matched=new Map<number,string>(),unmatched:string[]=[];
  for(const s of schools||[]){const st=states[s.state]||String(s.state||'').toUpperCase();let a=exact.get(norm(s.name)+'|'+st)||[];if(a.length!==1)a=looseMap.get(loose(s.name,s.state)+'|'+st)||[];if(a.length===1){const unit=Number(a[0].UNITID);matched.set(unit,s.id);await sb.from('colleges').update({ipeds_unitid:unit}).eq('id',s.id)}else unmatched.push(s.name)}
  const agg=new Map<string,any>();
- for(const r of comp){const unit=Number(r.UNITID),college_id=matched.get(unit),level=Number(r.AWLEVEL),total=Number(r.CTOTALT||0),cip=String(r.CIPCODE||'').trim();if(!college_id||![3,5].includes(level)||total<=0||!titles.has(cip))continue;const k=college_id+'|'+cip+'|'+level;const x=agg.get(k)||{college_id,ipeds_unitid:unit,cip_code:cip,cip_title:titles.get(cip),award_level:level,completions:0,reporting_year:2025,source:'IPEDS'};x.completions+=total;agg.set(k,x)}
+ for(const r of comp){const unit=Number(r.UNITID),college_id=matched.get(unit),level=Number(r.AWLEVEL),total=Number(r.CTOTALT||0),cip=cleanCip(r.CIPCODE);if(!college_id||![3,5].includes(level)||total<=0||!titles.has(cip))continue;const k=college_id+'|'+cip+'|'+level;const x=agg.get(k)||{college_id,ipeds_unitid:unit,cip_code:cip,cip_title:titles.get(cip),award_level:level,completions:0,reporting_year:2025,source:'IPEDS'};x.completions+=total;agg.set(k,x)}
  const rec=[...agg.values()];const{error:de}=await sb.from('college_programs').delete().eq('source','IPEDS');if(de)throw de;
  for(let i=0;i<rec.length;i+=500){const{error:e}=await sb.from('college_programs').upsert(rec.slice(i,i+500),{onConflict:'college_id,cip_code,award_level,reporting_year'});if(e)throw e}
- return NextResponse.json({ok:true,schools:(schools||[]).length,matched:matched.size,unmatched:unmatched.length,programRows:rec.length,uniqueMajors:new Set(rec.map(x=>x.cip_title)).size,year:2025,unmatchedSample:unmatched.slice(0,30)});
+ return NextResponse.json({ok:true,schools:(schools||[]).length,matched:matched.size,unmatched:unmatched.length,programRows:rec.length,uniqueMajors:new Set(rec.map(x=>x.cip_title)).size,year:2025,cipTitles:titles.size,completionRows:comp.length,unmatchedSample:unmatched.slice(0,30)});
  }catch(e){return NextResponse.json({ok:false,error:String(e)},{status:500})}}
