@@ -1,0 +1,30 @@
+import type {Move} from '@/components/SmartNextMoves';
+
+type Input={scope:'school'|'coach';collegeId:string;collegeName:string;coachId?:string;coachName?:string;relationship?:any;interactions?:any[];reminders?:any[];events?:any[];debriefEventIds?:string[]};
+export type RelationshipNextStep={title:string;detail:string;why:string;href:string;action:string;confidence:'high'|'medium';source:string};
+
+const one=(v:any)=>Array.isArray(v)?v[0]:v;
+const day=(v:any)=>v?new Date(String(v).length<=10?String(v)+'T12:00:00':String(v)).getTime():null;
+const age=(v:any)=>{const t=day(v);return t===null?null:Math.max(0,Math.floor((Date.now()-t)/86400000))};
+const initiatedByCoach=(i:any)=>{const s=String(i?.initiated_by||'').toLowerCase();return s.includes('coach')||String(i?.type||'').toLowerCase().includes('received')};
+const nameOf=(i:any)=>String(i?.email_subject||i?.note||'').trim();
+
+export function buildRelationshipNextStep(x:Input):RelationshipNextStep{
+ const ints=[...(x.interactions||[])].sort((a,b)=>String(b.date||b.created_at||'').localeCompare(String(a.date||a.created_at||'')));
+ const latest=ints[0], latestAge=age(latest?.date||latest?.created_at);
+ const open=(x.reminders||[]).filter((r:any)=>String(r.status)!=='completed'&&!r.completed_at).sort((a:any,b:any)=>String(a.due_date||'9999').localeCompare(String(b.due_date||'9999')));
+ const explicit=String(x.relationship?.next_step||'').trim(), who=x.scope==='coach'?(x.coachName||'this coach'):x.collegeName;
+ const base=x.scope==='coach'?'/coaches/'+x.coachId:'/colleges/'+x.collegeId;
+ const activity='/activity/new?college='+x.collegeId+(x.coachId?'&coach='+x.coachId:'');
+ if(explicit)return {title:explicit,detail:`This is the next step already saved for your relationship with ${who}.`,why:'A specific commitment or planned action should come before RLTNL creates a new recommendation.',href:base,action:'Review Next Step',confidence:'high',source:'Saved Next Step'};
+ if(open[0]){const r=open[0],overdue=r.due_date&&String(r.due_date)<new Date().toISOString().slice(0,10);return {title:r.title||'Complete your next step',detail:`${overdue?'This is overdue.':'This is already on your recruiting plan.'}${r.due_date?' Due '+new Date(r.due_date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}):''}`,why:'RLTNL found an unfinished action tied specifically to this relationship.',href:base,action:'Review Next Step',confidence:'high',source:'Planned action'};}
+ const relevantEvents=(x.events||[]).map((r:any)=>one(r.events)||r).filter((e:any)=>e?.date&&(!e.college_id||e.college_id===x.collegeId||String(e.name||'').toLowerCase().includes(x.collegeName.toLowerCase().split(' ')[0]))).sort((a:any,b:any)=>String(a.date).localeCompare(String(b.date)));
+ const today=new Date().toISOString().slice(0,10),upcoming=relevantEvents.find((e:any)=>e.date>=today&&age(e.date)!==null&&day(e.date)!<=Date.now()+14*86400000);
+ if(upcoming)return {title:`Prepare for ${upcoming.name}`,detail:`This event involving ${x.collegeName} is coming up ${new Date(upcoming.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}.`,why:'A time-sensitive recruiting event is more important than creating another generic touchpoint.',href:`/events/${upcoming.id}/prep`,action:'Open Event Prep',confidence:'high',source:'Upcoming event'};
+ if(latest&&initiatedByCoach(latest)&&(latestAge??999)<=14)return {title:`Respond to ${x.coachName||'the coach'}`,detail:nameOf(latest)?`Your latest coach-initiated interaction was about “${nameOf(latest).slice(0,100)}”.`:'The latest recorded interaction came from the coach.',why:'Coach-initiated activity creates a natural opening. Responding to that conversation is more useful than starting a new one.',href:base,action:'Review Conversation',confidence:'high',source:'Coach activity'};
+ if(!ints.length&&!x.relationship?.last_contact_date)return {title:x.scope==='coach'?`Make your first contact with ${x.coachName||'this coach'}`:`Start a relationship with ${x.collegeName}`,detail:'RLTNL does not have a meaningful interaction recorded for this relationship yet.',why:'There is not enough relationship history to infer a more specific move. The first meaningful contact creates that context.',href:activity,action:'Start Relationship',confidence:'medium',source:'Relationship history'};
+ const last=x.relationship?.last_contact_date||latest?.date||latest?.created_at,lastAge=age(last);
+ if(lastAge!==null&&lastAge>30)return {title:`Reconnect with ${who}`,detail:`Your last recorded interaction was ${lastAge} days ago.`,why:'This relationship has gone quiet long enough that a relevant, thoughtful reason to reconnect may be useful.',href:base,action:'Review Relationship',confidence:'medium',source:'Relationship momentum'};
+ if(lastAge!==null&&lastAge<=7)return {title:'Give this relationship some time',detail:`You had activity with ${who} ${lastAge===0?'today':lastAge+' day'+(lastAge===1?'':'s')+' ago'}.`,why:'Recent activity is already creating momentum. RLTNL will not manufacture another task just to keep you busy.',href:base,action:'Review Relationship',confidence:'high',source:'Recent activity'};
+ return {title:`Review your relationship with ${who}`,detail:lastAge===null?'There is not enough recent context to recommend a specific outreach action yet.':`Your last recorded activity was ${lastAge} days ago.`,why:'RLTNL does not have enough evidence to prescribe a specific message or action. Review the relationship before deciding what would genuinely move it forward.',href:base,action:'Review Relationship',confidence:'medium',source:'Relationship context'};
+}
