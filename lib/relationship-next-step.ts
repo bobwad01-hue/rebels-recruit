@@ -1,5 +1,3 @@
-import type {Move} from '@/components/SmartNextMoves';
-
 type Input={scope:'school'|'coach';collegeId:string;collegeName:string;coachId?:string;coachName?:string;relationship?:any;interactions?:any[];reminders?:any[];events?:any[];debriefEventIds?:string[]};
 export type RelationshipNextStep={title:string;detail:string;why:string;href:string;action:string;confidence:'high'|'medium';source:string};
 
