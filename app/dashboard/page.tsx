@@ -252,6 +252,9 @@ export default async function Dashboard({
       (apm.get(i.advisor_user_id) as any)?.full_name ||
       (apm.get(i.advisor_user_id) as any)?.email,
   }));
+  const {data: targetRankRows} = await admin.from("audit_log").select("entity_id,metadata,created_at").eq("actor_user_id", uid).eq("entity_type","athlete_college_target_rank").order("created_at",{ascending:false});
+  const targetRelationshipRanks: Record<string,number> = {};
+  for (const row of targetRankRows || []) { if (targetRelationshipRanks[row.entity_id] == null) { const rank=Number((row.metadata as any)?.rank); if(Number.isFinite(rank)&&rank>0) targetRelationshipRanks[row.entity_id]=rank; } }
   const smartMoves = buildSmartNextMoves({
     tasks: tasks.data || [],
     coaches: activeCoaches,
@@ -260,6 +263,7 @@ export default async function Dashboard({
     interactions: interactionRows,
     debriefEventIds: (eventDebriefs.data || []).map((x: any) => x.event_id),
     advisorRequests,
+    targetRelationshipRanks,
   });
   const intelligence = buildRecruitingIntelligence({
     colleges: activeColleges,
