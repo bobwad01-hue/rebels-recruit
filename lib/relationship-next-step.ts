@@ -8,7 +8,7 @@ const initiatedByCoach=(i:any)=>{const s=String(i?.initiated_by||'').toLowerCase
 const nameOf=(i:any)=>String(i?.email_subject||i?.note||'').trim();
 const textOf=(i:any)=>[i?.type,i?.email_subject,i?.note].filter(Boolean).join(' ').toLowerCase();
 const channelOf=(i:any)=>{const t=textOf(i);if(t.includes('text')||t.includes('sms'))return'text';if(t.includes('call')||t.includes('phone'))return'call';return'email'};
-const starterFor=(ints:any[])=>{const t=ints.slice(0,6).map(textOf).join(' ');if(/camp|clinic|showcase/.test(t))return'camp_follow_up';if(/schedule|game|tournament/.test(t))return'schedule_update';if(/video|film|highlight/.test(t))return'video_update';return'update'};
+const starterFor=(ints:any[])=>{const t=ints.slice(0,6).map(textOf).join(' ');if(/camp|clinic|showcase/.test(t))return'post_camp';if(/schedule|game|tournament/.test(t))return'season_schedule';if(/video|film|highlight/.test(t))return'new_video';return'monthly_update'};
 
 export function buildRelationshipNextStep(x:Input):RelationshipNextStep{
  const ints=[...(x.interactions||[])].sort((a,b)=>String(b.date||b.created_at||'').localeCompare(String(a.date||a.created_at||'')));
