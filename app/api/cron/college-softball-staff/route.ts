@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -66,8 +66,8 @@ function sameHost(a:string,b:string){try{return new URL(a).hostname.replace(/^ww
 function scoreLink(x:{url:string,text:string},kind:"softball"|"staff"){
  const s=(x.text+" "+x.url).toLowerCase();
  let n=0;
- if(kind==="softball"){if(/softball/.test(s))n+=10;if(/sports\/softball/.test(s))n+=8;if(/roster|schedule|news/.test(s))n-=2}
- else {if(/softball/.test(s))n+=6;if(/coach|staff/.test(s))n+=8;if(/staff-directory/.test(s))n+=5;if(/bio/.test(s))n+=2}
+ if(kind==="softball"){if(/softball/.test(s))n+=10;if(/sports\/softball/.test(s))n+=12;if(/\/sports\/softball(?:\/|$)/.test(s))n+=8;if(/news|article/.test(s))n-=20;if(/roster|schedule/.test(s))n-=4}
+ else {if(/\/sports\/softball\/coaches(?:\/|$)/.test(s))n+=30;if(/softball/.test(s))n+=10;if(/coach|staff/.test(s))n+=8;if(/staff-directory/.test(s))n+=4;if(/news|article/.test(s))n-=25;if(/bio/.test(s))n+=2}
  return n;
 }
 function bestLink(xs:{url:string,text:string}[],kind:"softball"|"staff",base:string){
@@ -90,27 +90,40 @@ async function discover(start:string){
  return {athletics_url:a.url,softball_url:s.url,staff_url:staff};
 }
 
+function plausibleName(name:string){
+ const n=name.trim();
+ if(!/^[A-Z][A-Za-z.'-]+(?:\\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(n)) return false;
+ if(/\\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\\b/i.test(n)) return false;
+ return true;
+}
 function extract(html:string,url:string){
- const anchors=links(html,url);
- const emails=new Map<string,string>();
- for(const a of anchors){if(a.url.startsWith("mailto:")) emails.set(a.url.replace(/^mailto:/,"").split("?")[0].toLowerCase(),a.text)}
- const blocks=html.split(/<\/(?:li|tr|article|section|div)>/i).filter(x=>/coach|coordinator/i.test(clean(x)));
+ const dedicated=/\/sports\/softball(?:\/|$)/i.test(new URL(url).pathname);
+ const blocks=html.split(/<\\/(?:li|tr|article|section|div)>/i).filter(x=>/coach|coordinator/i.test(clean(x)));
  const out:any[]=[];
  for(const block of blocks){
-  const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").toLowerCase()||null;
-  const text=clean(block); if(!/coach|coordinator/i.test(text)) continue;
-  const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Coach|Coordinator)|Recruit(?:ing|ment)\s+Coordinator)/i);
-  const title=titleMatch?.[1]?.trim()||"Softball Coach";
-  const before=text.split(title)[0].trim();
-  const name=(before.match(/([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})\s*$/)?.[1]||(email?emails.get(email):"")||"").trim();
-  if(!name || /email|phone|staff|softball/i.test(name)) continue;
-  const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
-  const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+  const text=clean(block);
+  if(!/coach|coordinator/i.test(text)) continue;
+  // General athletics directories are only safe when the row itself identifies softball.
+  if(!dedicated&&!/softball/i.test(text)) continue;
+  // Never ingest another sport from a mixed directory/page.
+  if(/\\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\\b/i.test(text)&&!/softball/i.test(text)) continue;
+  const titleMatch=text.match(/((?:Associate\\s+Head|Head|Assistant|Volunteer\\s+Assistant|Graduate\\s+Assistant|Pitching|Hitting)[^|,;]{0,45}(?:Softball\\s+)?Coach|Recruit(?:ing|ment)\\s+Coordinator)/i);
+  if(!titleMatch) continue;
+  const title=titleMatch[1].trim();
   const blockLinks=links(block,url);
-  const x=blockLinks.find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
-  const bio=blockLinks.find(a=>sameHost(a.url,url)&&!a.url.startsWith("mailto:")&&/coach|staff|bio/i.test(a.url+" "+a.text));
+  const email=(block.match(/mailto:([^"'?\\s>]+)/i)?.[1]||"").toLowerCase()||null;
+  const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\/coaches\/[^/?#]+\/\\d+|\/staff-directory\/[^/?#]+\/\\d+)/i.test(a.url));
+  const profileName=profile?.text?.trim()||"";
+  const before=text.split(title)[0].trim();
+  const fallback=before.match(/([A-Z][A-Za-z.'-]+(?:\\s+[A-Z][A-Za-z.'-]+){1,3})\\s*$/)?.[1]||"";
+  const name=plausibleName(profileName)?profileName:(plausibleName(fallback)?fallback:"");
+  // Require a real person-shaped name plus direct contact or an official profile link.
+  if(!name||(!email&&!profile)) continue;
+  const parts=name.split(/\\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
+  const phone=text.match(/(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]\\d{3}[-.\\s]\\d{4}/)?.[0]||null;
+  const x=blockLinks.find(a=>/^(https?:\\/\\/)?(?:www\\.)?(?:x\\.com|twitter\\.com)\\//i.test(a.url));
   const rr=role(title);
-  out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null,official_bio_url:bio?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+  out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null,official_bio_url:profile?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
  }
  return [...new Map(out.map(x=>[x.email||(`${x.first_name} ${x.last_name}`).toLowerCase(),x])).values()];
 }
@@ -135,19 +148,20 @@ export async function POST(req:NextRequest){
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
    for(const c of coaches){
     if(dryRun) continue;
-    const confidence=c.email&&c.title?0.98:c.title?0.90:0.80;
+    const confidence=c.email&&c.official_bio_url?0.98:c.email?0.94:c.official_bio_url?0.90:0.75;
+    const verificationStatus=confidence>=0.94?"high_confidence":"review";
     let existing:any=null;
     if(c.email){
       const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("email",c.email).maybeSingle(); existing=r.data;
     } else {
       const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("first_name",c.first_name).ilike("last_name",c.last_name).maybeSingle(); existing=r.data;
     }
-    const row={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:"verified",official_source_hash:hash(page.html),last_verified_at:now,verification_status:"verified",verification_confidence:confidence,source_urls:[page.url]};
+    const row={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:verificationStatus,official_source_hash:hash(page.html),last_verified_at:null,verification_status:verificationStatus,verification_confidence:confidence,source_urls:[page.url]};
     const {data:saved,error:saveErr}=existing?.id?await supabase.from("college_coaches").update(row).eq("id",existing.id).select("id").single():await supabase.from("college_coaches").insert(row).select("id").single();
     if(saveErr) throw saveErr;
-    await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:hash(page.html),confidence,verification_status:"verified",raw_evidence:{official_source:true}});
+    await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v2"}});
    }
-   results.push({college:college.name,status:"ok",staff_url:page.url,coaches:coaches.length});
+   results.push({college:college.name,status:"ok",staff_url:page.url,coaches:coaches.length,extracted:coaches.map(c=>({name:`${c.first_name} ${c.last_name}`,title:c.title,email:c.email,phone:c.phone,x_url:c.x_url,bio:c.official_bio_url}))});
   }catch(e:any){
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,last_checked_at:new Date().toISOString(),status:"review",updated_at:new Date().toISOString()});
    results.push({college:college.name,status:"review",error:e?.message||String(e)});
