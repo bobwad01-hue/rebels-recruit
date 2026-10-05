@@ -96,18 +96,24 @@ function extract(html:string,url:string){
 
 export async function POST(req:NextRequest){
  const auth=req.headers.get("authorization");
- if(process.env.CRON_SECRET && auth!==`Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({error:"Unauthorized"},{status:401});
+ const manualKey=req.headers.get("x-rlt-ingestion-key");
+ const cronOk=Boolean(process.env.CRON_SECRET && auth===`Bearer ${process.env.CRON_SECRET}`);
+ const manualOk=Boolean(process.env.STAFF_INGESTION_MANUAL_KEY && manualKey===process.env.STAFF_INGESTION_MANUAL_KEY);
+ if(!cronOk && !manualOk) return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({}));
- const limit=Math.min(Number(body.limit)||10,25);
+ const limit=Math.min(Math.max(Number(body.limit)||10,1),25);
+ const dryRun=body.dry_run===true;
  let query=supabase.from("colleges").select("id,name,website").not("website","is",null).order("name").limit(limit);
  if(body.college_id) query=query.eq("id",body.college_id);
+ if(Array.isArray(body.college_ids)&&body.college_ids.length) query=query.in("id",body.college_ids.slice(0,25));
  const {data:colleges,error}=await query; if(error) throw error;
  const results:any[]=[];
  for(const college of colleges||[]){
   try{
    const d=await discover(college.website); const page=await get(d.staff_url); const coaches=extract(page.html,page.url); const now=new Date().toISOString();
-   await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
+   if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
    for(const c of coaches){
+    if(dryRun) continue;
     const confidence=c.email&&c.title?0.98:c.title?0.90:0.80;
     let existing:any=null;
     if(c.email){
@@ -122,9 +128,9 @@ export async function POST(req:NextRequest){
    }
    results.push({college:college.name,status:"ok",staff_url:page.url,coaches:coaches.length});
   }catch(e:any){
-   await supabase.from("college_softball_sources").upsert({college_id:college.id,last_checked_at:new Date().toISOString(),status:"review",updated_at:new Date().toISOString()});
+   if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,last_checked_at:new Date().toISOString(),status:"review",updated_at:new Date().toISOString()});
    results.push({college:college.name,status:"review",error:e?.message||String(e)});
   }
  }
- return NextResponse.json({processed:results.length,results});
+ return NextResponse.json({processed:results.length,dry_run:dryRun,results});
 }
