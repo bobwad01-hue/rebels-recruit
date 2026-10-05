@@ -115,7 +115,7 @@ function extract(html:string,url:string){
   const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\/coaches\/[^/?#]+\/\d+|\/staff-directory\/[^/?#]+\/\d+)/i.test(a.url));
   const profileName=profile?.text?.trim()||"";
   const before=text.split(title)[0].trim();
-  const fallback=before.match(/([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})\\s*$/)?.[1]||"";
+  const fallback=before.match(/([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})\s*$/)?.[1]||"";
   const name=plausibleName(profileName)?profileName:(plausibleName(fallback)?fallback:"");
   // Require a real person-shaped name plus direct contact or an official profile link.
   if(!name||(!email&&!profile)) continue;
