@@ -98,7 +98,7 @@ function plausibleName(name:string){
 }
 function extract(html:string,url:string){
  const dedicated=/\/sports\/softball(?:\/|$)/i.test(new URL(url).pathname);
- const blocks=html.split(/<\\/(?:li|tr|article|section|div)>/i).filter(x=>/coach|coordinator/i.test(clean(x)));
+ const blocks=html.split(/<\/(?:li|tr|article|section|div)>/i).filter(x=>/coach|coordinator/i.test(clean(x)));
  const out:any[]=[];
  for(const block of blocks){
   const text=clean(block);
