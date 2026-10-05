@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -137,6 +137,7 @@ export async function POST(req:NextRequest){
  const body=await req.json().catch(()=>({}));
  const limit=Math.min(Math.max(Number(body.limit)||10,1),25);
  const dryRun=body.dry_run===true;
+ const persistDryRun=body.persist_dry_run===true;
  let query=supabase.from("colleges").select("id,name,website").not("website","is",null).order("name").limit(limit);
  if(body.college_id) query=query.eq("id",body.college_id);
  if(Array.isArray(body.college_ids)&&body.college_ids.length) query=query.in("id",body.college_ids.slice(0,25));
@@ -165,6 +166,14 @@ export async function POST(req:NextRequest){
   }catch(e:any){
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,last_checked_at:new Date().toISOString(),status:"review",updated_at:new Date().toISOString()});
    results.push({college:college.name,status:"review",error:e?.message||String(e)});
+  }
+ }
+ if(dryRun&&persistDryRun){
+  const now=new Date().toISOString();
+  for(const r of results){
+   const college=(colleges||[]).find((x:any)=>x.name===r.college);
+   if(!college) continue;
+   await supabase.from("college_staff_dry_runs").insert({college_id:college.id,college_name:r.college,status:r.status,staff_url:r.staff_url||null,result:r,created_at:now});
   }
  }
  return NextResponse.json({processed:results.length,dry_run:dryRun,results});
