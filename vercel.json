@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/gmail-watch",
       "schedule": "17 8 * * *"
-    },
-    {
-      "path": "/api/cron/college-softball-staff",
-      "schedule": "*/5 * * * *"
     }
   ]
 }
