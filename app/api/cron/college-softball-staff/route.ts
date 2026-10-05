@@ -42,15 +42,30 @@ function links(html:string,base:string){
 }
 function sameHost(a:string,b:string){try{return new URL(a).hostname.replace(/^www\./,"")===new URL(b).hostname.replace(/^www\./,"")}catch{return false}}
 
+function scoreLink(x:{url:string,text:string},kind:"softball"|"staff"){
+ const s=(x.text+" "+x.url).toLowerCase();
+ let n=0;
+ if(kind==="softball"){if(/softball/.test(s))n+=10;if(/sports\/softball/.test(s))n+=8;if(/roster|schedule|news/.test(s))n-=2}
+ else {if(/softball/.test(s))n+=6;if(/coach|staff/.test(s))n+=8;if(/staff-directory/.test(s))n+=5;if(/bio/.test(s))n+=2}
+ return n;
+}
+function bestLink(xs:{url:string,text:string}[],kind:"softball"|"staff",base:string){
+ return xs.filter(x=>sameHost(x.url,base)).map(x=>({x,n:scoreLink(x,kind)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n)[0]?.x.url;
+}
 async function discover(start:string){
  const home=await get(start); const ls=links(home.html,home.url);
  const athletic=ls.find(x=>/athletics?|sports/i.test(x.text+" "+x.url) && !/facebook|instagram|twitter|x\.com/i.test(x.url))?.url || home.url;
  const a=athletic===home.url?home:await get(athletic);
  const sl=links(a.html,a.url);
- const softball=sl.find(x=>/softball/i.test(x.text+" "+x.url))?.url;
+ const softball=bestLink(sl,"softball",a.url);
  if(!softball) throw new Error("Official softball page not discovered");
  const s=await get(softball); const staffLinks=links(s.html,s.url);
- const staff=staffLinks.find(x=>/coach|staff/i.test(x.text+" "+x.url) && /softball|coach|staff/i.test(x.url))?.url || s.url;
+ let staff=bestLink(staffLinks,"staff",s.url) || s.url;
+ // Some schools publish contacts only in the official athletics staff directory.
+ if(staff===s.url){
+   const directory=sl.find(x=>sameHost(x.url,a.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))?.url;
+   if(directory) staff=directory;
+ }
  return {athletics_url:a.url,softball_url:s.url,staff_url:staff};
 }
 
@@ -58,15 +73,15 @@ function extract(html:string,url:string){
  const anchors=links(html,url);
  const emails=new Map<string,string>();
  for(const a of anchors){if(a.url.startsWith("mailto:")) emails.set(a.url.replace(/^mailto:/,"").split("?")[0].toLowerCase(),a.text)}
- const blocks=html.split(/<\/(?:li|tr|article|section|div)>/i).filter(x=>/mailto:/i.test(x));
+ const blocks=html.split(/<\/(?:li|tr|article|section|div)>/i).filter(x=>/coach|coordinator/i.test(clean(x)));
  const out:any[]=[];
  for(const block of blocks){
-  const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").toLowerCase(); if(!email) continue;
+  const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").toLowerCase()||null;
   const text=clean(block); if(!/coach|coordinator/i.test(text)) continue;
   const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Coach|Coordinator)|Recruit(?:ing|ment)\s+Coordinator)/i);
   const title=titleMatch?.[1]?.trim()||"Softball Coach";
   const before=text.split(title)[0].trim();
-  const name=(before.match(/([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})\s*$/)?.[1]||emails.get(email)||"").trim();
+  const name=(before.match(/([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})\s*$/)?.[1]||(email?emails.get(email):"")||"").trim();
   if(!name || /email|phone|staff|softball/i.test(name)) continue;
   const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
   const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
@@ -76,7 +91,7 @@ function extract(html:string,url:string){
   const rr=role(title);
   out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null,official_bio_url:bio?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
  }
- return [...new Map(out.map(x=>[x.email,x])).values()];
+ return [...new Map(out.map(x=>[x.email||(`${x.first_name} ${x.last_name}`).toLowerCase(),x])).values()];
 }
 
 export async function POST(req:NextRequest){
@@ -93,8 +108,13 @@ export async function POST(req:NextRequest){
    const d=await discover(college.website); const page=await get(d.staff_url); const coaches=extract(page.html,page.url); const now=new Date().toISOString();
    await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
    for(const c of coaches){
-    const confidence=c.email&&c.title?0.98:0.85;
-    const {data:existing}=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("email",c.email).maybeSingle();
+    const confidence=c.email&&c.title?0.98:c.title?0.90:0.80;
+    let existing:any=null;
+    if(c.email){
+      const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("email",c.email).maybeSingle(); existing=r.data;
+    } else {
+      const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("first_name",c.first_name).ilike("last_name",c.last_name).maybeSingle(); existing=r.data;
+    }
     const row={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:"verified",official_source_hash:hash(page.html),last_verified_at:now,verification_status:"verified",verification_confidence:confidence,source_urls:[page.url]};
     const {data:saved,error:saveErr}=existing?.id?await supabase.from("college_coaches").update(row).eq("id",existing.id).select("id").single():await supabase.from("college_coaches").insert(row).select("id").single();
     if(saveErr) throw saveErr;
