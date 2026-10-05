@@ -119,9 +119,9 @@ function extract(html:string,url:string){
   const name=plausibleName(profileName)?profileName:(plausibleName(fallback)?fallback:"");
   // Require a real person-shaped name plus direct contact or an official profile link.
   if(!name||(!email&&!profile)) continue;
-  const parts=name.split(/\\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
-  const phone=text.match(/(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]\\d{3}[-.\\s]\\d{4}/)?.[0]||null;
-  const x=blockLinks.find(a=>/^(https?:\\/\\/)?(?:www\\.)?(?:x\\.com|twitter\\.com)\\//i.test(a.url));
+  const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
+  const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+  const x=blockLinks.find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\///i.test(a.url));
   const rr=role(title);
   out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null,official_bio_url:profile?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
  }
