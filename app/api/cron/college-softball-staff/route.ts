@@ -30,8 +30,29 @@ function role(title:string){
  return {category,order,recruiting};
 }
 
+const USER_AGENT="RLTNL-College-Staff-Intelligence";
+const robotsCache=new Map<string,string>();
+async function allowedByRobots(url:string){
+ try{
+  const u=new URL(url); const origin=u.origin;
+  let txt=robotsCache.get(origin);
+  if(txt===undefined){
+   const r=await fetch(origin+"/robots.txt",{redirect:"follow",headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)"}});
+   txt=r.ok?await r.text():""; robotsCache.set(origin,txt);
+  }
+  let applies=false; const rules:string[]=[];
+  for(const raw of txt.split(/\r?\n/)){
+   const line=raw.split("#")[0].trim(); if(!line) continue;
+   const [k,...rest]=line.split(":"); const v=rest.join(":").trim();
+   if(k.toLowerCase()==="user-agent"){applies=v==="*"||v.toLowerCase()===USER_AGENT.toLowerCase(); continue}
+   if(applies&&k.toLowerCase()==="disallow"&&v) rules.push(v);
+  }
+  return !rules.some(rule=>u.pathname.startsWith(rule));
+ }catch{return false}
+}
 async function get(url:string){
- const r=await fetch(url,{redirect:"follow",headers:{"user-agent":"RLTNL-College-Staff-Intelligence/1.0 (+https://www.rltnl.com)","accept":"text/html"}});
+ if(!(await allowedByRobots(url))) throw new Error("Blocked by robots.txt");
+ const r=await fetch(url,{redirect:"follow",headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)","accept":"text/html"}});
  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
  return {html:await r.text(),url:r.url,status:r.status};
 }
