@@ -119,13 +119,14 @@ async function discover(start:string){
 function plausibleName(name:string){
  const n=name.trim();
  if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
- if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line)\b/i.test(n)) return false;
+ if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  return true;
 }
 function extract(html:string,url:string){
  const path=new URL(url).pathname;
  const dedicated=/softball|w-softbl/i.test(path);
+ const departmentScoped=/staff-directory\/(?:softball-department|department\/softball)/i.test(path);
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
  const candidates=[
    ...[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0]),
@@ -137,7 +138,7 @@ function extract(html:string,url:string){
  for(const block of candidates){
   const text=clean(block);
   if(!/coach|coordinator|graduate assistant/i.test(text)) continue;
-  if(!dedicated&&!/softball/i.test(text)) continue;
+  if(!dedicated&&!departmentScoped&&!/softball/i.test(text)) continue;
   if(/\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\b/i.test(text)
      && !/\b(head|associate head|assistant|pitching|hitting)\s+(?:softball\s+)?coach\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
   if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
@@ -154,7 +155,7 @@ function extract(html:string,url:string){
   if(!dedicated && !/softball/i.test(text)) continue;
   const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
   const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\/coaches?\/|\/staff-directory\/|\/staff\/)/i.test(a.url)&&plausibleName(a.text));
-  if(!dedicated && profile && !/softball/i.test(text.slice(Math.max(0,text.indexOf(profile.text)-120),text.indexOf(profile.text)+220))) continue;
+  if(!dedicated&&!departmentScoped && profile && !/softball/i.test(text.slice(Math.max(0,text.indexOf(profile.text)-120),text.indexOf(profile.text)+220))) continue;
   const profileName=profile?.text?.trim()||"";
   const before=text.split(title)[0].trim();
   const fallback=before.match(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s*$/)?.[1]||"";
@@ -165,7 +166,7 @@ function extract(html:string,url:string){
   }
   // On a dedicated softball roster/coaches page, the page context itself is authoritative.
   // On mixed directories, still require direct contact/profile evidence.
-  if(!name||(!dedicated&&!email&&!profile)) continue;
+  if(!name||(!dedicated&&!departmentScoped&&!email&&!profile)) continue;
   const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
   const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
   const x=blockLinks.find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
