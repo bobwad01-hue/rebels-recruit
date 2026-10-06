@@ -27,7 +27,14 @@ async function managed(admin: any, userId: string, organizationId?: string) {
   if (organizationId) q = q.eq("organization_id", organizationId);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
-  return data || [];
+  if((data||[]).length)return (data||[]).map((x:any)=>({...x,organization_admin:true,team_ids:null}));
+  let teamsQ=admin.from("teams").select("id,organization_id");
+  if(organizationId)teamsQ=teamsQ.eq("organization_id",organizationId);
+  const{data:teams,error:teamError}=await teamsQ;if(teamError)throw new Error(teamError.message);
+  const ids=(teams||[]).map((x:any)=>x.id);if(!ids.length)return [];
+  const{data:teamRoles,error:roleError}=await admin.from("team_user_roles").select("team_id").eq("user_id",userId).eq("role","admin").eq("status","active").in("team_id",ids);if(roleError)throw new Error(roleError.message);
+  const byOrg=new Map<string,string[]>();for(const r of teamRoles||[]){const t=(teams||[]).find((x:any)=>x.id===r.team_id);if(t){const a=byOrg.get(t.organization_id)||[];a.push(t.id);byOrg.set(t.organization_id,a)}}
+  return [...byOrg.entries()].map(([organization_id,team_ids])=>({organization_id,organization_admin:false,team_ids}));
 }
 async function uniqueCode(admin: any) {
   for (let i = 0; i < 5; i++) {
@@ -77,7 +84,7 @@ export async function GET() {
   try {
     const memberships = await managed(admin, user.id);
     const {data:platformOwner}=await admin.from("platform_roles").select("role").eq("user_id",user.id).eq("role","super_owner").maybeSingle();
-    const ids = memberships.map((m: any) => m.organization_id);
+    const ids = memberships.map((m: any) => m.organization_id);const scopeByOrg=new Map(memberships.map((m:any)=>[String(m.organization_id),m]));
     if (!ids.length) return NextResponse.json({ organizations: [], canCreate: !!platformOwner });
     const { data: organizations, error } = await admin
       .from("organizations")
@@ -102,7 +109,7 @@ export async function GET() {
       canCreate: !!platformOwner,
       organizations: (organizations || []).map((o: any) => ({
         ...o,
-        teams: (o.teams || []).sort((a: any, b: any) =>
+        teams: (o.teams || []).filter((t:any)=>{const scope:any=scopeByOrg.get(String(o.id));return scope?.organization_admin!==false||scope?.team_ids?.includes(String(t.id))}).sort((a: any, b: any) =>
           (Number(a.sort_order ?? 999999) - Number(b.sort_order ?? 999999)) || String(a.name).localeCompare(String(b.name)),
         ),
         staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null,roles:(orgRoles||[]).filter((r:any)=>r.organization_id===o.id&&r.user_id===m.user_id).map((r:any)=>r.role)})),
@@ -188,9 +195,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, organization });
     }
     const organizationId = String(body.organizationId || "");
+    const access=organizationId?await managed(admin,user.id,organizationId):[];
+    const scope:any=access[0]||null;
     if (
       !organizationId ||
-      !(await managed(admin, user.id, organizationId)).length
+      !access.length
     )
       return NextResponse.json(
         { error: "Admin access is required for this organization." },
@@ -198,7 +207,8 @@ export async function POST(req: NextRequest) {
       );
     if (action === "getJoinLinks") {
       const {data:organization}=await admin.from("organizations").select("id,name,teams(id,name,age_group,archived_at)").eq("id",organizationId).single();
-      const scopes=[{role:"advisor",teamId:null,requiresApproval:false},{role:"admin",teamId:null,requiresApproval:false},{role:"advisor_admin",teamId:null,requiresApproval:false},...((organization?.teams||[]).filter((t:any)=>!t.archived_at).flatMap((t:any)=>["advisor","athlete","parent"].map(role=>({role,teamId:t.id,requiresApproval:false}))))];
+      const visibleTeams=(organization?.teams||[]).filter((t:any)=>!t.archived_at&&(scope?.organization_admin!==false||scope?.team_ids?.includes(String(t.id))));
+      const scopes=[...(scope?.organization_admin===false?[]:[{role:"advisor",teamId:null,requiresApproval:false},{role:"admin",teamId:null,requiresApproval:false},{role:"advisor_admin",teamId:null,requiresApproval:false}]),...visibleTeams.flatMap((t:any)=>["admin","advisor","advisor_admin","athlete","parent"].map(role=>({role,teamId:t.id,requiresApproval:false})))];
       for(const scope of scopes){
         const {data:existing}=await admin.from("organization_join_links").select("id").eq("organization_id",organizationId).eq("role",scope.role).eq("active",true).is("team_id",scope.teamId).maybeSingle();
         if(!existing)await admin.from("organization_join_links").insert({organization_id:organizationId,team_id:scope.teamId,role:scope.role,requires_approval:scope.requiresApproval,created_by:user.id});
@@ -208,9 +218,17 @@ export async function POST(req: NextRequest) {
       const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"https://www.rltnl.com").replace(/\/$/,"");
       return NextResponse.json({ok:true,links:(links||[]).map((x:any)=>({...x,url:`${appUrl}/join/${x.token}`}))});
     }
+    if(scope?.organization_admin===false&&!["getJoinLinks","manageUserRole","setTeamAccess"].includes(action))return NextResponse.json({error:"Organization Admin access is required for that action."},{status:403});
     if (action === "manageUserRole") {
       const target=String(body.userId||""),role=String(body.role||""),enabled=Boolean(body.enabled),teamIds=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
       if(!target||!["admin","advisor","athlete","parent"].includes(role))return NextResponse.json({error:"Person and role are required."},{status:400});
+      if(scope?.organization_admin===false){
+        if(!teamIds.length||teamIds.some((id:string)=>!scope.team_ids?.includes(id)))return NextResponse.json({error:"Team Admins can manage roles only inside their assigned team(s)."},{status:403});
+        for(const teamId of scope.team_ids||[])await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).eq("team_id",teamId);
+        if(enabled)for(const teamId of teamIds)await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});
+        if(enabled)await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+        return NextResponse.json({ok:true});
+      }
       if(enabled)await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
       else await admin.from("organization_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("organization_id",organizationId).eq("user_id",target).eq("role",role);
       if(role!=="admin"){
@@ -275,6 +293,7 @@ export async function POST(req: NextRequest) {
     }
     if (action === "setTeamAccess") {
       const target=String(body.userId||""),teamId=String(body.teamId||""),mode=String(body.mode||"remove");
+      if(scope?.organization_admin===false&&!scope.team_ids?.includes(teamId))return NextResponse.json({error:"That team is outside your Team Admin scope."},{status:403});
       const {data:team}=await admin.from("teams").select("id").eq("id",teamId).eq("organization_id",organizationId).maybeSingle();
       if(!target||!team)return NextResponse.json({error:"Team access was not found."},{status:404});
       const teamIds=((await admin.from("teams").select("id").eq("organization_id",organizationId)).data||[]).map((x:any)=>x.id);
