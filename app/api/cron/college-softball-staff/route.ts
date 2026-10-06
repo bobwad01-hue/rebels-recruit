@@ -107,16 +107,21 @@ async function discover(start:string){
  const directoryCandidates=[...staffLinks,...sl]
    .filter(x=>sameHost(x.url,s.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))
    .sort((a,b)=>(/softball/i.test(b.text+" "+b.url)?1:0)-(/softball/i.test(a.text+" "+a.url)?1:0));
- let staff=directoryCandidates[0]?.url||null;
+ let staff=directoryCandidates.find(x=>/softball/i.test(x.text+" "+x.url))?.url||null;
  if(!staff) staff=bestLink(staffLinks,"staff",s.url);
  if(!staff){
-   const directory=await tryGet([origin+"/staff-directory/department/softball",origin+"/staff-directory/softball-department",origin+"/staff-directory"]);
+   const directory=await tryGet([origin+"/staff-directory/department/softball",origin+"/staff-directory/softball-department"]);
    if(directory) staff=directory.url;
  }
  if(!staff){
-   const coachPage=await tryGet([origin+"/sports/softball/coaches",origin+"/sports/softball/coaches/",origin+"/sports/softball/roster?path=softball"]);
+   const coachPage=await tryGet([
+     origin+"/sports/softball/coaches",origin+"/sports/softball/coaches/",
+     origin+"/sports/softball/roster?path=softball",origin+"/sports/softball/roster",
+     origin+"/sports/sball/coaches",origin+"/sports/sball/roster"
+   ]);
    if(coachPage) staff=coachPage.url;
  }
+ if(!staff && directoryCandidates.length) staff=directoryCandidates[0].url;
  // Never treat schedule/news/etc. as a staff source merely because it is a softball page.
  if(!staff||/\/(schedule|news|stats|archives|tickets|facilities)(?:\/|$)/i.test(new URL(staff).pathname)) throw new Error("Official softball staff page not discovered");
  return {athletics_url:athletics.url,softball_url:s.url,staff_url:staff};
@@ -133,6 +138,7 @@ function extract(html:string,url:string){
  const path=new URL(url).pathname;
  const dedicated=/softball|w-softbl/i.test(path);
  const departmentScoped=/staff-directory\/(?:softball-department|department\/softball)/i.test(path);
+ const broadDirectory=/staff(?:-directory|\.aspx)(?:\/|$)/i.test(path)&&!departmentScoped;
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
  const candidates=[
    ...[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0]),
