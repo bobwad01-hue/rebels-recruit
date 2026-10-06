@@ -14,15 +14,18 @@ const SCOPES={
 } as const;
 type Service=keyof typeof SCOPES;
 
-type StatePayload={state:string;service:Service;userId:string};
+type StatePayload={state:string;service:Service;userId:string;returnTo?:string|null};
 type GoogleTokenResponse={access_token?:string;expires_in?:number;refresh_token?:string;scope?:string;token_type?:string;error?:string;error_description?:string};
 
 function appOrigin(req:NextRequest){
   return (process.env.NEXT_PUBLIC_APP_URL||req.nextUrl.origin).replace(/\/$/,'');
 }
 
-function redirect(req:NextRequest,code:string){
-  const res=NextResponse.redirect(new URL(`/settings?google=${encodeURIComponent(code)}`,appOrigin(req)));
+function redirect(req:NextRequest,code:string,returnTo?:string|null){
+  const safeReturnTo=returnTo&&returnTo.startsWith('/')&&!returnTo.startsWith('//')?returnTo:null;
+  const target=safeReturnTo?new URL(safeReturnTo,appOrigin(req)):new URL(`/settings?google=${encodeURIComponent(code)}`,appOrigin(req));
+  if(safeReturnTo)target.searchParams.set('google',code);
+  const res=NextResponse.redirect(target);
   res.cookies.set(STATE_COOKIE,'',{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',maxAge:0});
   return res;
 }
@@ -48,7 +51,7 @@ export async function GET(req:NextRequest){
 
     const clientId=process.env.GOOGLE_WORKSPACE_CLIENT_ID||process.env.GOOGLE_CLIENT_ID;
     const clientSecret=process.env.GOOGLE_WORKSPACE_CLIENT_SECRET||process.env.GOOGLE_CLIENT_SECRET;
-    if(!clientId||!clientSecret||!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.GOOGLE_TOKEN_ENCRYPTION_KEY)return redirect(req,'not-configured');
+    if(!clientId||!clientSecret||!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.GOOGLE_TOKEN_ENCRYPTION_KEY)return redirect(req,'not-configured',saved.returnTo);
 
     const callback=new URL('/api/google/callback',appOrigin(req)).toString();
     const tokenRes=await fetch('https://oauth2.googleapis.com/token',{
@@ -58,8 +61,8 @@ export async function GET(req:NextRequest){
       cache:'no-store'
     });
     const tokens=await tokenRes.json() as GoogleTokenResponse;
-    if(!tokenRes.ok||tokens.error)return redirect(req,'token-exchange-failed');
-    if(!tokens.refresh_token)return redirect(req,'refresh-token-missing');
+    if(!tokenRes.ok||tokens.error)return redirect(req,'token-exchange-failed',saved.returnTo);
+    if(!tokens.refresh_token)return redirect(req,'refresh-token-missing',saved.returnTo);
 
     const encrypted=encryptGoogleToken(tokens.refresh_token);
     const admin=createAdminClient();
@@ -72,16 +75,16 @@ export async function GET(req:NextRequest){
       scope:tokens.scope||SCOPES[saved.service],
       updated_at:new Date().toISOString()
     },{onConflict:'user_id,service'});
-    if(tokenError)return redirect(req,'token-storage-failed');
+    if(tokenError)return redirect(req,'token-storage-failed',saved.returnTo);
 
     const now=new Date().toISOString();
     const statusUpdate:any={user_id:user.id,connected_at:now,updated_at:now};
     statusUpdate[`${saved.service}_connected`]=true;
     statusUpdate[`${saved.service}_scope`]=tokens.scope||SCOPES[saved.service];
     const {error:statusError}=await c.from('google_workspace_connections').upsert(statusUpdate,{onConflict:'user_id'});
-    if(statusError)return redirect(req,'status-update-failed');
+    if(statusError)return redirect(req,'status-update-failed',saved.returnTo);
     if(saved.service==='gmail'&&process.env.GOOGLE_GMAIL_PUBSUB_TOPIC){try{const {startGmailWatch}=await import('@/lib/gmail-inbound');await startGmailWatch(user.id)}catch(error){console.error('Gmail watch setup failed',error)}}
-    return redirect(req,`${saved.service}-connected`);
+    return redirect(req,`${saved.service}-connected`,saved.returnTo);
   }catch{
     return redirect(req,'connection-failed');
   }
