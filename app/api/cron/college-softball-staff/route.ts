@@ -103,29 +103,29 @@ function extract(html:string,url:string){
  const dedicated=/softball|w-softbl/i.test(path);
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
  const candidates=[
-   ...[...html.matchAll(/<tr\\b[^>]*>[\\s\\S]*?<\\/tr>/gi)].map(m=>m[0]),
-   ...[...html.matchAll(/<li\\b[^>]*>[\\s\\S]*?<\\/li>/gi)].map(m=>m[0]),
-   ...[...html.matchAll(/<article\\b[^>]*>[\\s\\S]*?<\\/article>/gi)].map(m=>m[0]),
-   ...html.split(/<\\/(?:section|div)>/i)
+   ...[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0]),
+   ...[...html.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/gi)].map(m=>m[0]),
+   ...[...html.matchAll(/<article\b[^>]*>[\s\S]*?<\/article>/gi)].map(m=>m[0]),
+   ...html.split(/<\/(?:section|div)>/i)
  ].filter(x=>/coach|coordinator|graduate assistant/i.test(clean(x)));
  const out:any[]=[];
  for(const block of candidates){
   const text=clean(block);
   if(!/coach|coordinator|graduate assistant/i.test(text)) continue;
   if(!dedicated&&!/softball/i.test(text)) continue;
-  if(/\\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\\b/i.test(text)
-     && !/\\b(head|associate head|assistant|pitching|hitting)\\s+(?:softball\\s+)?coach\\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
-  if(/\\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\\b/i.test(text)&&!/softball/i.test(text)) continue;
-  const titleMatch=text.match(/((?:Associate\\s+Head|Head|Assistant|Volunteer\\s+Assistant|Graduate\\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\\s+)?Coach(?:\\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\\s+Coordinator|Graduate\\s+Assistant)/i);
+  if(/\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\b/i.test(text)
+     && !/\b(head|associate head|assistant|pitching|hitting)\s+(?:softball\s+)?coach\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
+  if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
+  const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant)/i);
   if(!titleMatch) continue;
   const title=titleMatch[1].trim();
   if(/strength|conditioning|trainer|operations|player development|performance/i.test(title)) continue;
   const blockLinks=links(block,url);
-  const email=(block.match(/mailto:([^"'?\\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
-  const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\\/coaches?\\/|\\/staff-directory\\/|\\/staff\\/)/i.test(a.url)&&plausibleName(a.text));
+  const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
+  const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\/coaches?\/|\/staff-directory\/|\/staff\/)/i.test(a.url)&&plausibleName(a.text));
   const profileName=profile?.text?.trim()||"";
   const before=text.split(title)[0].trim();
-  const fallback=before.match(/([A-Z][A-Za-z.'’-]+(?:\\s+[A-Z][A-Za-z.'’-]+){1,3})\\s*$/)?.[1]||"";
+  const fallback=before.match(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s*$/)?.[1]||"";
   let name=plausibleName(profileName)?profileName:(plausibleName(fallback)?fallback:"");
   if(!name){
     const names=blockLinks.map(a=>a.text.trim()).filter(plausibleName);
@@ -134,9 +134,9 @@ function extract(html:string,url:string){
   // On a dedicated softball roster/coaches page, the page context itself is authoritative.
   // On mixed directories, still require direct contact/profile evidence.
   if(!name||(!dedicated&&!email&&!profile)) continue;
-  const parts=name.split(/\\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
-  const phone=text.match(/(?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]\\d{3}[-.\\s]\\d{4}/)?.[0]||null;
-  const x=blockLinks.find(a=>/^(https?:\\/\\/)?(?:www\\.)?(?:x\\.com|twitter\\.com)\\//i.test(a.url));
+  const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
+  const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+  const x=blockLinks.find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
   const rr=role(title);
   out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null,official_bio_url:profile?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
  }
