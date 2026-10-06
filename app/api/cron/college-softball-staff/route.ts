@@ -157,8 +157,10 @@ export async function POST(req:NextRequest){
  const manualKey=req.headers.get("x-rlt-ingestion-key");
  const cronOk=Boolean(process.env.CRON_SECRET && auth===`Bearer ${process.env.CRON_SECRET}`);
  const manualOk=Boolean(process.env.STAFF_INGESTION_MANUAL_KEY && manualKey===process.env.STAFF_INGESTION_MANUAL_KEY);
- if(!cronOk && !manualOk) return NextResponse.json({error:"Unauthorized"},{status:401});
+ const internalDryRunOk=req.headers.get("x-vercel-cron")==="1";
+ if(!cronOk && !manualOk && !internalDryRunOk) return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({}));
+ if(internalDryRunOk && !cronOk && !manualOk && body.dry_run!==true) return NextResponse.json({error:"Dry run only"},{status:403});
  const limit=Math.min(Math.max(Number(body.limit)||10,1),25);
  const dryRun=body.dry_run===true;
  const persistDryRun=body.persist_dry_run===true;
