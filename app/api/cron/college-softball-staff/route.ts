@@ -119,7 +119,7 @@ async function discover(start:string){
 function plausibleName(name:string){
  const n=name.trim();
  if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
- if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire)\b/i.test(n)) return false;
+ if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  return true;
 }
@@ -139,6 +139,8 @@ function extract(html:string,url:string){
   const text=clean(block);
   if(!/coach|coordinator|graduate assistant/i.test(text)) continue;
   if(!dedicated&&!departmentScoped&&!/softball/i.test(text)) continue;
+  // Some department-filtered Sidearm pages still render every sport in the HTML. Require local softball evidence there too.
+  if(departmentScoped&&!/softball/i.test(text)) continue;
   if(/\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\b/i.test(text)
      && !/\b(head|associate head|assistant|pitching|hitting)\s+(?:softball\s+)?coach\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
   if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
