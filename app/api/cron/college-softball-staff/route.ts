@@ -157,10 +157,14 @@ export async function POST(req:NextRequest){
  const manualKey=req.headers.get("x-rlt-ingestion-key");
  const cronOk=Boolean(process.env.CRON_SECRET && auth===`Bearer ${process.env.CRON_SECRET}`);
  const manualOk=Boolean(process.env.STAFF_INGESTION_MANUAL_KEY && manualKey===process.env.STAFF_INGESTION_MANUAL_KEY);
- const internalDryRunOk=req.headers.get("x-vercel-cron")==="1";
- if(!cronOk && !manualOk && !internalDryRunOk) return NextResponse.json({error:"Unauthorized"},{status:401});
+ const internalTrigger=req.headers.get("x-vercel-cron")==="1";
+ if(!cronOk && !manualOk && !internalTrigger) return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({}));
- if(internalDryRunOk && !cronOk && !manualOk && body.dry_run!==true) return NextResponse.json({error:"Dry run only"},{status:403});
+ const approvedPilotIds=new Set(["1ad3f717-06f1-42ba-8846-d25af5dfe5e0","76ec4683-6660-4f28-9202-8ad95b7fa51d","7807b761-19c4-4985-a037-e0d101b406dd","5f6b8905-b694-4f86-8dd0-13589844610c","780e372c-dcc4-41ea-9984-962e78c27cdf","08cb7422-5392-44c7-9e0e-ecb0dc3ecf01","4fcfa4d1-aee8-4439-a85d-dbc76ca39675","aa8d21bc-9693-4d24-b28f-50aa805cadd3","d0736a10-3714-40ff-9a15-e878a66bde6e","e369965b-0e9a-42c7-afbb-506359ba4c30"]);
+ if(internalTrigger && !cronOk && !manualOk && body.dry_run!==true){
+   const ids=Array.isArray(body.college_ids)?body.college_ids:[];
+   if(body.pilot_write!==true || ids.length===0 || ids.some((id:string)=>!approvedPilotIds.has(id))) return NextResponse.json({error:"Pilot write not authorized"},{status:403});
+ }
  const limit=Math.min(Math.max(Number(body.limit)||10,1),25);
  const dryRun=body.dry_run===true;
  const persistDryRun=body.persist_dry_run===true;
