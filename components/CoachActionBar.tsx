@@ -45,6 +45,7 @@ type Props = {
   contextualReply?: {interactionId:string;kind:string;choice?:string};
   onEmailSent?: (detail?: any) => void | Promise<void>;
   staffMode?: boolean;
+  athleteEntitlement?: "free" | "full";
 };
 export default function CoachActionBar({
   coachId,
@@ -63,6 +64,7 @@ export default function CoachActionBar({
   contextualReply,
   onEmailSent,
   staffMode = false,
+  athleteEntitlement = "full",
 }: Props) {
   const c = createClient(),
     params = useSearchParams(),
@@ -93,7 +95,8 @@ export default function CoachActionBar({
     [reminderDate, setReminderDate] = useState(""),
     [busy, setBusy] = useState(false),
     [schoolCoaches, setSchoolCoaches] = useState<any[]>([]),
-    [ccCoachIds, setCcCoachIds] = useState<string[]>([]);
+    [ccCoachIds, setCcCoachIds] = useState<string[]>([]),
+    [actionPrompt, setActionPrompt] = useState<null | "connect-gmail" | "upgrade-gmail" | "desktop-text" | "desktop-call">(null);
   async function context() {
     const {
       data: { user },
@@ -251,8 +254,17 @@ export default function CoachActionBar({
     setOpeningIndex(i);
     compose(starter, i, profile);
   }
-  function openEmail(id: EmailStarterId = effectiveStarter) {
+  async function openEmail(id: EmailStarterId = effectiveStarter) {
     if (!email) return;
+    if (!staffMode && athleteEntitlement === "free") {
+      setActionPrompt("upgrade-gmail");
+      return;
+    }
+    const connected = await checkGmailConnection();
+    if (!staffMode && !connected) {
+      setActionPrompt("connect-gmail");
+      return;
+    }
     setMessage("");
     setDraftNotice("");
     setEmailStatus("idle");
@@ -457,6 +469,24 @@ export default function CoachActionBar({
         : "Reminder created.",
     );
   }
+  function isMobileDevice() {
+    if (typeof navigator === "undefined") return false;
+    return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches);
+  }
+  function copyPhone() {
+    if (!phone) return;
+    void navigator.clipboard?.writeText(phone);
+    setMessage("Coach phone number copied.");
+  }
+  function handlePhoneAction(channel: "Text" | "Phone") {
+    if (!phone) return;
+    if (!isMobileDevice()) {
+      setActionPrompt(channel === "Text" ? "desktop-text" : "desktop-call");
+      return;
+    }
+    if (staffMode || athleteEntitlement === "full") logInitiated(channel);
+    window.location.href = channel === "Text" ? `sms:${phone}` : `tel:${phone}`;
+  }
   function logInitiated(channel: "Text" | "Phone") {
     const payload = JSON.stringify({coachId,collegeId,athleteUserId:athleteUserId||null,staffMode,channel});
     try { if (navigator.sendBeacon) { navigator.sendBeacon('/api/communication/initiate', new Blob([payload], {type:'application/json'})); return; } } catch {}
@@ -486,20 +516,24 @@ export default function CoachActionBar({
         >
           <Mail size={compact ? 13 : 15} /> Email
         </button>
-        <a
-          className={`${cls("text", !phone)} ${phone ? "" : "pointer-events-none"}`}
-          href={phone ? `sms:${phone}` : undefined}
-          onClick={() => phone && logInitiated("Text")}
+        <button
+          type="button"
+          className={cls("text", !phone)}
+          disabled={!phone}
+          title={phone ? "Text coach" : "No phone number available"}
+          onClick={() => handlePhoneAction("Text")}
         >
           <MessageCircle size={compact ? 13 : 15} /> Text
-        </a>
-        <a
-          className={`${cls("call", !phone)} ${phone ? "" : "pointer-events-none"}`}
-          href={phone ? `tel:${phone}` : undefined}
-          onClick={() => phone && logInitiated("Phone")}
+        </button>
+        <button
+          type="button"
+          className={cls("call", !phone)}
+          disabled={!phone}
+          title={phone ? "Call coach" : "No phone number available"}
+          onClick={() => handlePhoneAction("Phone")}
         >
           <Phone size={compact ? 13 : 15} /> Call
-        </a>
+        </button>
         <Link className={cls("log")} href={logHref}>
           <Activity size={compact ? 13 : 15} /> Log
         </Link>
@@ -557,6 +591,35 @@ export default function CoachActionBar({
       {message && !emailOpen && (
         <div className="text-xs mt-2 font-semibold">{message}</div>
       )}
+      {actionPrompt &&
+        createPortal(
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4" onMouseDown={(e) => { if (e.currentTarget === e.target) setActionPrompt(null); }}>
+            <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-black">
+                    {actionPrompt === "connect-gmail" ? "Connect Gmail to email coaches from RLTNL" : actionPrompt === "upgrade-gmail" ? "Email coaches directly from RLTNL" : actionPrompt === "desktop-text" ? `Text ${coachName}` : `Call ${coachName}`}
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {actionPrompt === "connect-gmail" ? "Connect Gmail to send without leaving RLTNL. Your coach communication can be captured in your recruiting history so relationships, Journey, and Next Steps stay current." : actionPrompt === "upgrade-gmail" ? "Upgrade to RLTNL Recruiting to connect Gmail, send coach emails from RLTNL, automatically capture communication activity, and keep your recruiting history and Next Steps current." : actionPrompt === "desktop-text" ? "Texting is available from your phone. You can copy the coach’s number here, or open RLTNL on your phone to text." : "Calling is available from your phone. You can copy the coach’s number here, or open RLTNL on your phone to call."}
+                  </p>
+                </div>
+                <button type="button" className="p-2 rounded-lg hover:bg-slate-100" onClick={() => setActionPrompt(null)}><X size={18}/></button>
+              </div>
+              {(actionPrompt === "desktop-text" || actionPrompt === "desktop-call" || actionPrompt === "upgrade-gmail") && phone && actionPrompt !== "upgrade-gmail" && (
+                <div className="mt-4 rounded-xl border bg-slate-50 p-3"><div className="text-xs font-bold uppercase text-slate-500">Coach phone</div><div className="mt-1 font-bold">{phone}</div></div>
+              )}
+              {actionPrompt === "upgrade-gmail" && email && <div className="mt-4 rounded-xl border bg-slate-50 p-3"><div className="text-xs font-bold uppercase text-slate-500">Prefer to email outside RLTNL?</div><div className="mt-1 break-all font-bold">{email}</div></div>}
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                {actionPrompt === "connect-gmail" && <a className="btn btn-red" href="/api/google/connect?service=gmail">Connect Gmail</a>}
+                {actionPrompt === "upgrade-gmail" && <Link className="btn btn-red" href="/upgrade">Upgrade to RLTNL Recruiting</Link>}
+                {actionPrompt === "upgrade-gmail" && email && <button className="btn" onClick={() => { void navigator.clipboard?.writeText(email); setMessage("Coach email copied."); setActionPrompt(null); }}>Copy Email</button>}
+                {(actionPrompt === "desktop-text" || actionPrompt === "desktop-call") && <button className="btn btn-red" onClick={() => { copyPhone(); setActionPrompt(null); }}>Copy Number</button>}
+                <button className="btn" onClick={() => setActionPrompt(null)}>Not Now</button>
+              </div>
+            </div>
+          </div>, document.body
+        )}
       {emailOpen &&
         createPortal(
           <div
