@@ -23,7 +23,7 @@ export async function GET(req:NextRequest){
   if(!clientId)return NextResponse.redirect(new URL('/settings?google=not-configured',req.url));
 
   const state=crypto.randomUUID();
-  const statePayload=Buffer.from(JSON.stringify({state,service,userId:user.id})).toString('base64url');
+  const returnTo=req.nextUrl.searchParams.get('return_to');const safeReturnTo=returnTo&&returnTo.startsWith('/')&&!returnTo.startsWith('//')?returnTo:null;const statePayload=Buffer.from(JSON.stringify({state,service,userId:user.id,returnTo:safeReturnTo})).toString('base64url');
   const appOrigin=(process.env.NEXT_PUBLIC_APP_URL||req.nextUrl.origin).replace(/\/$/,'');
   const callback=new URL('/api/google/callback',appOrigin).toString();
   const p=new URLSearchParams({
