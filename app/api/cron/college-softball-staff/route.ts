@@ -90,14 +90,20 @@ async function tryGet(urls:string[]){
  return null;
 }
 async function discover(start:string){
+ if(!start) throw new Error("School website missing");
  const home=await get(start); const ls=links(home.html,home.url);
- const athleticCandidates=ls.filter(x=>/athletics?|sports/i.test(x.text+" "+x.url)&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text)?2:0)-(/athletics/i.test(x.text)?2:0));
+ const athleticCandidates=ls.filter(x=>(/athletics?|sports/i.test(x.text+" "+x.url))&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text+" "+y.url)?2:0)-(/athletics/i.test(x.text+" "+x.url)?2:0));
  const a=athleticCandidates.length?await tryGet(athleticCandidates.slice(0,5).map(x=>x.url)):home;
  const athletics=a||home; const sl=links(athletics.html,athletics.url);
- let softball=bestLink(sl,"softball",athletics.url);
+ // If the first athletics candidate was still on the university domain, follow an external
+ // official athletics link from it before probing predictable /sports routes.
+ const externalAthletics=sl.filter(x=>!sameHost(x.url,athletics.url)&&/athletics?|sports|softball/i.test(x.text+" "+x.url)&&!/facebook|instagram|twitter|x\.com/i.test(x.url));
+ const ext=externalAthletics.length?await tryGet(externalAthletics.slice(0,5).map(x=>x.url)):null;
+ const sports=ext||athletics; const sportsLinks=links(sports.html,sports.url);
+ let softball=bestLink(sportsLinks,"softball",sports.url);
  // Official athletics sites commonly expose predictable softball routes even when the school homepage does not link them cleanly.
  if(!softball){
-   const origin=new URL(athletics.url).origin;
+   const origin=new URL(sports.url).origin;
    const probe=await tryGet([origin+"/sports/softball",origin+"/sports/softball/",origin+"/sports/softball/roster",origin+"/sports/softball/schedule"]);
    if(probe) softball=probe.url;
  }
