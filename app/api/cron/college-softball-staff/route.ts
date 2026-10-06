@@ -94,7 +94,8 @@ async function discover(start:string){
 
 function plausibleName(name:string){
  const n=name.trim();
- if(!/^[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3}$/.test(n)) return false;
+ if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
+ if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  return true;
 }
@@ -118,11 +119,18 @@ function extract(html:string,url:string){
   if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
   const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant)/i);
   if(!titleMatch) continue;
-  const title=titleMatch[1].trim();
+  let title=titleMatch[1].trim()
+    .replace(/\s+[\w.+-]+@[\w.-]+\.\w{2,}.*$/i,"")
+    .replace(/\s+\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}.*$/,"")
+    .replace(/\s+@[A-Za-z0-9_]+.*$/,"")
+    .trim();
   if(/strength|conditioning|trainer|operations|player development|performance/i.test(title)) continue;
   const blockLinks=links(block,url);
+  // Mixed directories can contain many sports; bind a row to softball rather than trusting a broad parent fragment.
+  if(!dedicated && !/softball/i.test(text)) continue;
   const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
   const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\/coaches?\/|\/staff-directory\/|\/staff\/)/i.test(a.url)&&plausibleName(a.text));
+  if(!dedicated && profile && !/softball/i.test(text.slice(Math.max(0,text.indexOf(profile.text)-120),text.indexOf(profile.text)+220))) continue;
   const profileName=profile?.text?.trim()||"";
   const before=text.split(title)[0].trim();
   const fallback=before.match(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s*$/)?.[1]||"";
