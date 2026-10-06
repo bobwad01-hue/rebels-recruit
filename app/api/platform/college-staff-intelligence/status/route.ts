@@ -10,5 +10,5 @@ export async function GET(){
  const total=(q||[]).length,complete=(counts.imported||0)+(counts.review||0)+(counts.blocked||0);
  const stalled=counts.pending>0&&counts.processing===0&&lastActivity&&Date.now()-new Date(lastActivity).getTime()>10*60_000;
  const {count:coaches}=await s.from('college_coaches').select('*',{count:'exact',head:true}).not('official_source_url','is',null);
- return NextResponse.json({total,complete,percent:total?Math.round(complete/total*100):0,coaches:coaches||0,lastActivity,state:counts.pending===0&&counts.processing===0?'complete':stalled?'stalled':'running',...counts});
+ return NextResponse.json({total,complete,percent:total?Math.round(complete/total*100):0,coaches:coaches||0,lastActivity,state:counts.pending===0&&counts.processing===0?(counts.review>0||counts.blocked>0?'cleanup':'complete'):stalled?'stalled':'running',...counts});
 }
