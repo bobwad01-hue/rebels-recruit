@@ -110,6 +110,10 @@ async function discover(start:string){
    .filter(x=>sameHost(x.url,s.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))
    .sort((a,b)=>(/softball/i.test(b.text+" "+b.url)?1:0)-(/softball/i.test(a.text+" "+a.url)?1:0));
  let staff=directoryCandidates.find(x=>/softball/i.test(x.text+" "+x.url))?.url||null;
+ if(!staff){
+   const coachSpecific=staffLinks.filter(x=>/\/sports\/(?:softball|sball)\/(?:coaches|roster)/i.test(x.url));
+   staff=bestLink(coachSpecific,"staff",s.url);
+ }
  if(!staff) staff=bestLink(staffLinks,"staff",s.url);
  if(!staff){
    const directory=await tryGet([origin+"/staff-directory/department/softball",origin+"/staff-directory/softball-department"]);
@@ -252,6 +256,10 @@ export async function POST(req:NextRequest){
     try{
      page=await get(knownSource.staff_url);
      d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||knownSource.staff_url,staff_url:page.url};
+     const probe=extract(page.html,page.url);
+     if(probe.length===0 || !probe.some((x:any)=>x.role_category==="head_coach")){
+       d=await discover(college.website); page=await get(d.staff_url);
+     }
     }catch{
      d=await discover(college.website); page=await get(d.staff_url);
     }
