@@ -89,9 +89,13 @@ async function tryGet(urls:string[]){
  for(const url of [...new Set(urls.filter(Boolean))]){try{return await get(url)}catch{}}
  return null;
 }
-async function discover(start:string){
- if(!start) throw new Error("School website missing");
- const home=await get(start); const ls=links(home.html,home.url);
+async function discover(start:string, seeded?:{athletics_url?:string|null,softball_url?:string|null,staff_url?:string|null}){
+ // A previously verified official athletics source is a better discovery root than
+ // the university homepage. This prevents a valid seeded source from being discarded
+ // just because the university site does not expose athletics in a crawler-friendly way.
+ const seededStart=seeded?.athletics_url||seeded?.softball_url||seeded?.staff_url||"";
+ if(!start && !seededStart) throw new Error("School website missing");
+ const home=await get(seededStart||start); const ls=links(home.html,home.url);
  const athleticCandidates=ls.filter(x=>(/athletics?|sports/i.test(x.text+" "+x.url))&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text+" "+y.url)?2:0)-(/athletics/i.test(x.text+" "+x.url)?2:0));
  const a=athleticCandidates.length?await tryGet(athleticCandidates.slice(0,5).map(x=>x.url)):home;
  const athletics=a||home; const sl=links(athletics.html,athletics.url);
@@ -264,13 +268,13 @@ export async function POST(req:NextRequest){
      d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||knownSource.staff_url,staff_url:page.url};
      const probe=extract(page.html,page.url);
      if(probe.length===0 || !probe.some((x:any)=>x.role_category==="head_coach")){
-       d=await discover(college.website); page=await get(d.staff_url);
+       d=await discover(college.website,knownSource); page=await get(d.staff_url);
      }
     }catch{
-     d=await discover(college.website); page=await get(d.staff_url);
+     d=await discover(college.website,knownSource); page=await get(d.staff_url);
     }
    }else{
-    d=await discover(college.website); page=await get(d.staff_url);
+    d=await discover(college.website,knownSource); page=await get(d.staff_url);
    }
    const coaches=extract(page.html,page.url); const now=new Date().toISOString();
    const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
