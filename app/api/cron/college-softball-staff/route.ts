@@ -43,7 +43,8 @@ async function allowedByRobots(url:string){
    txt=r.ok?await r.text():""; robotsCache.set(origin,txt);
   }
   let applies=false; const rules:string[]=[];
-  for(const raw of txt.split(/\r?\n/)){
+  for(const raw of txt.split(/\r?
+/)){
    const line=raw.split("#")[0].trim(); if(!line) continue;
    const [k,...rest]=line.split(":"); const v=rest.join(":").trim();
    if(k.toLowerCase()==="user-agent"){applies=v==="*"||v.toLowerCase()===USER_AGENT.toLowerCase(); continue}
@@ -196,7 +197,8 @@ export async function POST(req:NextRequest){
  }
  const bootstrap=body.bootstrap===true;
  const limit=Math.min(Math.max(Number(body.limit)||10,1),bootstrap?50:25);
- const offset=Math.max(Number(body.offset)||0,0);\n const dryRun=body.dry_run===true;
+ const offset=Math.max(Number(body.offset)||0,0);
+ const dryRun=body.dry_run===true;
  const persistDryRun=body.persist_dry_run===true;
  let query=supabase.from("colleges").select("id,name,website,division").not("website","is",null).order("name").range(offset,offset+limit-1);
  if(bootstrap) query=query.or("division.ilike.%D1%,division.ilike.%Division I%");
