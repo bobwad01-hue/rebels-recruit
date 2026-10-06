@@ -75,12 +75,12 @@ export async function GET(request: Request) {
   }
 
   const {data:accepted,error:acceptError}=await supabase.rpc('has_current_legal_acceptance')
-  if(acceptError)return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
+  if(acceptError){const u=new URL('/legal/accept',requestUrl.origin);u.searchParams.set('context','existing_account');if(joinToken)u.searchParams.set('join_token',joinToken);return NextResponse.redirect(u)}
   if(!accepted){
     if(legalSignup){
       const recorded=await recordSignupAcceptance(request,user.id)
-      if(!recorded)return NextResponse.redirect(new URL('/legal/accept?context=signup',requestUrl.origin))
-    }else return NextResponse.redirect(new URL('/legal/accept?context=existing_account',requestUrl.origin))
+      if(!recorded){const u=new URL('/legal/accept',requestUrl.origin);u.searchParams.set('context','signup');if(joinToken)u.searchParams.set('join_token',joinToken);return NextResponse.redirect(u)}
+    }else{const u=new URL('/legal/accept',requestUrl.origin);u.searchParams.set('context','existing_account');if(joinToken)u.searchParams.set('join_token',joinToken);return NextResponse.redirect(u)}
   }
 
   // Materialize any verified organization staff invitation for this email.
