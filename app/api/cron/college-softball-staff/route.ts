@@ -271,10 +271,10 @@ export async function POST(req:NextRequest){
        d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
      }
     }catch{
-     d=await discover(college.website,knownSource); page=await get(d.staff_url);
+     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
     }
    }else{
-    d=await discover(college.website,knownSource); page=await get(d.staff_url);
+    d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
    const coaches=extract(page.html,page.url); const now=new Date().toISOString();
    const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
