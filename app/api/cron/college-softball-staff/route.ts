@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+const WORKER_BATCH=5;
+const STALE_PROCESSING_MINUTES=10;
 
 const FETCH_TIMEOUT_MS=12000;
 
@@ -207,7 +209,12 @@ export async function POST(req:NextRequest){
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
  }
  const bootstrap=body.bootstrap===true;
- const limit=Math.min(Math.max(Number(body.limit)||10,1),bootstrap?5:25);
+ // Self-heal abandoned claims before taking more work.
+ if(bootstrap){
+   const stale=new Date(Date.now()-STALE_PROCESSING_MINUTES*60_000).toISOString();
+   await supabase.from("college_staff_bootstrap_queue").update({status:"pending",updated_at:new Date().toISOString()}).eq("status","processing").lt("updated_at",stale);
+ }
+ const limit=Math.min(Math.max(Number(body.limit)||10,1),bootstrap?WORKER_BATCH:25);
  const dryRun=body.dry_run===true;
  const persistDryRun=body.persist_dry_run===true;
  let colleges:any[]=[];
@@ -290,5 +297,7 @@ export async function POST(req:NextRequest){
    await supabase.from("college_staff_dry_runs").insert({college_id:college.id,college_name:r.college,status:r.status,staff_url:r.staff_url||null,result:r,created_at:now});
   }
  }
- return NextResponse.json({processed:results.length,dry_run:dryRun,results});
+ const {count:pending}=bootstrap?await supabase.from("college_staff_bootstrap_queue").select("*",{count:"exact",head:true}).eq("status","pending"):{count:null};
+ const {count:processing}=bootstrap?await supabase.from("college_staff_bootstrap_queue").select("*",{count:"exact",head:true}).eq("status","processing"):{count:null};
+ return NextResponse.json({processed:results.length,dry_run:dryRun,pending,processing,results});
 }
