@@ -95,7 +95,7 @@ async function discover(start:string){
 function plausibleName(name:string){
  const n=name.trim();
  if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
- if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?)\b/i.test(n)) return false;
+ if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  return true;
 }
@@ -120,7 +120,7 @@ function extract(html:string,url:string){
   const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant)/i);
   if(!titleMatch) continue;
   let title=titleMatch[1].trim()
-    .replace(/\s+[\w.+-]+@[\w.-]+\.\w{2,}.*$/i,"")
+    .replace(/\s+[\w.+-]+@[\w.-]*(?:\.\w{0,})?.*$/i,"")
     .replace(/\s+\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}.*$/,"")
     .replace(/\s+@[A-Za-z0-9_]+.*$/,"")
     .trim();
