@@ -93,16 +93,26 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  // A previously verified official athletics source is a better discovery root than
  // the university homepage. This prevents a valid seeded source from being discarded
  // just because the university site does not expose athletics in a crawler-friendly way.
- const seededStart=seeded?.athletics_url||seeded?.softball_url||seeded?.staff_url||"";
+ const seededStart=seeded?.softball_url||seeded?.staff_url||seeded?.athletics_url||"";
  if(!start && !seededStart) throw new Error("School website missing");
  const home=await get(seededStart||start); const ls=links(home.html,home.url);
  const athleticCandidates=ls.filter(x=>(/athletics?|sports/i.test(x.text+" "+x.url))&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text+" "+y.url)?2:0)-(/athletics/i.test(x.text+" "+x.url)?2:0));
  const a=athleticCandidates.length?await tryGet(athleticCandidates.slice(0,5).map(x=>x.url)):home;
  const athletics=a||home; const sl=links(athletics.html,athletics.url);
+ // A seeded softball/staff URL already proves the official sports host. Do not leave that
+ // host while rediscovering staff merely because a page contains generic external links.
+ const seededOfficialHost=Boolean(seededStart && (/\/sports\/(?:softball|sball)/i.test(new URL(home.url).pathname)||/staff-directory/i.test(new URL(home.url).pathname)));
  // If the first athletics candidate was still on the university domain, follow an external
  // official athletics link from it before probing predictable /sports routes.
- const externalAthletics=sl.filter(x=>!sameHost(x.url,athletics.url)&&/athletics?|sports|softball/i.test(x.text+" "+x.url)&&!/facebook|instagram|twitter|x\.com/i.test(x.url));
- const ext=externalAthletics.length?await tryGet(externalAthletics.slice(0,5).map(x=>x.url)):null;
+ const externalAthletics=sl.filter(x=>{
+   if(sameHost(x.url,athletics.url)) return false;
+   let host=""; try{host=new URL(x.url).hostname.toLowerCase()}catch{return false}
+   // Never promote social/video/ticketing/commerce hosts to the canonical athletics domain.
+   if(/(?:youtube|youtu\.be|facebook|instagram|twitter|x\.com|tiktok|vimeo|ticketmaster|shopify)/i.test(host+" "+x.url)) return false;
+   const signal=(x.text+" "+x.url).toLowerCase();
+   return /athletics?|official athletics|sports|softball/.test(signal);
+  });
+ const ext=!seededOfficialHost&&externalAthletics.length?await tryGet(externalAthletics.slice(0,5).map(x=>x.url)):null;
  const sports=ext||athletics; const sportsLinks=links(sports.html,sports.url);
  let softball=bestLink(sportsLinks,"softball",sports.url);
  // Official athletics sites commonly expose predictable softball routes even when the school homepage does not link them cleanly.
@@ -152,7 +162,7 @@ function plausibleName(name:string){
 }
 function extract(html:string,url:string){
  const path=new URL(url).pathname;
- const dedicated=/softball|w-softbl/i.test(path);
+ const dedicated=/softball|sball|w-softbl/i.test(path);
  const departmentScoped=/staff-directory\/(?:softball-department|department\/softball)/i.test(path);
  const broadDirectory=/staff(?:-directory|\.aspx)(?:\/|$)/i.test(path)&&!departmentScoped;
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
