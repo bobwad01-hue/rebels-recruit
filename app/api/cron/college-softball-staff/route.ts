@@ -43,8 +43,7 @@ async function allowedByRobots(url:string){
    txt=r.ok?await r.text():""; robotsCache.set(origin,txt);
   }
   let applies=false; const rules:string[]=[];
-  for(const raw of txt.split(/\r?
-/)){
+  for(const raw of txt.split(/\\r?\\n/)){
    const line=raw.split("#")[0].trim(); if(!line) continue;
    const [k,...rest]=line.split(":"); const v=rest.join(":").trim();
    if(k.toLowerCase()==="user-agent"){applies=v==="*"||v.toLowerCase()===USER_AGENT.toLowerCase(); continue}
