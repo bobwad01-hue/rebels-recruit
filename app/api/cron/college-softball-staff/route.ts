@@ -194,10 +194,12 @@ export async function POST(req:NextRequest){
    const allowed=body.expansion_write===true?approvedExpansionIds:approvedPilotIds;
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
  }
- const limit=Math.min(Math.max(Number(body.limit)||10,1),25);
+ const bootstrap=body.bootstrap===true;
+ const limit=Math.min(Math.max(Number(body.limit)||10,1),bootstrap?50:25);
  const dryRun=body.dry_run===true;
  const persistDryRun=body.persist_dry_run===true;
- let query=supabase.from("colleges").select("id,name,website").not("website","is",null).order("name").limit(limit);
+ let query=supabase.from("colleges").select("id,name,website,division").not("website","is",null).order("name").limit(limit);
+ if(bootstrap) query=query.or("division.ilike.%D1%,division.ilike.%Division I%");
  if(body.college_id) query=query.eq("id",body.college_id);
  if(Array.isArray(body.college_ids)&&body.college_ids.length) query=query.in("id",body.college_ids.slice(0,25));
  const {data:colleges,error}=await query; if(error) throw error;
@@ -218,6 +220,11 @@ export async function POST(req:NextRequest){
     d=await discover(college.website); page=await get(d.staff_url);
    }
    const coaches=extract(page.html,page.url); const now=new Date().toISOString();
+   const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`));
+   if(bootstrap&&suspicious){
+     await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
+     results.push({college:college.name,status:"review",staff_url:page.url,coaches:coaches.length,error:"Bootstrap quality gate"}); continue;
+   }
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
    for(const c of coaches){
     if(dryRun) continue;
