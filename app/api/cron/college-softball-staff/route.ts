@@ -66,30 +66,54 @@ function links(html:string,base:string){
 function sameHost(a:string,b:string){try{return new URL(a).hostname.replace(/^www\./,"")===new URL(b).hostname.replace(/^www\./,"")}catch{return false}}
 
 function scoreLink(x:{url:string,text:string},kind:"softball"|"staff"){
- const s=(x.text+" "+x.url).toLowerCase();
+ const s=(x.text+" "+x.url).toLowerCase(); const path=(()=>{try{return new URL(x.url).pathname.toLowerCase()}catch{return ""}})();
  let n=0;
- if(kind==="softball"){if(/softball/.test(s))n+=10;if(/sports\/softball/.test(s))n+=12;if(/\/sports\/softball(?:\/|$)/.test(s))n+=8;if(/news|article/.test(s))n-=20;if(/roster|schedule/.test(s))n-=4}
- else {if(/\/sports\/softball\/coaches(?:\/|$)/.test(s))n+=30;if(/softball/.test(s))n+=10;if(/coach|staff/.test(s))n+=8;if(/staff-directory/.test(s))n+=4;if(/news|article/.test(s))n-=25;if(/bio/.test(s))n+=2}
+ if(kind==="softball"){
+   if(/softball/.test(s))n+=12;if(/sports\/softball/.test(s))n+=16;if(/\/sports\/softball(?:\/|$)/.test(path))n+=12;
+   if(/\/sports\/softball\/coaches/.test(path))n+=35;
+   if(/\/sports\/softball\/(?:schedule|news|stats|archives|tickets|roster)(?:\/|$)/.test(path))n-=45;
+   if(/schedule|news|article|tickets|stats|archives/.test(x.text.toLowerCase()))n-=30;
+ } else {
+   if(/\/sports\/softball\/coaches(?:\/|$)/.test(path))n+=50;
+   if(/softball/.test(s))n+=12;if(/coach|staff/.test(s))n+=10;if(/staff-directory/.test(path))n+=7;if(/bio/.test(s))n+=2;
+   if(/schedule|news|article|tickets|stats|archives|facilities/.test(s))n-=50;
+ }
  return n;
 }
 function bestLink(xs:{url:string,text:string}[],kind:"softball"|"staff",base:string){
  return xs.filter(x=>sameHost(x.url,base)).map(x=>({x,n:scoreLink(x,kind)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n)[0]?.x.url;
 }
+async function tryGet(urls:string[]){
+ for(const url of [...new Set(urls.filter(Boolean))]){try{return await get(url)}catch{}}
+ return null;
+}
 async function discover(start:string){
  const home=await get(start); const ls=links(home.html,home.url);
- const athletic=ls.find(x=>/athletics?|sports/i.test(x.text+" "+x.url) && !/facebook|instagram|twitter|x\.com/i.test(x.url))?.url || home.url;
- const a=athletic===home.url?home:await get(athletic);
- const sl=links(a.html,a.url);
- const softball=bestLink(sl,"softball",a.url);
+ const athleticCandidates=ls.filter(x=>/athletics?|sports/i.test(x.text+" "+x.url)&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text)?2:0)-(/athletics/i.test(x.text)?2:0));
+ const a=athleticCandidates.length?await tryGet(athleticCandidates.slice(0,5).map(x=>x.url)):home;
+ const athletics=a||home; const sl=links(athletics.html,athletics.url);
+ let softball=bestLink(sl,"softball",athletics.url);
+ // Official athletics sites commonly expose predictable softball routes even when the school homepage does not link them cleanly.
+ if(!softball){
+   const origin=new URL(athletics.url).origin;
+   const probe=await tryGet([origin+"/sports/softball",origin+"/sports/softball/",origin+"/sports/softball/roster",origin+"/sports/softball/schedule"]);
+   if(probe) softball=probe.url;
+ }
  if(!softball) throw new Error("Official softball page not discovered");
  const s=await get(softball); const staffLinks=links(s.html,s.url);
- let staff=bestLink(staffLinks,"staff",s.url) || s.url;
- // Some schools publish contacts only in the official athletics staff directory.
- if(staff===s.url){
-   const directory=sl.find(x=>sameHost(x.url,a.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))?.url;
+ const origin=new URL(s.url).origin;
+ let staff=bestLink(staffLinks,"staff",s.url);
+ if(!staff){
+   const coachPage=await tryGet([origin+"/sports/softball/coaches",origin+"/sports/softball/coaches/",origin+"/sports/softball/roster?path=softball"]);
+   if(coachPage) staff=coachPage.url;
+ }
+ if(!staff){
+   const directory=sl.find(x=>sameHost(x.url,athletics.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))?.url;
    if(directory) staff=directory;
  }
- return {athletics_url:a.url,softball_url:s.url,staff_url:staff};
+ // Never treat schedule/news/etc. as a staff source merely because it is a softball page.
+ if(!staff||/\/(schedule|news|stats|archives|tickets|facilities)(?:\/|$)/i.test(new URL(staff).pathname)) throw new Error("Official softball staff page not discovered");
+ return {athletics_url:athletics.url,softball_url:s.url,staff_url:staff};
 }
 
 function plausibleName(name:string){
