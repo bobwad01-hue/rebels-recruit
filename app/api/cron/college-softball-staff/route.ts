@@ -74,8 +74,8 @@ function scoreLink(x:{url:string,text:string},kind:"softball"|"staff"){
    if(/\/sports\/softball\/(?:schedule|news|stats|archives|tickets|roster)(?:\/|$)/.test(path))n-=45;
    if(/schedule|news|article|tickets|stats|archives/.test(x.text.toLowerCase()))n-=30;
  } else {
-   if(/\/sports\/softball\/coaches(?:\/|$)/.test(path))n+=50;
-   if(/softball/.test(s))n+=12;if(/coach|staff/.test(s))n+=10;if(/staff-directory/.test(path))n+=7;if(/bio/.test(s))n+=2;
+   if(/\/sports\/softball\/coaches(?:\/|$)/.test(path))n+=45;
+   if(/softball/.test(s))n+=12;if(/coach|staff/.test(s))n+=10;if(/staff-directory/.test(path))n+=55;if(/department\/softball|softball-department/.test(path))n+=35;if(/bio/.test(s))n+=2;
    if(/schedule|news|article|tickets|stats|archives|facilities/.test(s))n-=50;
  }
  return n;
@@ -102,14 +102,20 @@ async function discover(start:string){
  if(!softball) throw new Error("Official softball page not discovered");
  const s=await get(softball); const staffLinks=links(s.html,s.url);
  const origin=new URL(s.url).origin;
- let staff=bestLink(staffLinks,"staff",s.url);
+ // Prefer the official athletics staff directory because it is the school's canonical
+ // source for current direct email/phone. Fall back to the softball coaches page.
+ const directoryCandidates=[...staffLinks,...sl]
+   .filter(x=>sameHost(x.url,s.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))
+   .sort((a,b)=>(/softball/i.test(b.text+" "+b.url)?1:0)-(/softball/i.test(a.text+" "+a.url)?1:0));
+ let staff=directoryCandidates[0]?.url||null;
+ if(!staff) staff=bestLink(staffLinks,"staff",s.url);
+ if(!staff){
+   const directory=await tryGet([origin+"/staff-directory/department/softball",origin+"/staff-directory/softball-department",origin+"/staff-directory"]);
+   if(directory) staff=directory.url;
+ }
  if(!staff){
    const coachPage=await tryGet([origin+"/sports/softball/coaches",origin+"/sports/softball/coaches/",origin+"/sports/softball/roster?path=softball"]);
    if(coachPage) staff=coachPage.url;
- }
- if(!staff){
-   const directory=sl.find(x=>sameHost(x.url,athletics.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))?.url;
-   if(directory) staff=directory;
  }
  // Never treat schedule/news/etc. as a staff source merely because it is a softball page.
  if(!staff||/\/(schedule|news|stats|archives|tickets|facilities)(?:\/|$)/i.test(new URL(staff).pathname)) throw new Error("Official softball staff page not discovered");
@@ -139,8 +145,8 @@ function extract(html:string,url:string){
   const text=clean(block);
   if(!/coach|coordinator|graduate assistant/i.test(text)) continue;
   if(!dedicated&&!departmentScoped&&!/softball/i.test(text)) continue;
-  // Some department-filtered Sidearm pages still render every sport in the HTML. Require local softball evidence there too.
-  if(departmentScoped&&!/softball/i.test(text)) continue;
+  // A softball-filtered official staff directory is authoritative page context.
+  // Broad staff directories still require softball evidence in the individual row.
   if(/\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\b/i.test(text)
      && !/\b(head|associate head|assistant|pitching|hitting)\s+(?:softball\s+)?coach\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
   if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
