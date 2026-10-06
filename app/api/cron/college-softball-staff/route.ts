@@ -66,17 +66,24 @@ function links(html:string,base:string){
   .map(m=>({url:abs(m[1],base),text:clean(m[2])})).filter(x=>x.url);
 }
 function sameHost(a:string,b:string){try{return new URL(a).hostname.replace(/^www\./,"")===new URL(b).hostname.replace(/^www\./,"")}catch{return false}}
+function badOfficialUrl(url:string){
+ try{
+  const u=new URL(url), h=u.hostname.toLowerCase(), p=u.pathname.toLowerCase();
+  return /youtube|youtu\.be|facebook|instagram|twitter|x\.com|tiktok|vimeo|armssoftware|ticketmaster|shopify/.test(h)
+    || /error_page|splash\.aspx/.test(p);
+ }catch{return true}
+}
 
 function scoreLink(x:{url:string,text:string},kind:"softball"|"staff"){
  const s=(x.text+" "+x.url).toLowerCase(); const path=(()=>{try{return new URL(x.url).pathname.toLowerCase()}catch{return ""}})();
  let n=0;
  if(kind==="softball"){
    if(/softball/.test(s))n+=12;if(/sports\/softball/.test(s))n+=16;if(/\/sports\/softball(?:\/|$)/.test(path))n+=12;
-   if(/\/sports\/softball\/coaches/.test(path))n+=35;
+   if(/\/sports\/(?:softball|sball)\/coaches/.test(path))n+=35;
    if(/\/sports\/softball\/(?:schedule|news|stats|archives|tickets|roster)(?:\/|$)/.test(path))n-=45;
    if(/schedule|news|article|tickets|stats|archives/.test(x.text.toLowerCase()))n-=30;
  } else {
-   if(/\/sports\/softball\/coaches(?:\/|$)/.test(path))n+=45;
+   if(/\/sports\/(?:softball|sball)\/coaches(?:\/|$)/.test(path))n+=45;
    if(/softball/.test(s))n+=12;if(/coach|staff/.test(s))n+=10;if(/staff-directory/.test(path))n+=55;if(/department\/softball|softball-department/.test(path))n+=35;if(/bio/.test(s))n+=2;
    if(/schedule|news|article|tickets|stats|archives|facilities/.test(s))n-=50;
  }
@@ -93,7 +100,7 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  // A previously verified official athletics source is a better discovery root than
  // the university homepage. This prevents a valid seeded source from being discarded
  // just because the university site does not expose athletics in a crawler-friendly way.
- const seededStart=seeded?.softball_url||seeded?.staff_url||seeded?.athletics_url||"";
+ const seededStart=[seeded?.softball_url,seeded?.staff_url,seeded?.athletics_url].find(x=>x&&!badOfficialUrl(x))||"";
  if(!start && !seededStart) throw new Error("School website missing");
  const home=await get(seededStart||start); const ls=links(home.html,home.url);
  const athleticCandidates=ls.filter(x=>(/athletics?|sports/i.test(x.text+" "+x.url))&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text+" "+y.url)?2:0)-(/athletics/i.test(x.text+" "+x.url)?2:0));
@@ -162,7 +169,7 @@ function plausibleName(name:string){
 }
 function extract(html:string,url:string){
  const path=new URL(url).pathname;
- const dedicated=/softball|sball|w-softbl/i.test(path);
+ const dedicated=/softball|sball|w-softbl/i.test(path) || /[?&]path=softball/i.test(url);
  const departmentScoped=/staff-directory\/(?:softball-department|department\/softball)/i.test(path);
  const broadDirectory=/staff(?:-directory|\.aspx)(?:\/|$)/i.test(path)&&!departmentScoped;
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
