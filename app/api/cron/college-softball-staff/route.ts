@@ -23,7 +23,7 @@ function role(title:string){
  const t=title.toLowerCase();
  const recruiting=/recruit(ing|ment) coordinator/.test(t);
  let category="other_coaching_staff", order=90;
- if(/head.*coach|head softball/.test(t)&&!/associate|assistant/.test(t)){category="head_coach";order=10}
+ if((/head.*coach|head softball|director of softball/.test(t))&&!/associate|assistant/.test(t)){category="head_coach";order=10}
  else if(/associate.*head/.test(t)){category="associate_head_coach";order=20}
  else if(recruiting){category="recruiting_coordinator";order=30}
  else if(/pitching.*coach/.test(t)){category="pitching_coach";order=40}
@@ -161,7 +161,7 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
 }
 
 function plausibleName(name:string){
- const n=name.trim();
+ const n=name.trim().replace(/\s+-\s+/g,"-");
  if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
  if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
@@ -214,7 +214,7 @@ function extract(html:string,url:string){
   // On a dedicated softball roster/coaches page, the page context itself is authoritative.
   // On mixed directories, still require direct contact/profile evidence.
   if(!name||(!dedicated&&!departmentScoped&&!email&&!profile)) continue;
-  const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ");
+  const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ").replace(/\s+-\s+/g,"-");
   const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
   const x=blockLinks.find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
   const rr=role(title);
