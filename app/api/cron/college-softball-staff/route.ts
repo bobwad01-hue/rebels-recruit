@@ -207,15 +207,34 @@ export async function POST(req:NextRequest){
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
  }
  const bootstrap=body.bootstrap===true;
- const limit=Math.min(Math.max(Number(body.limit)||10,1),bootstrap?50:25);
- const offset=Math.max(Number(body.offset)||0,0);
+ const limit=Math.min(Math.max(Number(body.limit)||10,1),bootstrap?5:25);
  const dryRun=body.dry_run===true;
  const persistDryRun=body.persist_dry_run===true;
- let query=supabase.from("colleges").select("id,name,website,division").not("website","is",null).order("name").range(offset,offset+limit-1);
- if(bootstrap) query=query.or("division.ilike.%D1%,division.ilike.%Division I%");
- if(body.college_id) query=query.eq("id",body.college_id);
- if(Array.isArray(body.college_ids)&&body.college_ids.length) query=query.in("id",body.college_ids.slice(0,25));
- const {data:colleges,error}=await query; if(error) throw error;
+ let colleges:any[]=[];
+ if(bootstrap){
+   const {data:queued,error:qErr}=await supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").eq("status","pending").order("updated_at").limit(limit);
+   if(qErr) throw qErr;
+   const ids=(queued||[]).map((x:any)=>x.college_id);
+   if(ids.length){
+     await supabase.from("college_staff_bootstrap_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("college_id",ids);
+     const {data,error}=await supabase.from("colleges").select("id,name,website,division").in("id",ids);
+     if(error) throw error;
+     const byId=new Map((data||[]).map((x:any)=>[x.id,x]));
+     colleges=ids.map((id:string)=>byId.get(id)).filter(Boolean);
+   }
+ }else{
+   const offset=Math.max(Number(body.offset)||0,0);
+   let query=supabase.from("colleges").select("id,name,website,division").not("website","is",null).order("name").range(offset,offset+limit-1);
+   if(body.college_id) query=query.eq("id",body.college_id);
+   if(Array.isArray(body.college_ids)&&body.college_ids.length) query=query.in("id",body.college_ids.slice(0,25));
+   const {data,error}=await query; if(error) throw error; colleges=data||[];
+ }
+ const queuedAttempts=new Map<string,number>();
+ if(bootstrap){
+   const ids=colleges.map((x:any)=>x.id);
+   if(ids.length){const {data}=await supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").in("college_id",ids);for(const x of data||[]) queuedAttempts.set(x.college_id,x.attempts||0)}
+ }
+ const queuedAttempt=(id:string)=>queuedAttempts.get(id)||0;
  const results:any[]=[];
  for(const college of colleges||[]){
   try{
@@ -236,7 +255,7 @@ export async function POST(req:NextRequest){
    const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
-     await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:1,last_error:"Bootstrap quality gate",updated_at:now}).eq("college_id",college.id);
+     await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:"Bootstrap quality gate",updated_at:now}).eq("college_id",college.id);
      results.push({college:college.name,status:"review",staff_url:page.url,coaches:coaches.length,error:"Bootstrap quality gate"}); continue;
    }
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
@@ -255,11 +274,11 @@ export async function POST(req:NextRequest){
     if(saveErr) throw saveErr;
     await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v2"}});
    }
-   if(bootstrap) await supabase.from("college_staff_bootstrap_queue").update({status:"imported",attempts:1,last_error:null,updated_at:now}).eq("college_id",college.id);
+   if(bootstrap) await supabase.from("college_staff_bootstrap_queue").update({status:"imported",attempts:((queuedAttempt(college.id))+1),last_error:null,updated_at:now}).eq("college_id",college.id);
    results.push({college:college.name,status:"ok",staff_url:page.url,coaches:coaches.length,extracted:coaches.map(c=>({name:`${c.first_name} ${c.last_name}`,title:c.title,email:c.email,phone:c.phone,x_url:c.x_url,bio:c.official_bio_url}))});
   }catch(e:any){
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,last_checked_at:new Date().toISOString(),status:"review",updated_at:new Date().toISOString()});
-   if(bootstrap){const msg=e?.message||String(e);await supabase.from("college_staff_bootstrap_queue").update({status:/403|robots/i.test(msg)?"blocked":"review",attempts:1,last_error:msg,updated_at:new Date().toISOString()}).eq("college_id",college.id);}
+   if(bootstrap){const msg=e?.message||String(e);await supabase.from("college_staff_bootstrap_queue").update({status:/403|robots/i.test(msg)?"blocked":"review",attempts:((queuedAttempt(college.id))+1),last_error:msg,updated_at:new Date().toISOString()}).eq("college_id",college.id);}
    results.push({college:college.name,status:"review",error:e?.message||String(e)});
   }
  }
