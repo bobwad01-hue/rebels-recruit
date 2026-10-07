@@ -166,7 +166,7 @@ function plausibleName(name:string){
  if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  // Reject common navigation/news/template fragments that can look like person names.
- if(/\b(Quick Facts|Graduate Assistantships?|Hired As|Named|Full Bio|View Bio)\b/i.test(n)) return false;
+ if(/\b(Quick Facts|Graduate Assistantships?|Hired As|Named|Full Bio|View Bio|Recruiting Central|Archived Statistics|Position Social)\b/i.test(n)) return false;
  return true;
 }
 function sourceSpecificExtract(html:string,url:string,collegeName:string){
@@ -225,6 +225,8 @@ function extract(html:string,url:string){
     .replace(/\s+@[A-Za-z0-9_]+.*$/,"")
     .trim();
   if(/strength|conditioning|trainer|operations|player development|performance/i.test(title)) continue;
+  // A mixed athletics directory must never turn another sport's coach into a softball coach.
+  if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(title) && !/softball/i.test(title)) continue;
   const blockLinks=links(block,url);
   // Mixed directories can contain many sports; bind a row to softball rather than trusting a broad parent fragment.
   if(!dedicated && !/softball/i.test(text)) continue;
