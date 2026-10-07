@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {AlertCircle,ExternalLink,Mail,RefreshCw,ShieldCheck,Unplug} from 'lucide-react';
-import {createClient} from '@/lib/supabase/client';
+import {createClient} from '@/lib/supabase-browser';
 
 type State={gmail_connected?:boolean;google_email?:string|null};
 
