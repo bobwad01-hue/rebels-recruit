@@ -365,7 +365,8 @@ export async function POST(req:NextRequest){
      }
      coaches.push(...[...new Map(recovered.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()]);
    }
-   for(let i=0;i<coaches.length;i++) coaches[i]=await enrichCoachProfile(coaches[i],page.url);\n   const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
+   for(let i=0;i<coaches.length;i++) coaches[i]=await enrichCoachProfile(coaches[i],page.url);
+   const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
      await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:"Bootstrap quality gate",updated_at:now}).eq("college_id",college.id);
