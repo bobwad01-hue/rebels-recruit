@@ -293,7 +293,7 @@ export async function POST(req:NextRequest){
    if(!ids.length) return NextResponse.json({processed:0,pending:0,results:[]});
    await supabase.from("college_coach_profile_enrichment_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("coach_id",ids);
    const {data:coachRows,error:cErr}=await supabase.from("college_coaches")
-     .select("id,college_id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,source_urls")
+     .select("id,college_id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,official_source_url,source_urls")
      .in("id",ids);
    if(cErr) throw cErr;
    const attempts=new Map((queued||[]).map((x:any)=>[x.coach_id,x.attempts||0]));
