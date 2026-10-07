@@ -259,8 +259,11 @@ function profileContact(html:string,url:string){
  const email=(html.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
  const text=clean(html);
  const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
- const x=links(html,url).find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
- return {email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null};
+ const xs=links(html,url).filter(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
+ const parsed=xs.map(a=>{ try { const part=new URL(a.url).pathname.split("/").filter(Boolean)[0]?.replace(/^@+/,""); return part?{...a,handle:"@"+part}:null; } catch { return null; } }).filter(Boolean) as Array<{url:string;text:string;handle:string}>;
+ const wrong=/(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|hockey|track|crosscountry|_mbb|_bsb|mbb_|bsb_)/i;
+ const x=parsed.find(a=>/coach/i.test(a.handle)) || parsed.find(a=>!wrong.test(a.handle)) || null;
+ return {email,phone,x_url:x?.url||null,x_handle:x?.handle||null};
 }
 async function enrichCoachProfile(c:any,staffUrl:string){
  if(!c.official_bio_url||!sameHost(c.official_bio_url,staffUrl)) return c;
