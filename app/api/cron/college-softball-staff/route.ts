@@ -287,13 +287,12 @@ export async function POST(req:NextRequest){
    let d:any;
    let page:any;
    if(knownSource?.staff_url){
+    // A stored canonical staff source is authoritative. Extraction failure is a parser/review
+    // problem, not permission to silently replace a verified source with rediscovery.
+    // Rediscover only when the canonical URL itself cannot be fetched.
     try{
      page=await get(knownSource.staff_url);
      d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||knownSource.staff_url,staff_url:page.url};
-     const probe=extract(page.html,page.url);
-     if(probe.length===0 || !probe.some((x:any)=>x.role_category==="head_coach")){
-       d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
-     }
     }catch{
      d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
     }
