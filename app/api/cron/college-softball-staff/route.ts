@@ -250,6 +250,24 @@ function extract(html:string,url:string){
    .filter(x=>x.role_category!=="other_coaching_staff" || /pitching|hitting coordinator|graduate assistant/i.test(x.title));
 }
 
+
+function profileContact(html:string,url:string){
+ const email=(html.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
+ const text=clean(html);
+ const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+ const x=links(html,url).find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
+ return {email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null};
+}
+async function enrichCoachProfile(c:any,staffUrl:string){
+ if(!c.official_bio_url||!sameHost(c.official_bio_url,staffUrl)) return c;
+ try{
+   const p=await get(c.official_bio_url);
+   if(!sameHost(p.url,staffUrl)) return c;
+   const contact=profileContact(p.html,p.url);
+   return {...c,email:c.email||contact.email,phone:c.phone||contact.phone,x_url:c.x_url||contact.x_url,x_handle:c.x_handle||contact.x_handle,official_bio_url:p.url,profile_source_hash:hash(p.html)};
+ }catch{return c}
+}
+
 export async function POST(req:NextRequest){
  const auth=req.headers.get("authorization");
  const manualKey=req.headers.get("x-rlt-ingestion-key");
@@ -347,7 +365,7 @@ export async function POST(req:NextRequest){
      }
      coaches.push(...[...new Map(recovered.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()]);
    }
-   const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
+   for(let i=0;i<coaches.length;i++) coaches[i]=await enrichCoachProfile(coaches[i],page.url);\n   const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
      await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:"Bootstrap quality gate",updated_at:now}).eq("college_id",college.id);
@@ -364,10 +382,12 @@ export async function POST(req:NextRequest){
     } else {
       const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("first_name",c.first_name).ilike("last_name",c.last_name).maybeSingle(); existing=r.data;
     }
-    const row={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:verificationStatus,official_source_hash:hash(page.html),last_verified_at:null,verification_status:verificationStatus,verification_confidence:confidence,source_urls:[page.url]};
+    const sources=[...new Set([page.url,c.official_bio_url].filter(Boolean))];
+    const row={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:verificationStatus,official_source_hash:hash(page.html),last_verified_at:null,verification_status:verificationStatus,verification_confidence:confidence,source_urls:sources};
+    delete (row as any).profile_source_hash;
     const {data:saved,error:saveErr}=existing?.id?await supabase.from("college_coaches").update(row).eq("id",existing.id).select("id").single():await supabase.from("college_coaches").insert(row).select("id").single();
     if(saveErr) throw saveErr;
-    await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v2"}});
+    await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:c.official_bio_url||page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:c.profile_source_hash||hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v3-profile-enrichment",staff_source_url:page.url,profile_enriched:Boolean(c.official_bio_url)}});
    }
    if(bootstrap) await supabase.from("college_staff_bootstrap_queue").update({status:"imported",attempts:((queuedAttempt(college.id))+1),last_error:null,updated_at:now}).eq("college_id",college.id);
    results.push({college:college.name,status:"ok",staff_url:page.url,coaches:coaches.length,extracted:coaches.map(c=>({name:`${c.first_name} ${c.last_name}`,title:c.title,email:c.email,phone:c.phone,x_url:c.x_url,bio:c.official_bio_url}))});
