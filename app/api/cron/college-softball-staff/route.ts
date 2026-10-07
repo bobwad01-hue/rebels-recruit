@@ -167,6 +167,25 @@ function plausibleName(name:string){
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  return true;
 }
+function sourceSpecificExtract(html:string,url:string,collegeName:string){
+ const text=clean(html), out:any[]=[];
+ const add=(name:string,title:string)=>{
+  if(!plausibleName(name)) return;
+  const rr=role(title), parts=name.trim().split(/\s+/);
+  out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+ };
+ // Narrow adapters for official pages whose rendered templates flatten coach rows.
+ // Names/titles still must be present in the fetched official source; nothing is hard-coded as data.
+ if(collegeName==="Austin Peay State University" || collegeName==="University of Florida"){
+  const patterns=[
+   /([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+(Head Coach|Associate Head Coach|Assistant Coach(?:\s*[-–]\s*Recruiting Coordinator)?)/g,
+   /(Head Coach|Associate Head Coach|Assistant Coach(?:\s*[-–]\s*Recruiting Coordinator)?)\s+([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})/g
+  ];
+  for(const [i,re] of patterns.entries()) for(const m of text.matchAll(re)) add(i===0?m[1]:m[2],i===0?m[2]:m[1]);
+ }
+ return [...new Map(out.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()];
+}
+
 function extract(html:string,url:string){
  const path=new URL(url).pathname;
  const dedicated=/softball|sball|w-softbl/i.test(path) || /[?&]path=softball/i.test(url);
@@ -299,7 +318,12 @@ export async function POST(req:NextRequest){
    }else{
     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
-   const coaches=extract(page.html,page.url); const now=new Date().toISOString();
+   const coaches=extract(page.html,page.url);
+   if((college.name==="Austin Peay State University"||college.name==="University of Florida") && (!coaches.some((x:any)=>x.role_category==="head_coach")||coaches.length===0)){
+     const adapted=sourceSpecificExtract(page.html,page.url,college.name);
+     for(const a of adapted) if(!coaches.some((x:any)=>(x.first_name+" "+x.last_name).toLowerCase()===(a.first_name+" "+a.last_name).toLowerCase())) coaches.push(a);
+   }
+   const now=new Date().toISOString();
    // Some modern Sidearm pages render the coaching table in JSON/flattened text rather than
    // stable row markup. Recover only from a dedicated softball page and only explicit coaching titles.
    if(coaches.length===0 && /\/sports\/softball\/(?:coaches|roster)/i.test(new URL(page.url).pathname)){
