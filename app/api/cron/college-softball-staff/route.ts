@@ -178,18 +178,18 @@ function extract(html:string,url:string){
    ...[...html.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/gi)].map(m=>m[0]),
    ...[...html.matchAll(/<article\b[^>]*>[\s\S]*?<\/article>/gi)].map(m=>m[0]),
    ...html.split(/<\/(?:section|div)>/i)
- ].filter(x=>/coach|coordinator|graduate assistant/i.test(clean(x)));
+ ].filter(x=>/coach|coordinator|graduate assistant|director of softball/i.test(clean(x)));
  const out:any[]=[];
  for(const block of candidates){
   const text=clean(block);
-  if(!/coach|coordinator|graduate assistant/i.test(text)) continue;
+  if(!/coach|coordinator|graduate assistant|director of softball/i.test(text)) continue;
   if(!dedicated&&!departmentScoped&&!/softball/i.test(text)) continue;
   // A softball-filtered official staff directory is authoritative page context.
   // Broad staff directories still require softball evidence in the individual row.
   if(/\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\b/i.test(text)
      && !/\b(head|associate head|assistant|pitching|hitting)\s+(?:softball\s+)?coach\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
   if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
-  const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant)/i);
+  const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant|(?:[A-Z][A-Za-z.]+(?:\s+[A-Z][A-Za-z.]+){0,5}\s+)?Director\s+of\s+Softball)/i);
   if(!titleMatch) continue;
   let title=titleMatch[1].trim()
     .replace(/\s+[\w.+-]+@[\w.-]*(?:\.\w{0,})?.*$/i,"")
