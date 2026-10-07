@@ -165,6 +165,8 @@ function plausibleName(name:string){
  if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
  if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book)\b/i.test(n)) return false;
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
+ // Reject common navigation/news/template fragments that can look like person names.
+ if(/\b(Quick Facts|Graduate Assistantships?|Hired As|Named|Full Bio|View Bio)\b/i.test(n)) return false;
  return true;
 }
 function sourceSpecificExtract(html:string,url:string,collegeName:string){
