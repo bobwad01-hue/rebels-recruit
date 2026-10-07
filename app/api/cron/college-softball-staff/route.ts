@@ -69,8 +69,8 @@ function sameHost(a:string,b:string){try{return new URL(a).hostname.replace(/^ww
 function badOfficialUrl(url:string){
  try{
   const u=new URL(url), h=u.hostname.toLowerCase(), p=u.pathname.toLowerCase();
-  return /youtube|youtu\.be|facebook|instagram|twitter|x\.com|tiktok|vimeo|armssoftware|ticketmaster|shopify/.test(h)
-    || /error_page|splash\.aspx/.test(p);
+  return /youtube|youtu\.be|facebook|instagram|twitter|x\.com|tiktok|vimeo|armssoftware|ticketmaster|shopify|adobe|imleagues|totalcamps|influxermerch|midcosportsplus|ncaa\.org|thesiac\.com|psacsports\.org|foundation|merch|store/.test(h+" "+p)
+    || /error_page|splash\.aspx|page-not-found|athletic-scholarships|give\//.test(p);
  }catch{return true}
 }
 
@@ -112,12 +112,10 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  // If the first athletics candidate was still on the university domain, follow an external
  // official athletics link from it before probing predictable /sports routes.
  const externalAthletics=sl.filter(x=>{
-   if(sameHost(x.url,athletics.url)) return false;
-   let host=""; try{host=new URL(x.url).hostname.toLowerCase()}catch{return false}
-   // Never promote social/video/ticketing/commerce hosts to the canonical athletics domain.
-   if(/(?:youtube|youtu\.be|facebook|instagram|twitter|x\.com|tiktok|vimeo|ticketmaster|shopify)/i.test(host+" "+x.url)) return false;
+   if(sameHost(x.url,athletics.url)||badOfficialUrl(x.url)) return false;
    const signal=(x.text+" "+x.url).toLowerCase();
-   return /athletics?|official athletics|sports|softball/.test(signal);
+   // External athletics promotion requires athletics identity, not a generic "sports" link.
+   return /athletics?|official athletics|softball/.test(signal);
   });
  const ext=!seededOfficialHost&&externalAthletics.length?await tryGet(externalAthletics.slice(0,5).map(x=>x.url)):null;
  const sports=ext||athletics; const sportsLinks=links(sports.html,sports.url);
