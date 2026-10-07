@@ -49,7 +49,7 @@ export default function GoogleWorkspaceSettings(){
       <div className="mt-5">
         <div className="border rounded-xl p-4">
           <div className="flex items-center gap-2 font-black"><Mail size={18}/> Gmail</div>
-          <p className="muted text-sm mt-2">Connect Gmail so RLTNL can match emails from college coaches you are already tracking, add those recruiting messages to your Journey, identify follow-up needs, recover historical recruiting email content when requested, and send coach emails from inside RLTNL. RLTNL does not modify or delete your Gmail messages.</p>
+          <p className="muted text-sm mt-2">Connect Gmail so RLTNL can match recruiting emails from college coaches to the correct school and coach relationship, keep those communications in your recruiting history, and let you send coach emails from inside RLTNL. RLTNL does not modify or delete your Gmail messages.</p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className={`pill ${gmail?'bg-green-50 text-green-700':''}`}>{gmail?'Connected':'Not connected'}</span>
             <div className="ml-auto flex gap-2">
