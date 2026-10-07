@@ -172,6 +172,8 @@ function extract(html:string,url:string){
  const dedicated=/softball|sball|w-softbl/i.test(path) || /[?&]path=softball/i.test(url);
  const departmentScoped=/staff-directory\/(?:softball-department|department\/softball)/i.test(path);
  const broadDirectory=/staff(?:-directory|\.aspx)(?:\/|$)/i.test(path)&&!departmentScoped;
+ const pageText=clean(html);
+ const softballSection=pageText.match(/(?:Softball|Softball Coaching Staff)[\s\S]{0,3000}?(?=(?:Baseball|Basketball|Football|Golf|Lacrosse|Soccer|Tennis|Track|Volleyball|Support Staff)\b|$)/i)?.[0]||"";
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
  const candidates=[
    ...[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0]),
@@ -179,6 +181,11 @@ function extract(html:string,url:string){
    ...[...html.matchAll(/<article\b[^>]*>[\s\S]*?<\/article>/gi)].map(m=>m[0]),
    ...html.split(/<\/(?:section|div)>/i)
  ].filter(x=>/coach|coordinator|graduate assistant|director of softball/i.test(clean(x)));
+ if(broadDirectory&&softballSection){
+   for(const m of softballSection.matchAll(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+(Head Coach|Associate Head Coach|Assistant Coach(?:\s*-\s*Recruiting Coordinator)?)/g)){
+     candidates.unshift(`<div>${m[1]} ${m[2]}</div>`);
+   }
+ }
  const out:any[]=[];
  for(const block of candidates){
   const text=clean(block);
@@ -294,6 +301,16 @@ export async function POST(req:NextRequest){
     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
    const coaches=extract(page.html,page.url); const now=new Date().toISOString();
+   // Some modern Sidearm pages render the coaching table in JSON/flattened text rather than
+   // stable row markup. Recover only from a dedicated softball page and only explicit coaching titles.
+   if(coaches.length===0 && /\/sports\/softball\/(?:coaches|roster)/i.test(new URL(page.url).pathname)){
+     const flat=clean(page.html), recovered:any[]=[];
+     for(const m of flat.matchAll(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+(Head Coach|Associate Head Coach|Assistant Coach(?:\s*-\s*Recruiting Coordinator)?)/g)){
+       if(!plausibleName(m[1])) continue; const rr=role(m[2]);
+       recovered.push({first_name:m[1].split(/\s+/)[0],last_name:m[1].split(/\s+/).slice(1).join(" "),title:m[2],email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+     }
+     coaches.push(...[...new Map(recovered.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()]);
+   }
    const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
