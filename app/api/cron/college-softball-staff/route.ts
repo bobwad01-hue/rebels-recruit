@@ -278,10 +278,62 @@ export async function POST(req:NextRequest){
  const body=await req.json().catch(()=>({}));
  const approvedPilotIds=new Set(["1ad3f717-06f1-42ba-8846-d25af5dfe5e0","76ec4683-6660-4f28-9202-8ad95b7fa51d","7807b761-19c4-4985-a037-e0d101b406dd","5f6b8905-b694-4f86-8dd0-13589844610c","780e372c-dcc4-41ea-9984-962e78c27cdf","08cb7422-5392-44c7-9e0e-ecb0dc3ecf01","4fcfa4d1-aee8-4439-a85d-dbc76ca39675","aa8d21bc-9693-4d24-b28f-50aa805cadd3","d0736a10-3714-40ff-9a15-e878a66bde6e","e369965b-0e9a-42c7-afbb-506359ba4c30"]);
  const approvedExpansionIds=new Set(["aa9f860e-1cf3-4259-9af2-b29d2893fb62","3f70500b-0847-4398-8cb3-0e9c93a77cbd","644b79c9-6b52-400d-93d4-f62f03369c9e","6d8b983f-9209-4cdc-9c8d-363d7ea7d112","14adc832-92ce-4771-9ae9-6d06320c7e40","5f863060-16e1-4b29-b67f-e4dcd6dc407d","1d142cd0-9aa7-4354-94bf-ff12c852be4d","699e0f6e-e751-48b1-ab3e-68fddb6ecfbb","30b625a4-cd95-4cd4-a001-cac303ccbc13","818c9f94-30fd-4b0e-a495-ec6858e69c43"]);
- if(internalTrigger && !cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true){
+ if(internalTrigger && !cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true){
    const ids=Array.isArray(body.college_ids)?body.college_ids:[];
    const allowed=body.expansion_write===true?approvedExpansionIds:approvedPilotIds;
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
+ }
+ const profileEnrichment=body.profile_enrichment===true;
+ if(profileEnrichment){
+   const batch=Math.min(Math.max(Number(body.limit)||10,1),15);
+   const {data:queued,error:qErr}=await supabase.from("college_coach_profile_enrichment_queue")
+     .select("coach_id,attempts").eq("status","pending").order("updated_at").limit(batch);
+   if(qErr) throw qErr;
+   const ids=(queued||[]).map((x:any)=>x.coach_id);
+   if(!ids.length) return NextResponse.json({processed:0,pending:0,results:[]});
+   await supabase.from("college_coach_profile_enrichment_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("coach_id",ids);
+   const {data:coachRows,error:cErr}=await supabase.from("college_coaches")
+     .select("id,college_id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,source_urls")
+     .in("id",ids);
+   if(cErr) throw cErr;
+   const attempts=new Map((queued||[]).map((x:any)=>[x.coach_id,x.attempts||0]));
+   const results:any[]=[];
+   for(const coach of coachRows||[]){
+     try{
+       if(!coach.official_bio_url) throw new Error("Official bio URL missing");
+       const p=await get(coach.official_bio_url);
+       const contact=profileContact(p.html,p.url);
+       const now=new Date().toISOString();
+       const found=Boolean(contact.email);
+       const sources=[...new Set([...(coach.source_urls||[]),p.url])];
+       const patch:any={source_urls:sources,official_source_checked_at:now};
+       if(contact.email&&!coach.email) patch.email=contact.email;
+       if(contact.phone&&!coach.phone) patch.phone=contact.phone;
+       if(contact.x_url&&!coach.x_url){patch.x_url=contact.x_url;patch.x_handle=contact.x_handle}
+       if(found){patch.verification_status="high_confidence";patch.official_source_status="high_confidence";patch.verification_confidence=.98}
+       await supabase.from("college_coaches").update(patch).eq("id",coach.id);
+       await supabase.from("college_coach_source_snapshots").insert({
+         college_id:coach.college_id,coach_id:coach.id,source_url:p.url,
+         observed_name:`${coach.first_name} ${coach.last_name}`,observed_title:coach.title,
+         observed_email:contact.email,observed_phone:contact.phone,observed_x_url:contact.x_url,
+         observed_x_handle:contact.x_handle,observed_bio_url:p.url,content_hash:hash(p.html),
+         confidence:found?.98:.90,verification_status:found?"high_confidence":"review",
+         raw_evidence:{official_source:true,parser:"profile-enrichment-v1",profile_enriched:true}
+       });
+       await supabase.from("college_coach_profile_enrichment_queue").update({
+         status:found?"enriched":"no_email",attempts:(attempts.get(coach.id)||0)+1,last_error:null,updated_at:now
+       }).eq("coach_id",coach.id);
+       results.push({coach_id:coach.id,status:found?"enriched":"no_email"});
+     }catch(e:any){
+       const msg=e?.message||String(e);
+       await supabase.from("college_coach_profile_enrichment_queue").update({
+         status:/403|robots/i.test(msg)?"blocked":"error",attempts:(attempts.get(coach.id)||0)+1,last_error:msg,updated_at:new Date().toISOString()
+       }).eq("coach_id",coach.id);
+       results.push({coach_id:coach.id,status:/403|robots/i.test(msg)?"blocked":"error",error:msg});
+     }
+   }
+   const {count:pending}=await supabase.from("college_coach_profile_enrichment_queue").select("*",{count:"exact",head:true}).eq("status","pending");
+   return NextResponse.json({processed:results.length,pending,results});
  }
  const bootstrap=body.bootstrap===true;
  // Self-heal abandoned claims before taking more work.
