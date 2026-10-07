@@ -2,12 +2,7 @@ import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 
 const SCOPES={
-  gmail:['https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/gmail.readonly'],
-  calendar:[
-    'https://www.googleapis.com/auth/calendar.events.owned',
-    'https://www.googleapis.com/auth/calendar.events.readonly',
-    'https://www.googleapis.com/auth/calendar.calendarlist.readonly'
-  ]
+  gmail:['https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/gmail.readonly']
 };
 const STATE_COOKIE='rr_google_oauth_state';
 
