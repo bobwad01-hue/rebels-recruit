@@ -60,7 +60,7 @@ export default function GoogleWorkspaceSettings(){
             </div>
           </div>
         </div>
-        <p className="muted text-xs mt-4">Gmail is optional. RLTNL events can be added to Google Calendar without connecting your Google Calendar account.</p>
+        
       </div>
     </div>
   );
