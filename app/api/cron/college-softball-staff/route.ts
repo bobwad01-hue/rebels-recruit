@@ -302,10 +302,37 @@ export async function POST(req:NextRequest){
      try{
        if(!coach.official_bio_url) throw new Error("Official bio URL missing");
        const p=await get(coach.official_bio_url);
-       const contact=profileContact(p.html,p.url);
+       let contact=profileContact(p.html,p.url);
+       let contactSource=p.url, contactHash=hash(p.html);
+       // If the individual bio does not publish email, make a controlled second-source
+       // pass against canonical official athletics staff-directory routes on the same host.
+       if(!contact.email && coach.official_source_url){
+         const origin=new URL(coach.official_source_url).origin;
+         const alternates=[
+           origin+"/staff-directory/department/softball",
+           origin+"/staff-directory/softball-department",
+           origin+"/staff-directory"
+         ];
+         for(const alt of alternates){
+           try{
+             const d=await get(alt);
+             if(!sameHost(d.url,coach.official_source_url)) continue;
+             const rows=extract(d.html,d.url);
+             const exact=rows.find((x:any)=>
+               x.first_name.toLowerCase()===coach.first_name.toLowerCase() &&
+               x.last_name.toLowerCase()===coach.last_name.toLowerCase() &&
+               x.email
+             );
+             if(exact){
+               contact={email:exact.email,phone:exact.phone||contact.phone,x_url:exact.x_url||contact.x_url,x_handle:exact.x_handle||contact.x_handle};
+               contactSource=d.url; contactHash=hash(d.html); break;
+             }
+           }catch{}
+         }
+       }
        const now=new Date().toISOString();
        const found=Boolean(contact.email);
-       const sources=[...new Set([...(coach.source_urls||[]),p.url])];
+       const sources=[...new Set([...(coach.source_urls||[]),p.url,contactSource])];
        const patch:any={source_urls:sources,official_source_checked_at:now};
        if(contact.email&&!coach.email) patch.email=contact.email;
        if(contact.phone&&!coach.phone) patch.phone=contact.phone;
@@ -313,10 +340,10 @@ export async function POST(req:NextRequest){
        if(found){patch.verification_status="high_confidence";patch.official_source_status="high_confidence";patch.verification_confidence=.98}
        await supabase.from("college_coaches").update(patch).eq("id",coach.id);
        await supabase.from("college_coach_source_snapshots").insert({
-         college_id:coach.college_id,coach_id:coach.id,source_url:p.url,
+         college_id:coach.college_id,coach_id:coach.id,source_url:contactSource,
          observed_name:`${coach.first_name} ${coach.last_name}`,observed_title:coach.title,
          observed_email:contact.email,observed_phone:contact.phone,observed_x_url:contact.x_url,
-         observed_x_handle:contact.x_handle,observed_bio_url:p.url,content_hash:hash(p.html),
+         observed_x_handle:contact.x_handle,observed_bio_url:p.url,content_hash:contactHash,
          confidence:found?.98:.90,verification_status:found?"high_confidence":"review",
          raw_evidence:{official_source:true,parser:"profile-enrichment-v1",profile_enriched:true}
        });
