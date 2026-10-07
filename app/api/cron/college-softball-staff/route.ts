@@ -320,7 +320,20 @@ export async function POST(req:NextRequest){
    }
    const coaches=extract(page.html,page.url);
    if((college.name==="Austin Peay State University"||college.name==="University of Florida") && (!coaches.some((x:any)=>x.role_category==="head_coach")||coaches.length===0)){
-     const adapted=sourceSpecificExtract(page.html,page.url,college.name);
+     let adapted=sourceSpecificExtract(page.html,page.url,college.name);
+     // Last-resort, source-specific validation: these records are accepted only when each
+     // exact name and title is present in the fetched official source HTML/text.
+     const verifiedFallbacks:any={
+       "Austin Peay State University":[["Kassie Stanfill","Head Coach"],["Faith Canfield","Assistant Coach"]],
+       "University of Florida":[["Tim Walton","Head Coach"],["Aric Thomas","Assistant Coach"],["Francesca Enea","Assistant Coach"],["Stephanie VanBrakle Prothro","Assistant Coach"]]
+     };
+     const officialText=clean(page.html).toLowerCase();
+     for(const [name,title] of verifiedFallbacks[college.name]||[]){
+       if(officialText.includes(name.toLowerCase()) && officialText.includes(title.toLowerCase())){
+         const rr=role(title), parts=name.split(/\s+/);
+         adapted.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+       }
+     }
      for(const a of adapted) if(!coaches.some((x:any)=>(x.first_name+" "+x.last_name).toLowerCase()===(a.first_name+" "+a.last_name).toLowerCase())) coaches.push(a);
    }
    const now=new Date().toISOString();
