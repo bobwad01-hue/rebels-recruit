@@ -48,7 +48,7 @@ export default function CoachParentPerspective({collegeId,coachId,coachName,athl
   setDone(true);setEditing(false);
  }
  if(loading)return <section className="card p-4 sm:p-5"><div className="muted text-sm">Loading parent perspective…</div></section>;
- if(done&&!editing)return <section className="card p-4 sm:p-5"><div className="rr-eyebrow">PARENT PERSPECTIVE</div><h2 className="font-black text-lg mt-1">Thanks for sharing your perspective.</h2><p className="muted text-sm mt-1">Your name is not shown with the feedback. Parent ratings appear in combined summaries when at least three parents have shared their experiences with {coachName}.</p><button type="button" className="btn mt-4" onClick={()=>setEditing(true)}>Edit My Perspective</button></section>;
+ if(done&&!editing)return <section className="card p-4 sm:p-5"><div className="rr-eyebrow">PARENT PERSPECTIVE</div><h2 className="font-black text-lg mt-1">Thanks for sharing your perspective.</h2><p className="muted text-sm mt-1">Your feedback has been saved. Your name is not shown with it.</p><button type="button" className="btn mt-4" onClick={()=>setEditing(true)}>Edit My Perspective</button></section>;
  return <section id="share-parent-perspective" className="card p-4 sm:p-5 scroll-mt-24">
   <div className="rr-eyebrow">PARENT PERSPECTIVE</div>
   <h2 className="font-black text-lg mt-1">Help other parents know what to expect when their athlete communicates with {coachName}</h2>
@@ -61,7 +61,7 @@ export default function CoachParentPerspective({collegeId,coachId,coachName,athl
    <ChoiceQuestion label="From what you observed, did your athlete understand where they stood with this coach?" options={clarityOptions} value={standing} onChange={setStanding}/>
    <ChoiceQuestion label="Would you recommend another parent encourage their athlete to engage with this coach?" options={recommendOptions} value={recommend} onChange={setRecommend}/>
   </div>
-  <p className="muted text-xs mt-5">Your name is not shown. Responses are combined with other parent perspectives and ratings appear after at least three parents contribute.</p>
+  <p className="muted text-xs mt-5">Your name is not shown with your feedback.</p>
   {message&&<p role="alert" className="text-sm font-bold text-red-700 mt-4">{message}</p>}
   {preview?<p className="text-sm font-semibold mt-4">Preview mode: Feedback cannot be submitted.</p>:<div className="flex flex-wrap gap-2 mt-5"><button type="button" onClick={save} disabled={saving} className="btn btn-red">{saving?'Sharing…':done?'Update Parent Perspective':'Share Parent Perspective'}</button>{done&&<button type="button" className="btn" onClick={()=>setEditing(false)}>Cancel</button>}</div>}
  </section>;
