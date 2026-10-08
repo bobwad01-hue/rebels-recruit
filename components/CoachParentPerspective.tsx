@@ -37,7 +37,12 @@ export default function CoachParentPerspective({collegeId,coachId,coachName,athl
   const {data:{user}}=await c.auth.getUser();
   if(!user){setMessage('Sign in to share your perspective.');setSaving(false);return}
   const payload={parent_user_id:user.id,athlete_user_id:athleteId,college_id:collegeId,coach_id:coachId,overall_experience:overall,communication,responsiveness,follow_through:followThrough,standing_clarity:standing||null,recommend_engaging:recommend||null,core_completed_at:new Date().toISOString(),updated_at:new Date().toISOString()};
-  const {error}=await c.from('parent_coach_perspectives').upsert(payload,{onConflict:'parent_user_id,coach_id'});
+  const existing=await c.from('parent_coach_perspectives').select('id').eq('parent_user_id',user.id).eq('coach_id',coachId).maybeSingle();
+  if(existing.error){setMessage('Could not verify your existing feedback. Please try again.');setSaving(false);return}
+  const {parent_user_id,coach_id,...changes}=payload;
+  const {error}=existing.data?.id
+   ?await c.from('parent_coach_perspectives').update(changes).eq('id',existing.data.id)
+   :await c.from('parent_coach_perspectives').insert(payload);
   setSaving(false);
   if(error){setMessage('Could not save your perspective. Check that you still have active access to your athlete’s Connections, then try again.');return}
   setDone(true);setEditing(false);
