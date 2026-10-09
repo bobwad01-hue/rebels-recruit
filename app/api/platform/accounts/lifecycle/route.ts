@@ -74,6 +74,23 @@ export async function POST(req: NextRequest) {
   }
 
   if (action === "delete") {
+    // Avoid cascading away resources shared with other users (including
+    // organization-wide signup links) when deleting the person who created them.
+    for (const dependency of [
+      { table: "organization_join_links", column: "created_by", label: "team signup links" },
+      { table: "advisor_conversations", column: "created_by_user_id", label: "shared advisor conversations" },
+      { table: "advisor_player_groups", column: "owner_user_id", label: "advisor player groups" },
+    ]) {
+      const { count, error: dependencyError } = await admin.from(dependency.table)
+        .select("id", { head: true, count: "exact" }).eq(dependency.column, targetId);
+      if (dependencyError) {
+        console.error("Account deletion dependency check failed:", dependency.table, dependencyError.message);
+        return fail("Unable to verify shared account records. Deletion has not been attempted.", 500);
+      }
+      if ((count || 0) > 0) return fail(
+        "This account owns " + dependency.label + " used by others. Transfer or remove those resources before permanent deletion.", 409,
+      );
+    }
     const { data: authRecord, error: lookupError } = await admin.auth.admin.getUserById(targetId);
     if (lookupError || !authRecord.user) return fail("Authentication account not found.", 404);
     const identity = (authRecord.user.email || target.email || targetId).trim();
