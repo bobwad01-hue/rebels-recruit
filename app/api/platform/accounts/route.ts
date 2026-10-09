@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       history: data || [],
       authDetails: authRecord?.user ? {
+        email: authRecord.user.email || null,
         last_sign_in_at: authRecord.user.last_sign_in_at || null,
         email_confirmed_at: authRecord.user.email_confirmed_at || null,
         providers: authRecord.user.app_metadata?.providers || [],
