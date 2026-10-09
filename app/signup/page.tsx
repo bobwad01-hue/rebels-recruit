@@ -17,6 +17,10 @@ export default function Signup() {
   const [invitedRole,setInvitedRole]=useState('advisor');
   const [inviteOrg,setInviteOrg]=useState('');
   const [inviteLoading,setInviteLoading]=useState(staffInvite);
+  const [joinLoading,setJoinLoading]=useState(accessLinkSignup);
+  const [joinError,setJoinError]=useState('');
+  const [joinDetails,setJoinDetails]=useState<{organization?:{name:string};team?:{name:string};role?:string}|null>(null);
+  const [emailMode,setEmailMode]=useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -29,15 +33,19 @@ export default function Signup() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
   const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
-  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)));
+  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))&&(!accessLinkSignup||(!joinLoading&&!joinError));
 
   useEffect(()=>{if(!staffToken)return;let live=true;(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
+
+  useEffect(()=>{if(!joinToken)return;let active=true;(async()=>{try{const response=await fetch(`/api/join?token=${encodeURIComponent(joinToken)}`,{cache:'no-store'});const details=await response.json();if(!response.ok)throw new Error(details.error||'This team invitation is no longer available.');if(!active)return;setJoinDetails(details);const inviteRole=details.role==='parent'?'parent':details.role==='athlete'?'athlete':'advisor';setRole(inviteRole);setAgeConfirmed(false)}catch(e){if(active)setJoinError(e instanceof Error?e.message:'Could not load the team invitation.')}finally{if(active)setJoinLoading(false)}})();return()=>{active=false}},[joinToken]);
 
   function validate(){if(role==='athlete'&&!ageConfirmed){setError('Athlete accounts are available only to players age 13 or older.');return false}if(!legalAccepted){setError('Please agree to the Terms of Service and Privacy Policy to create an account.');return false}return true}
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (!emailMode) return;
     if (!validate()) return;
+    if (!name.trim()||!email.trim()||password.length<8){setError('Enter your name, email address and a password of at least 8 characters.');return}
     const client=createClient();
     const { data:signupData, error } = await client.auth.signUp({
       email,
@@ -81,23 +89,32 @@ export default function Signup() {
       <form onSubmit={submit} className="card p-8 w-full max-w-md bg-white">
         <Brand/>
         <h1 className="text-2xl font-black mt-8">{staffInvite?"Activate your RLTNL access":"Create your account"}</h1>{staffInvite&&<p className="muted mt-2">{inviteLoading?"Loading your invitation…":<>You've been invited{inviteOrg?<> to <strong>{inviteOrg}</strong></>:null} as {invitedRole==="admin"?"an Admin":"an Advisor"}. Create or sign in with the invited email address below.</>}</p>}
+        {accessLinkSignup&&<div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 mt-5 text-sm">
+          {joinLoading?<span className="text-slate-600">Loading your team invitation…</span>:joinError?<span role="alert" className="font-semibold text-red-700">{joinError}</span>:<><span className="font-bold text-slate-900">Your team invitation</span><p className="text-slate-600 mt-1">Joining {joinDetails?.organization?.name||'your organization'}{joinDetails?.team?.name?` · ${joinDetails.team.name}`:''} as {role==='parent'?'Parent / Guardian':role==='athlete'?'Athlete':'Advisor / Coach'}.</p></>}
+        </div>}
         <div className="space-y-4 mt-6">
-          <input className="input" placeholder="Full name" value={name} onChange={e => setName(e.target.value)} required />
-          <input className="input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} readOnly={staffInvite} required />
-          {!staffInvite&&<>
-            <label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} onChange={e => {setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select></label>
-            {role==='advisor'&&<div className="rounded-xl border p-3"><div className="text-sm font-bold">Advisor account type</div><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="independent"} onChange={()=>{setAdvisorPath("independent");setOrgIntent(false)}}/> Independent Advisor / consultant</label><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="organization"} onChange={()=>setAdvisorPath("organization")}/> I work with an organization/team</label><p className="text-xs text-slate-500 mt-2">{advisorPath==="independent"?"Independent Advisor accounts require RLTNL approval before live recruiting tools are activated.":"If an organization invited you, use the same email address as the invitation. Organization access comes from that organization."}</p>{advisorPath==="organization"&&<label className="flex items-start gap-2 mt-3 text-sm"><input type="checkbox" className="mt-1" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span>I need to request a new organization. <span className="block text-xs text-slate-500">New organizations require RLTNL approval. Creating an account does not automatically give you Admin access.</span></span></label>}</div>}
-          </>}
-          {!staffInvite&&<p className="text-xs text-slate-500 -mt-2">You do not need to belong to an organization. You can connect with an organization or other people later.</p>}<input className="input" type="password" placeholder="Password (8+ characters)" minLength={8} value={password} onChange={e => setPassword(e.target.value)} required />
+          {!staffInvite&&(accessLinkSignup?
+            <div><div className="text-sm font-bold text-slate-900">Account type</div><p className="mt-1 text-sm text-slate-600">{joinLoading?'Loading…':role==='parent'?'Parent / Guardian — support an athlete':role==='athlete'?'Athlete — manage my own recruiting':'Advisor / Coach — support recruiting clients'}</p></div>
+            :<label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} onChange={e=>{setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select></label>)}
+          {!staffInvite&&role==='advisor'&&<div className="rounded-xl border p-3"><div className="text-sm font-bold">Advisor account type</div><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="independent"} onChange={()=>{setAdvisorPath("independent");setOrgIntent(false)}}/> Independent Advisor / consultant</label><label className="flex gap-2 mt-2 text-sm"><input type="radio" checked={advisorPath==="organization"} onChange={()=>setAdvisorPath("organization")}/> I work with an organization/team</label><p className="text-xs text-slate-500 mt-2">{advisorPath==="independent"?"Independent Advisor accounts require RLTNL approval before live recruiting tools are activated.":"If an organization invited you, use the same email address as the invitation. Organization access comes from that organization."}</p>{advisorPath==="organization"&&<label className="flex items-start gap-2 mt-3 text-sm"><input type="checkbox" className="mt-1" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span>I need to request a new organization. <span className="block text-xs text-slate-500">New organizations require RLTNL approval. Creating an account does not automatically give you Admin access.</span></span></label>}</div>}
+          {!staffInvite&&!accessLinkSignup&&<p className="text-xs text-slate-500">You do not need to belong to an organization. You can connect with an organization or other people later.</p>}
           {role==='athlete'&&<label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)}/><span className="text-sm leading-5">I confirm that I am age 13 or older.</span></label>}
           <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {!canContinue&&<p className="text-xs font-semibold text-slate-500 text-center">{role==='athlete'&&!ageConfirmed&&!legalAccepted?'Confirm your age and accept the Terms to continue.':role==='athlete'&&!ageConfirmed?'Confirm that you are age 13 or older to continue.':'Accept the Terms of Service and Privacy Policy to continue.'}</p>}
-          <button disabled={!canContinue} className="btn btn-red w-full disabled:opacity-40 disabled:cursor-not-allowed">Create Account</button>
+          {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}
+          {!canContinue&&!joinLoading&&!joinError&&<p className="text-xs font-semibold text-slate-500 text-center">{role==='athlete'&&!ageConfirmed&&!legalAccepted?'Confirm your age and accept the Terms to continue.':role==='athlete'&&!ageConfirmed?'Confirm that you are age 13 or older to continue.':'Accept the Terms of Service and Privacy Policy to continue.'}</p>}
+          <button type="button" disabled={googleBusy||!canContinue} onClick={continueWithGoogle} className="btn btn-red w-full min-h-11 disabled:opacity-40 disabled:cursor-not-allowed">{googleBusy?'Connecting to Google…':'Continue with Google'}</button>
+          <p className="text-xs text-center text-slate-500">The easiest way to get started. No new password needed.</p>
           <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-xs font-bold text-slate-400">OR</span><div className="h-px flex-1 bg-slate-200"/></div>
-          <button type="button" disabled={googleBusy||!canContinue} onClick={continueWithGoogle} className="btn w-full disabled:opacity-40 disabled:cursor-not-allowed">{googleBusy ? 'Connecting to Google...' : 'Continue with Google'}</button>
+          <button type="button" aria-expanded={emailMode} onClick={()=>setEmailMode(v=>!v)} className="btn w-full">{emailMode?'Hide email signup':'Sign up with email instead'}</button>
+          {emailMode&&<div className="space-y-4 rounded-xl border border-slate-200 p-4">
+            <p className="text-sm font-bold text-slate-900">Create an account with email</p>
+            <input className="input" autoComplete="name" placeholder="Full name" value={name} onChange={e=>setName(e.target.value)} required/>
+            <input className="input" autoComplete="email" type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} readOnly={staffInvite} required/>
+            <input className="input" autoComplete="new-password" type="password" placeholder="Create password (8+ characters)" minLength={8} value={password} onChange={e=>setPassword(e.target.value)} required/>
+            <button type="submit" disabled={!canContinue} className="btn btn-red w-full disabled:opacity-40 disabled:cursor-not-allowed">Create Account</button>
+          </div>}
         </div>
-        <p className="text-sm muted mt-6 text-center">Already have an account? <Link className="font-bold" href="/login">Sign In</Link></p>
+        <p className="text-sm muted mt-6 text-center">Already have an account? <Link className="font-bold text-slate-900 hover:underline" href={joinToken?`/login?join_token=${encodeURIComponent(joinToken)}`:staffToken?`/login?staff_token=${encodeURIComponent(staffToken)}`:'/login'}>Sign in</Link></p>
       </form>
     </div>
   );
