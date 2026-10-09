@@ -38,7 +38,7 @@ export default function CalendarAttendanceModal({event,onClose}:{event:EventDeta
  const org=event.organizationName==='Kansas City Rebels'?'KC Rebels':event.organizationName||'Organization';
  useEffect(()=>{function closeOnEscape(e:KeyboardEvent){if(e.key==='Escape')onClose()}window.addEventListener('keydown',closeOnEscape);return()=>window.removeEventListener('keydown',closeOnEscape)},[onClose]);
  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-3 sm:p-6" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
-  <div role="dialog" aria-modal="true" aria-labelledby="attendance-event-title" className="w-full max-w-[640px] max-h-[min(90vh,860px)] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+  <div role="dialog" aria-modal="true" aria-labelledby="attendance-event-title" style={{maxWidth:560}} className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
    <header className="border-b border-slate-200 px-5 pb-5 pt-5 sm:px-7 sm:pb-6 sm:pt-6">
     <div className="flex items-start justify-between gap-4">
      <div className="min-w-0">
