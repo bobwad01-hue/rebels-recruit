@@ -42,7 +42,7 @@ type TeamAccess = {
 export async function GET(req: NextRequest) {
   const ctx = await ownerContext();
   if (!ctx) return jsonError("Super Owner access required.", 403);
-  const { admin } = ctx;
+  const { admin, actorId } = ctx;
   const historyFor = req.nextUrl.searchParams.get("historyFor");
   if (historyFor !== null) {
     if (!uuid.test(historyFor)) return jsonError("Invalid account ID.");
@@ -51,14 +51,23 @@ export async function GET(req: NextRequest) {
       .eq("entity_type", "profile").eq("entity_id", historyFor)
       .order("created_at", { ascending: false }).limit(25);
     if (error) return jsonError("Unable to load account access history.", 500);
-    return NextResponse.json({ history: data || [] }, { headers: { "Cache-Control": "no-store" } });
+    const { data: authRecord } = await admin.auth.admin.getUserById(historyFor);
+    return NextResponse.json({
+      history: data || [],
+      authDetails: authRecord?.user ? {
+        email: authRecord.user.email || null,
+        last_sign_in_at: authRecord.user.last_sign_in_at || null,
+        email_confirmed_at: authRecord.user.email_confirmed_at || null,
+        providers: authRecord.user.app_metadata?.providers || [],
+      } : null,
+    }, { headers: { "Cache-Control": "private, no-store" } });
   }
   try {
     const [
       profiles, organizations, teams, orgMembers, orgRoles, teamRoles,
       teamMembers, platformRoles, globalRoles, pendingRequests, parentLinks,
     ] = await Promise.all([
-      allRows(() => admin.from("profiles").select("id,full_name,email,app_role,created_at,profile_completed_at,advisor_account_type,commercial_status").order("id")),
+      allRows(() => admin.from("profiles").select("id,full_name,email,app_role,created_at,profile_completed_at,advisor_account_type,commercial_status,account_status,suspended_at,suspension_reason").order("id")),
       allRows(() => admin.from("organizations").select("id,name,branch_name").order("id")),
       allRows(() => admin.from("teams").select("id,name,organization_id,archived_at").order("id")),
       allRows(() => admin.from("organization_members").select("id,user_id,organization_id,role,status").order("id")),
@@ -153,6 +162,7 @@ export async function GET(req: NextRequest) {
       account.pending_requests.sort((a: any, b: any) => b.requested_at.localeCompare(a.requested_at));
     }
     return NextResponse.json({
+      viewerId: actorId,
       accounts: [...accountById.values()],
       organizations: organizations.map((o: any) => ({ id: o.id, name: o.name + (o.branch_name ? " · " + o.branch_name : "") })),
       teams: teams.map((t: any) => ({ id: t.id, name: t.name, organization_id: t.organization_id, archived: Boolean(t.archived_at) })),

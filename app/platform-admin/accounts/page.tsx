@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, ArrowUpDown, Building2, Clock3, FilterX,
   Search, ShieldCheck, Users, X, RefreshCw, UserRoundCog, Mail, ChevronLeft, ChevronRight,
+  Ban, RotateCcw, Trash2, ShieldAlert, AlertTriangle,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
@@ -15,6 +16,7 @@ type PendingRequest = { id: string; role: string; status: string; organization_i
 type Account = {
   id: string; full_name: string | null; email: string | null; app_role: string;
   created_at: string | null; profile_completed_at: string | null;
+  account_status: "active" | "suspended"; suspended_at: string | null; suspension_reason: string | null;
   advisor_account_type: string | null; commercial_status: string | null;
   organizations: OrgAccess[]; teams: TeamAccess[]; platform_roles: string[];
   global_roles: string[]; pending_requests: PendingRequest[];
@@ -23,6 +25,8 @@ type Account = {
 type OrgOption = { id: string; name: string };
 type TeamOption = { id: string; name: string; organization_id: string; archived: boolean };
 type HistoryItem = { id: string; action: string; created_at: string; metadata: Record<string, any> | null };
+type AuthDetails = { email: string | null; last_sign_in_at: string | null; email_confirmed_at: string | null; providers: string[] };
+type LifecycleAction = "suspend" | "restore" | "delete";
 const pageSize = 25;
 const roleNames: Record<string, string> = {
   athlete: "Athlete", parent: "Parent / Guardian", advisor: "Advisor / Coach",
@@ -63,11 +67,19 @@ export default function PlatformAccountsPage() {
   const [orgFilter, setOrgFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
   const [commercialFilter, setCommercialFilter] = useState("all");
   const [sort, setSort] = useState("name_asc");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [authDetails, setAuthDetails] = useState<AuthDetails | null>(null);
+  const [viewerId, setViewerId] = useState("");
+  const [notice, setNotice] = useState("");
+  const [confirmAction, setConfirmAction] = useState<LifecycleAction | null>(null);
+  const [confirmIdentity, setConfirmIdentity] = useState("");
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
+  const [lifecycleReason, setLifecycleReason] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chosenOrgId, setChosenOrgId] = useState("");
   const [chosenTeamId, setChosenTeamId] = useState("");
@@ -87,6 +99,7 @@ export default function PlatformAccountsPage() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Unable to load accounts.");
       setAccounts(d.accounts || []);
+      setViewerId(d.viewerId || "");
       setOrganizations(d.organizations || []);
       setTeams(d.teams || []);
     } catch (e) {
@@ -104,8 +117,8 @@ export default function PlatformAccountsPage() {
     setHistoryLoading(true);
     fetch("/api/platform/accounts?historyFor=" + encodeURIComponent(selectedId), { cache: "no-store" })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "History unavailable."); return d; })
-      .then(d => { if (active) setHistory(d.history || []); })
-      .catch(() => { if (active) setHistory([]); })
+      .then(d => { if (active) { setHistory(d.history || []); setAuthDetails(d.authDetails || null); } })
+      .catch(() => { if (active) { setHistory([]); setAuthDetails(null); } })
       .finally(() => { if (active) setHistoryLoading(false); });
     return () => { active = false; };
   }, [selectedId]);
@@ -135,6 +148,7 @@ export default function PlatformAccountsPage() {
       if (statusFilter === "complete" && !a.profile_completed_at) return false;
       if (statusFilter === "incomplete" && a.profile_completed_at) return false;
       if (statusFilter === "pending" && !a.pending_requests.length) return false;
+      if (accountFilter !== "all" && a.account_status !== accountFilter) return false;
       if (commercialFilter !== "all" && (a.commercial_status || "none") !== commercialFilter) return false;
       return true;
     });
@@ -155,18 +169,18 @@ export default function PlatformAccountsPage() {
       }
     });
     return rows;
-  }, [accounts, search, role, orgFilter, teamFilter, statusFilter, commercialFilter, sort]);
+  }, [accounts, search, role, orgFilter, teamFilter, statusFilter, accountFilter, commercialFilter, sort]);
 
-  useEffect(() => { setPage(1); }, [search, role, orgFilter, teamFilter, statusFilter, commercialFilter, sort]);
+  useEffect(() => { setPage(1); }, [search, role, orgFilter, teamFilter, statusFilter, accountFilter, commercialFilter, sort]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((Math.min(page, totalPages) - 1) * pageSize, Math.min(page, totalPages) * pageSize);
-  const isFiltered = Boolean(search || role !== "all" || orgFilter !== "all" || teamFilter !== "all" || statusFilter !== "all" || commercialFilter !== "all");
+  const isFiltered = Boolean(search || role !== "all" || orgFilter !== "all" || teamFilter !== "all" || statusFilter !== "all" || accountFilter !== "all" || commercialFilter !== "all");
   const independentCount = accounts.filter(a => !a.organizations.length).length;
   const pendingCount = accounts.filter(a => a.pending_requests.length).length;
 
   function resetFilters() {
     setSearch(""); setRole("all"); setOrgFilter("all"); setTeamFilter("all");
-    setStatusFilter("all"); setCommercialFilter("all"); setSort("name_asc");
+    setStatusFilter("all"); setAccountFilter("all"); setCommercialFilter("all"); setSort("name_asc");
   }
   function chooseOrg(id: string, account: Account | null = selected) {
     setChosenOrgId(id);
@@ -182,6 +196,8 @@ export default function PlatformAccountsPage() {
   function openAccount(account: Account) {
     setSelectedId(account.id);
     setHistory([]);
+    setAuthDetails(null);
+    setConfirmAction(null);
     setActionMessage("");
     setActionError("");
     chooseOrg(account.organizations[0]?.id || organizations[0]?.id || "", account);
@@ -232,7 +248,65 @@ export default function PlatformAccountsPage() {
     void updateAccess({ action: "setTeamStaffRole", teamId: chosenTeamId, role: teamRole, enabled: teamEnabled }, "Team access saved.");
   }
 
+  function openLifecycle(action: LifecycleAction) {
+    setConfirmAction(action);
+    setConfirmIdentity("");
+    setConfirmDeleteText("");
+    setLifecycleReason("");
+    setActionError("");
+    setActionMessage("");
+  }
+  async function runLifecycle() {
+    if (!selected || !confirmAction || protectedAccount) return;
+    const action = confirmAction;
+    if (action === "delete" && (
+      confirmDeleteText !== "DELETE" ||
+      confirmIdentity.trim().toLowerCase() !== deleteIdentity.trim().toLowerCase()
+    )) return;
+    setSaving(true); setActionError(""); setActionMessage(""); setNotice("");
+    try {
+      const response = await fetch("/api/platform/accounts/lifecycle", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action, userId: selected.id, reason: lifecycleReason.trim(),
+          ...(action === "delete" ? { confirmText: confirmDeleteText, confirmIdentity: confirmIdentity.trim() } : {}),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Account action failed.");
+      const refresh = await fetch("/api/platform/accounts", { cache: "no-store" });
+      const refreshed = await refresh.json();
+      if (!refresh.ok) throw new Error(refreshed.error || "Action completed but the account list could not refresh.");
+      setAccounts(refreshed.accounts || []);
+      setOrganizations(refreshed.organizations || []);
+      setTeams(refreshed.teams || []);
+      setViewerId(refreshed.viewerId || "");
+      setConfirmAction(null);
+      if (action === "delete") {
+        setSelectedId("");
+        setNotice("Account permanently deleted. Its sign-in credentials and associated user records have been removed.");
+      } else {
+        setActionMessage(action === "suspend"
+          ? "Account suspended. Sign-in is blocked and recruiting data is preserved."
+          : "Account restored. Sign-in and application access are enabled.");
+        const historyResponse = await fetch("/api/platform/accounts?historyFor=" + encodeURIComponent(selected.id), { cache: "no-store" });
+        if (historyResponse.ok) {
+          const detail = await historyResponse.json();
+          setHistory(detail.history || []);
+          setAuthDetails(detail.authDetails || null);
+        }
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Account action failed.");
+      setConfirmAction(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const staffEditable = selected && ["advisor", "admin"].includes(selected.app_role);
+  const protectedAccount = Boolean(selected && (selected.id === viewerId || selected.platform_roles.includes("super_owner")));
+  const deleteIdentity = authDetails?.email || selected?.email || selected?.id || "";
   const accountOrg = selected?.organizations.find(o => o.id === chosenOrgId);
   const accountTeam = selected?.teams.find(t => t.id === chosenTeamId);
 
@@ -245,6 +319,7 @@ export default function PlatformAccountsPage() {
         action={<Link href="/platform-admin" className="btn"><ArrowLeft size={16}/>Platform Admin</Link>}
       />
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {notice && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-800">{notice}</div>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<Users size={18}/>} label="Total accounts" value={accounts.length}/>
         <Stat icon={<Building2 size={18}/>} label="Organization-affiliated" value={accounts.length - independentCount}/>
@@ -293,6 +368,12 @@ export default function PlatformAccountsPage() {
               <option value="incomplete">Incomplete</option><option value="pending">Pending access request</option>
             </select>
           </Field>
+          <Field label="Account status">
+            <select className="input w-full" value={accountFilter} onChange={e => setAccountFilter(e.target.value)}>
+              <option value="all">All accounts</option><option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </Field>
           <Field label="Commercial status">
             <select className="input w-full" value={commercialFilter} onChange={e => setCommercialFilter(e.target.value)}>
               <option value="all">All commercial statuses</option>
@@ -324,9 +405,9 @@ export default function PlatformAccountsPage() {
         {loading ? <div className="p-8 text-center text-sm text-slate-500">Loading accounts…</div> :
           !filtered.length ? <div className="p-10 text-center"><div className="font-bold">No accounts match these filters.</div><button className="btn mt-4" onClick={resetFilters}>Reset filters</button></div> :
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full min-w-[940px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr><th className="px-5 py-3">Account</th><th className="px-4 py-3">Account type / roles</th><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Team</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3 text-right">Details</th></tr>
+                <tr><th className="px-5 py-3">Account</th><th className="px-4 py-3">Account type / roles</th><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Team</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3 text-right">Details</th></tr>
               </thead>
               <tbody className="divide-y">
                 {visible.map(a => <tr key={a.id} className="hover:bg-slate-50/80">
@@ -334,7 +415,8 @@ export default function PlatformAccountsPage() {
                   <td className="px-4 py-4"><div><Badge tone={a.app_role === "admin" ? "red" : "neutral"}>{roleName(a.app_role)}</Badge></div><div className="mt-1 flex max-w-52 flex-wrap gap-1">{a.platform_roles.includes("super_owner") && <Badge tone="red">Super Owner</Badge>}{a.organizations.some(o => o.roles.includes("admin")) && <Badge>Org Admin</Badge>}{a.teams.some(t => t.roles.includes("admin")) && <Badge>Team Admin</Badge>}{a.organizations.some(o => o.roles.includes("advisor")) && <Badge>Advisor</Badge>}</div></td>
                   <td className="px-4 py-4"><div className="max-w-48 font-medium">{firstOrg(a)}</div>{a.organizations.length > 1 && <div className="text-xs text-slate-500">+{a.organizations.length - 1} more</div>}</td>
                   <td className="px-4 py-4"><div className="max-w-48">{firstTeam(a)}</div>{a.teams.length > 1 && <div className="text-xs text-slate-500">+{a.teams.length - 1} more</div>}</td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{dateLabel(a.created_at)}</td>
+                  <td className="px-4 py-4"><Badge tone={a.account_status === "suspended" ? "amber" : "green"}>{a.account_status === "suspended" ? "Suspended" : "Active"}</Badge></td>
+                   <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{dateLabel(a.created_at)}</td>
                   <td className="px-4 py-4 text-right"><button className="btn whitespace-nowrap text-xs" onClick={() => openAccount(a)}>View account</button></td>
                 </tr>)}
               </tbody>
@@ -362,12 +444,34 @@ export default function PlatformAccountsPage() {
           {actionMessage && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-700">{actionMessage}</div>}
           <div className="grid grid-cols-2 gap-3">
             <Detail label="Account type"><Badge>{roleName(selected.app_role)}</Badge></Detail>
+            <Detail label="Account status"><Badge tone={selected.account_status === "suspended" ? "amber" : "green"}>{selected.account_status === "suspended" ? "Suspended" : "Active"}</Badge></Detail>
             <Detail label="Profile"><Badge tone={selected.profile_completed_at ? "green" : "amber"}>{selected.profile_completed_at ? "Complete" : "Incomplete"}</Badge></Detail>
             <Detail label="Joined">{dateLabel(selected.created_at)}</Detail>
+            <Detail label="Last sign-in">{authDetails?.last_sign_in_at ? dateLabel(authDetails.last_sign_in_at) : "Unknown"}</Detail>
+            {authDetails?.email && authDetails.email.toLowerCase() !== (selected.email || "").toLowerCase() &&
+              <Detail label="Authentication email">{authDetails.email}</Detail>}
+            <Detail label="Email verified">{authDetails ? (authDetails.email_confirmed_at ? "Yes" : "No") : "Unknown"}</Detail>
+            {authDetails?.providers?.length ? <Detail label="Sign-in method">{authDetails.providers.join(", ")}</Detail> : null}
             <Detail label="Commercial status">{selected.commercial_status?.replaceAll("_", " ") || "Not specified"}</Detail>
             {selected.advisor_account_type && <Detail label="Advisor type">{selected.advisor_account_type.replaceAll("_", " ")}</Detail>}
             {selected.platform_roles.length > 0 && <Detail label="Platform access"><Badge tone="red">{selected.platform_roles.map(roleName).join(", ")}</Badge></Detail>}
           </div>
+          <section className="rounded-2xl border border-slate-300 p-4">
+            <div className="flex items-center gap-2"><ShieldAlert size={18}/><h3 className="font-black">Manage account</h3></div>
+            <p className="mt-2 text-xs text-slate-600">Platform-wide controls. Suspending preserves recruiting data but blocks account access. Deletion is permanent.</p>
+            {selected.account_status === "suspended" && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+              <div className="font-bold text-amber-900">Account suspended {selected.suspended_at ? "on " + dateLabel(selected.suspended_at) : ""}</div>
+              {selected.suspension_reason && <div className="mt-1 text-amber-800">Reason: {selected.suspension_reason}</div>}
+            </div>}
+            {protectedAccount ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm font-semibold text-slate-600">
+              {selected.id === viewerId ? "You cannot suspend or delete your own account." : "Super Owner accounts are protected from suspension and deletion."}
+            </p> : <div className="mt-4 flex flex-wrap gap-2">
+              {selected.account_status === "suspended"
+                ? <button type="button" className="btn btn-red" disabled={saving} onClick={() => openLifecycle("restore")}><RotateCcw size={16}/>Restore account</button>
+                : <button type="button" className="btn" disabled={saving} onClick={() => openLifecycle("suspend")}><Ban size={16}/>Suspend account</button>}
+              <button type="button" className="btn border-red-200 text-red-700 hover:bg-red-50" disabled={saving} onClick={() => openLifecycle("delete")}><Trash2 size={16}/>Delete account</button>
+            </div>}
+          </section>
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Organization access</h3>
             {selected.organizations.length ? <div className="mt-3 space-y-3">{selected.organizations.map(o => <div key={o.id} className="rounded-xl bg-slate-50 p-3"><div className="font-semibold">{o.name}</div><div className="mt-2 flex flex-wrap gap-1">{o.roles.map(r => <Badge key={r}>{roleName(r)}</Badge>)}{!o.roles.length && <Badge>Membership through team</Badge>}</div>{o.grants.length > 0 && <div className="mt-2 text-xs text-slate-500">Organization-wide grants: {o.grants.map(roleName).join(", ")}</div>}</div>)}</div> : <p className="mt-2 text-sm text-slate-500">Independent. No active organization affiliation.</p>}
@@ -419,7 +523,7 @@ export default function PlatformAccountsPage() {
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Access history</h3>
             <p className="mt-1 text-xs text-slate-500">Recent changes made through the Platform Account Directory. Other historical actions may be recorded elsewhere.</p>
-            {historyLoading ? <p className="mt-3 text-sm text-slate-500">Loading history…</p> : history.length ? <div className="mt-3 divide-y">{history.map(h => <div key={h.id} className="py-3 text-sm"><div className="font-semibold">Platform access updated</div><div className="mt-1 text-xs text-slate-600">{h.metadata?.scope === "team" ? "Team role: " + roleName(h.metadata?.role || "") + (h.metadata?.enabled ? " enabled" : " revoked") : "Organization roles updated"}</div><div className="mt-1 text-xs text-slate-400">{dateLabel(h.created_at)}</div></div>)}</div> : <p className="mt-3 text-sm text-slate-500">No account-directory access changes recorded yet.</p>}
+            {historyLoading ? <p className="mt-3 text-sm text-slate-500">Loading history…</p> : history.length ? <div className="mt-3 divide-y">{history.map(h => <div key={h.id} className="py-3 text-sm"><div className="font-semibold">{h.action === "platform_account_suspended" ? "Account suspended" : h.action === "platform_account_restored" ? "Account restored" : h.action === "platform_account_deleted" ? "Account deleted" : "Platform access updated"}</div><div className="mt-1 text-xs text-slate-600">{h.action === "platform_account_suspended" ? (h.metadata?.reason || "Administrative suspension") : h.action === "platform_account_restored" ? "Sign-in access restored" : h.metadata?.scope === "team" ? "Team role: " + roleName(h.metadata?.role || "") + (h.metadata?.enabled ? " enabled" : " revoked") : "Organization roles updated"}</div><div className="mt-1 text-xs text-slate-400">{dateLabel(h.created_at)}</div></div>)}</div> : <p className="mt-3 text-sm text-slate-500">No account-directory access changes recorded yet.</p>}
           </section>
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Legacy global role flags</h3>
@@ -429,6 +533,43 @@ export default function PlatformAccountsPage() {
         </div>
         <div className="flex justify-end border-t bg-white px-5 py-4"><button className="btn" disabled={saving} onClick={() => setSelectedId("")}>Close</button></div>
       </aside>
+    </div>}
+    {selected && confirmAction && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
+      <div role="alertdialog" aria-modal="true" aria-label={confirmAction === "delete" ? "Confirm permanent account deletion" : "Confirm account status change"} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="flex items-center gap-2 text-slate-950">
+          <AlertTriangle className={confirmAction === "delete" ? "text-red-600" : "text-amber-600"} size={22}/>
+          <h2 className="text-xl font-black">{confirmAction === "delete" ? "Permanently delete account?" : confirmAction === "suspend" ? "Suspend this account?" : "Restore this account?"}</h2>
+        </div>
+        <p className="mt-3 break-words text-sm font-semibold text-slate-900">{nameOf(selected)} · {selected.email || selected.id}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {confirmAction === "delete"
+            ? "This permanently deletes the sign-in account and can erase linked recruiting information, team relationships, messages, and other user-owned records. It cannot be undone. Deletion may be blocked when shared records require a transfer."
+            : confirmAction === "suspend"
+              ? "The account will no longer be able to sign in or access the application. Existing recruiting information and relationships will be preserved."
+              : "The account will be allowed to sign in and access its existing recruiting information again."}
+        </p>
+        {confirmAction !== "restore" && <label className="mt-4 block">
+          <span className="text-xs font-bold text-slate-700">Reason (optional)</span>
+          <textarea className="input mt-1 w-full" rows={2} maxLength={500} value={lifecycleReason} onChange={e => setLifecycleReason(e.target.value)} placeholder="Reason for this action"/>
+        </label>}
+        {confirmAction === "delete" && <div className="mt-4 space-y-3 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="text-sm font-bold text-red-900">Permanent deletion cannot be restored.</div>
+          <label className="block text-xs font-bold text-slate-800">Type the exact email (or account ID) to confirm
+            <input className="input mt-1 w-full bg-white" autoComplete="off" spellCheck={false} value={confirmIdentity} onChange={e => setConfirmIdentity(e.target.value)} placeholder={deleteIdentity}/>
+          </label>
+          <label className="block text-xs font-bold text-slate-800">Type DELETE
+            <input className="input mt-1 w-full bg-white" autoComplete="off" spellCheck={false} value={confirmDeleteText} onChange={e => setConfirmDeleteText(e.target.value)} placeholder="DELETE"/>
+          </label>
+        </div>}
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn" disabled={saving} onClick={() => setConfirmAction(null)}>Cancel</button>
+          <button type="button" className={confirmAction === "restore" ? "btn btn-red" : "btn border-red-600 bg-red-600 text-white hover:bg-red-700"}
+            disabled={saving || (confirmAction === "delete" && (confirmDeleteText !== "DELETE" || confirmIdentity.trim().toLowerCase() !== deleteIdentity.trim().toLowerCase()))}
+            onClick={() => void runLifecycle()}>
+            {saving ? "Processing…" : confirmAction === "delete" ? "Permanently delete" : confirmAction === "suspend" ? "Suspend account" : "Restore account"}
+          </button>
+        </div>
+      </div>
     </div>}
   </AppShell>;
 }

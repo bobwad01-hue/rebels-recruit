@@ -24,7 +24,9 @@ export default function Login() {
     setResetMessage('');
     const c = createClient();
     const { data: { user }, error } = await c.auth.signInWithPassword({ email, password });
-    if (error) setError(error.message);
+    if (error) setError(/bann?ed|suspend/i.test(error.message)
+      ? 'This account is suspended. Contact RLTNL support if you believe this is a mistake.'
+      : error.message);
     else if (!user) setError('Unable to sign in. Please try again.');
     else {
       const [{data:accepted,error:acceptError},{ data: profile },{data:platformRole}] = await Promise.all([
