@@ -104,6 +104,12 @@ async function grant(admin: any, request: any, reviewerId: string) {
     for (const teamId of team_ids) {
       const { error } = await admin.from("team_members").upsert({ team_id: teamId, user_id }, { onConflict: "team_id,user_id" });
       if (error) throw error;
+      // Keep the legacy team role table in sync for existing team-based views.
+      const { error: roleError } = await admin.from("team_user_roles").upsert({
+        team_id: teamId, user_id, role: "athlete", status: "active",
+        granted_by: reviewerId, revoked_at: null,
+      }, { onConflict: "team_id,user_id,role" });
+      if (roleError) throw roleError;
     }
   }
   if (role === "athlete" && team_ids.length) {
