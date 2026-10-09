@@ -44,5 +44,5 @@ export async function calendarEventAccess(ctx:CalendarContext,eventId:string){
  const {data:entries}=await db.from('calendar_subscription_events').select('subscription_id,organization_id').eq('event_id',eventId).limit(30);
  if(!entries?.length)return null;
  const {data:subs}=await db.from('calendar_subscriptions').select('id,organization_id,team_id,enabled').in('id',entries.map((x:any)=>x.subscription_id));
- return (subs||[]).find((s:any)=>s.enabled&&canSeeCalendar(ctx,s.organization_id,s.team_id))||null;
+ return (subs||[]).filter((s:any)=>s.enabled&&canSeeCalendar(ctx,s.organization_id,s.team_id)).sort((a:any,b:any)=>Number(Boolean(a.team_id))-Number(Boolean(b.team_id)))[0]||null;
 }
