@@ -6,6 +6,17 @@ export function normalizeEventUrl(value?:string|null){const raw=trimPunctuation(
 
 export function extractEventUrl(...values:(string|null|undefined)[]){for(const value of values){if(!value)continue;DOMAIN_RE.lastIndex=0;const match=DOMAIN_RE.exec(String(value));if(match?.[0])return normalizeEventUrl(match[0])}return null}
 
-export function cleanEventText(value?:string|null){if(!value)return '';DOMAIN_RE.lastIndex=0;let text=String(value).replace(DOMAIN_RE,'');text=text.split('\n').map(line=>line.replace(/\s{2,}/g,' ').replace(/^\s*(?:registration|register|event info|info|website|link)\s*[:\-]?\s*$/i,'').trimEnd()).filter(line=>line.trim()).join('\n');return text.replace(/[ \t]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim()}
+function plainEventDescription(value:string){
+ // Google calendar descriptions can contain HTML. Render as plain text, never raw HTML.
+ const named:Record<string,string>={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' ',ndash:'–',mdash:'—',bull:'•',rsquo:'’',lsquo:'‘',ldquo:'“',rdquo:'”'};
+ const decode=(v:string)=>v.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi,(match,entity:string)=>{
+  if(entity.startsWith('#')){const code=entity[1]?.toLowerCase()==='x'?parseInt(entity.slice(2),16):parseInt(entity.slice(1),10);return Number.isInteger(code)&&code>0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):match}
+  return named[entity.toLowerCase()]??match;
+ });
+ const withBreaks=value.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<\/(?:p|div|li|ul|ol|h[1-6]|tr)>/gi,'\n').replace(/<(?:p|div|li|ul|ol|h[1-6]|tr)(?:\s[^>]*)?>/gi,'\n').replace(/<li(?:\s[^>]*)?>/gi,'\n• ').replace(/<[^>]+>/g,'');
+ return decode(withBreaks).replace(/\r\n?/g,'\n').replace(/\u00a0/g,' ');
+}
+
+export function cleanEventText(value?:string|null){if(!value)return '';DOMAIN_RE.lastIndex=0;let text=plainEventDescription(String(value)).replace(DOMAIN_RE,'');text=text.split('\n').map(line=>line.replace(/\s{2,}/g,' ').replace(/^\s*(?:registration|register|event info|info|website|link|official registration)\s*[:\-]?\s*$/i,'').trimEnd()).filter(line=>line.trim()).join('\n');return text.replace(/[ \t]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim()}
 
 export function eventInfoUrl(event:any){return extractEventUrl(event?.registration_url,event?.infoUrl,event?.description,event?.url_text)}
