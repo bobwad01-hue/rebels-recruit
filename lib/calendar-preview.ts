@@ -1,10 +1,11 @@
 import {NextRequest} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
-import {calendarContext} from '@/lib/calendar-subscriptions';
+import {calendarContext,type CalendarContext} from '@/lib/calendar-subscriptions';
 
 // Super Owner role previews use the target athlete's team memberships, never the owner's broad access.
-export async function previewCalendarContext(req:NextRequest,ctx:Awaited<ReturnType<typeof calendarContext>>){
+export type CalendarPreviewResult={ctx:CalendarContext;error?:never}|{error:string;ctx?:never};
+export async function previewCalendarContext(req:NextRequest,ctx:CalendarContext):Promise<CalendarPreviewResult>{
  const role=req.nextUrl.searchParams.get('previewRole');
  if(!role)return {ctx};
  if(!['athlete','parent','advisor','admin'].includes(role))return {error:'Invalid preview role.'};
