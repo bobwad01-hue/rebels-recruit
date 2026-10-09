@@ -49,7 +49,7 @@ export function parsePublicIcs(source:string,organizationId:string,now=new Date(
  function store(e:RawEvent,instance:string){if(e.status==='CANCELLED'||!e.uid||!instance||instance<lower||instance>upper)return;
   const key=e.uid+'|'+instance,hash=createHash('sha256').update(key).digest('hex').slice(0,32);
   // Keep original Google API event IDs for single events so existing Going/Not Going history survives OAuth removal.
-  const googleUid=e.uid.match(/^([a-z0-9]+)@google\\.com$/i),stableId=googleUid&&!e.rule&&!e.recurrenceId?googleUid[1]:hash;
+  const googleUid=e.uid.match(/^([a-z0-9]+)@google\.com$/i),stableId=googleUid&&!e.rule&&!e.recurrenceId?googleUid[1]:hash;
   const url=/^https?:\/\//i.test(e.url)?e.url:null;
   const duration=e.end&&e.start?Math.max(0,daysBetween(day(e.start),day(e.end))):0;
   result.set(key,{eventKey:key,eventId:`google:${organizationId}:${stableId}`,name:e.name,date:instance,end_date:duration?add(instance,duration):null,location:e.location||null,description:e.description||null,registration_url:url});}
