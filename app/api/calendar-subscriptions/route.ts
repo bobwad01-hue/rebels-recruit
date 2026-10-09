@@ -4,6 +4,7 @@ import {createAdminClient} from '@/lib/supabase-admin';
 import {calendarContext,canManageCalendar,canSeeCalendar,syncCalendarSubscription} from '@/lib/calendar-subscriptions';
 import {normalizePublicGoogleIcs} from '@/lib/calendar-ics';
 export const dynamic='force-dynamic';
+export const maxDuration=60;
 async function authorize(){const client=await createClient();const {data:{user}}=await client.auth.getUser();if(!user)return null;return await calendarContext(user.id)}
 async function teamsInOrg(db:any,org:string){const {data}=await db.from('teams').select('id,name,organization_id').eq('organization_id',org).is('archived_at',null).order('name');return data||[]}
 function fail(message:string,status=400){return NextResponse.json({error:message},{status})}
@@ -22,6 +23,8 @@ export async function GET(req:NextRequest){
  }
  const active=visible.filter((s:any)=>s.enabled);
  if(!active.length)return NextResponse.json({events:[]});
+ // Seeded or newly connected feeds are loaded on first view; failures are not retried on every page load.
+ for(const sub of active.filter((s:any)=>!s.last_synced_at&&!s.last_error).slice(0,3))await syncCalendarSubscription(sub);
  const ids=active.map((s:any)=>s.id);
  const {data:entries,error:entryError}=await db.from('calendar_subscription_events').select('*').in('subscription_id',ids).gte('date',new Date(Date.now()-120*86400000).toISOString().slice(0,10)).order('date').limit(5000);
  if(entryError)return fail('Subscribed events could not be loaded.',500);
