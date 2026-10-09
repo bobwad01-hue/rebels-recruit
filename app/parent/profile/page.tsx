@@ -90,7 +90,7 @@ export default function ParentProfile() {
     else {
       setMsg("Profile saved.");
       if (isOnboarding) {
-        location.href = "/parent";
+        location.href = "/access-requests";
         return;
       }
     }

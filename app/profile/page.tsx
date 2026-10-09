@@ -196,7 +196,7 @@ export default function Profile() {
     }
     if (user?.id) window.localStorage.removeItem(`rr-profile-draft:${user.id}`);
     setMsg("Profile saved.");
-    if (isOnboarding) location.href = "/onboarding";
+    if (isOnboarding) location.href = "/access-requests";
   }
 
   return (

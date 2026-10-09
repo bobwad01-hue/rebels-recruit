@@ -98,7 +98,7 @@ export default function AdvisorProfile() {
           : "Profile saved.",
       );
       if (isOnboarding) {
-        location.href = "/advisors";
+        location.href = "/access-requests";
         return;
       }
     }
