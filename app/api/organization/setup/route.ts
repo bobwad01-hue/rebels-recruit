@@ -226,9 +226,13 @@ export async function POST(req: NextRequest) {
         ]),
       ];
       for(const linkScope of scopes){
-        const {data:existing,error:lookupError}=await admin.from("organization_join_links")
+        let existingQuery=admin.from("organization_join_links")
           .select("id,requires_approval,signup_code").eq("organization_id",organizationId)
-          .eq("role",linkScope.role).eq("active",true).is("team_id",linkScope.teamId).maybeSingle();
+          .eq("role",linkScope.role).eq("active",true);
+        existingQuery=linkScope.teamId
+          ?existingQuery.eq("team_id",linkScope.teamId)
+          :existingQuery.is("team_id",null);
+        const {data:existing,error:lookupError}=await existingQuery.maybeSingle();
         if(lookupError)throw new Error(lookupError.message);
         if(!existing){
           const {error:insertError}=await admin.from("organization_join_links").insert({
