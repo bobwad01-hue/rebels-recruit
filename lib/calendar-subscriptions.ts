@@ -30,6 +30,13 @@ export async function syncCalendarSubscription(subscription:any){
  const db=createAdminClient(),id=String(subscription.id),org=String(subscription.organization_id);
  try{
   const parsed=await fetchPublicIcs(subscription.feed_url,org);
+  // Reattach historical RSVP records from the removed OAuth integration using unambiguous name/date matches.
+  const {data:history}=await db.from('audit_log').select('metadata').eq('organization_id',org).eq('entity_type','organization_calendar_event_rsvp').order('created_at',{ascending:false}).limit(1000);
+  const key=(name:string,date:string)=>name.trim().toLowerCase().replace(/\\s+/g,' ')+'|'+date;
+  const legacy=new Map<string,Set<string>>(),matches=new Map<string,number>();
+  for(const row of history||[]){const m:any=row.metadata||{},name=String(m.event_name||''),date=String(m.event_date||''),id=String(m.event_id||'');if(!name||!date||!id.startsWith('google:'+org+':'))continue;const k=key(name,date);if(!legacy.has(k))legacy.set(k,new Set());legacy.get(k)!.add(id);}
+  for(const e of parsed){const k=key(e.name,e.date);matches.set(k,(matches.get(k)||0)+1);}
+  for(const e of parsed){const k=key(e.name,e.date),ids=legacy.get(k);if(ids?.size===1&&matches.get(k)===1)e.eventId=[...ids][0];}
   for(let i=0;i<parsed.length;i+=150){const rows=parsed.slice(i,i+150).map(e=>({...e,subscription_id:id,organization_id:org,updated_at:new Date().toISOString()}));const {error}=await db.from('calendar_subscription_events').upsert(rows,{onConflict:'subscription_id,event_key'});if(error)throw error;}
   const {data:previous,error:readError}=await db.from('calendar_subscription_events').select('id,event_key').eq('subscription_id',id);
   if(readError)throw readError;
