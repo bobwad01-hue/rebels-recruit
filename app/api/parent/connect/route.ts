@@ -25,9 +25,20 @@ export async function GET(req: NextRequest) {
   const user = await currentUser();
   if (!user) return fail("Please sign in.", 401);
   const teamId = req.nextUrl.searchParams.get("team") || "";
-  if (!uuid.test(teamId)) return fail("Choose a valid team.");
+  if (teamId && !uuid.test(teamId)) return fail("Choose a valid team.");
   const admin = createAdminClient();
   try {
+    if (!teamId) {
+      const { data: roles, error: roleError } = await admin.from("team_user_roles")
+        .select("team_id").eq("user_id", user.id).eq("role", "parent").eq("status", "active");
+      if (roleError) throw roleError;
+      const ids = [...new Set((roles || []).map((r: any) => String(r.team_id)))];
+      const { data: teams, error: teamError } = ids.length
+        ? await admin.from("teams").select("id,name,age_group").in("id", ids).is("archived_at", null)
+        : { data: [], error: null };
+      if (teamError) throw teamError;
+      return NextResponse.json({ teams: teams || [] });
+    }
     if (!(await hasParentTeamAccess(admin, teamId, user.id))) return fail("Parent access to this team is required.", 403);
     const { data: team, error: teamError } = await admin.from("teams")
       .select("id,name,age_group,organization_id").eq("id", teamId).maybeSingle();
