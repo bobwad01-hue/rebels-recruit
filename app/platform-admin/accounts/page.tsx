@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, ArrowUpDown, Building2, Clock3, FilterX,
   Search, ShieldCheck, Users, X, RefreshCw, UserRoundCog, Mail, ChevronLeft, ChevronRight,
+  Ban, RotateCcw, Trash2, ShieldAlert, AlertTriangle,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
@@ -15,6 +16,7 @@ type PendingRequest = { id: string; role: string; status: string; organization_i
 type Account = {
   id: string; full_name: string | null; email: string | null; app_role: string;
   created_at: string | null; profile_completed_at: string | null;
+  account_status: "active" | "suspended"; suspended_at: string | null; suspension_reason: string | null;
   advisor_account_type: string | null; commercial_status: string | null;
   organizations: OrgAccess[]; teams: TeamAccess[]; platform_roles: string[];
   global_roles: string[]; pending_requests: PendingRequest[];
@@ -23,6 +25,8 @@ type Account = {
 type OrgOption = { id: string; name: string };
 type TeamOption = { id: string; name: string; organization_id: string; archived: boolean };
 type HistoryItem = { id: string; action: string; created_at: string; metadata: Record<string, any> | null };
+type AuthDetails = { last_sign_in_at: string | null; email_confirmed_at: string | null; providers: string[] };
+type LifecycleAction = "suspend" | "restore" | "delete";
 const pageSize = 25;
 const roleNames: Record<string, string> = {
   athlete: "Athlete", parent: "Parent / Guardian", advisor: "Advisor / Coach",
@@ -63,11 +67,19 @@ export default function PlatformAccountsPage() {
   const [orgFilter, setOrgFilter] = useState("all");
   const [teamFilter, setTeamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
   const [commercialFilter, setCommercialFilter] = useState("all");
   const [sort, setSort] = useState("name_asc");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [authDetails, setAuthDetails] = useState<AuthDetails | null>(null);
+  const [viewerId, setViewerId] = useState("");
+  const [notice, setNotice] = useState("");
+  const [confirmAction, setConfirmAction] = useState<LifecycleAction | null>(null);
+  const [confirmIdentity, setConfirmIdentity] = useState("");
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
+  const [lifecycleReason, setLifecycleReason] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chosenOrgId, setChosenOrgId] = useState("");
   const [chosenTeamId, setChosenTeamId] = useState("");
@@ -87,6 +99,7 @@ export default function PlatformAccountsPage() {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Unable to load accounts.");
       setAccounts(d.accounts || []);
+      setViewerId(d.viewerId || "");
       setOrganizations(d.organizations || []);
       setTeams(d.teams || []);
     } catch (e) {
@@ -104,8 +117,8 @@ export default function PlatformAccountsPage() {
     setHistoryLoading(true);
     fetch("/api/platform/accounts?historyFor=" + encodeURIComponent(selectedId), { cache: "no-store" })
       .then(async r => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "History unavailable."); return d; })
-      .then(d => { if (active) setHistory(d.history || []); })
-      .catch(() => { if (active) setHistory([]); })
+      .then(d => { if (active) { setHistory(d.history || []); setAuthDetails(d.authDetails || null); } })
+      .catch(() => { if (active) { setHistory([]); setAuthDetails(null); } })
       .finally(() => { if (active) setHistoryLoading(false); });
     return () => { active = false; };
   }, [selectedId]);
@@ -135,6 +148,7 @@ export default function PlatformAccountsPage() {
       if (statusFilter === "complete" && !a.profile_completed_at) return false;
       if (statusFilter === "incomplete" && a.profile_completed_at) return false;
       if (statusFilter === "pending" && !a.pending_requests.length) return false;
+      if (accountFilter !== "all" && a.account_status !== accountFilter) return false;
       if (commercialFilter !== "all" && (a.commercial_status || "none") !== commercialFilter) return false;
       return true;
     });
@@ -155,18 +169,18 @@ export default function PlatformAccountsPage() {
       }
     });
     return rows;
-  }, [accounts, search, role, orgFilter, teamFilter, statusFilter, commercialFilter, sort]);
+  }, [accounts, search, role, orgFilter, teamFilter, statusFilter, accountFilter, commercialFilter, sort]);
 
-  useEffect(() => { setPage(1); }, [search, role, orgFilter, teamFilter, statusFilter, commercialFilter, sort]);
+  useEffect(() => { setPage(1); }, [search, role, orgFilter, teamFilter, statusFilter, accountFilter, commercialFilter, sort]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((Math.min(page, totalPages) - 1) * pageSize, Math.min(page, totalPages) * pageSize);
-  const isFiltered = Boolean(search || role !== "all" || orgFilter !== "all" || teamFilter !== "all" || statusFilter !== "all" || commercialFilter !== "all");
+  const isFiltered = Boolean(search || role !== "all" || orgFilter !== "all" || teamFilter !== "all" || statusFilter !== "all" || accountFilter !== "all" || commercialFilter !== "all");
   const independentCount = accounts.filter(a => !a.organizations.length).length;
   const pendingCount = accounts.filter(a => a.pending_requests.length).length;
 
   function resetFilters() {
     setSearch(""); setRole("all"); setOrgFilter("all"); setTeamFilter("all");
-    setStatusFilter("all"); setCommercialFilter("all"); setSort("name_asc");
+    setStatusFilter("all"); setAccountFilter("all"); setCommercialFilter("all"); setSort("name_asc");
   }
   function chooseOrg(id: string, account: Account | null = selected) {
     setChosenOrgId(id);
@@ -182,6 +196,8 @@ export default function PlatformAccountsPage() {
   function openAccount(account: Account) {
     setSelectedId(account.id);
     setHistory([]);
+    setAuthDetails(null);
+    setConfirmAction(null);
     setActionMessage("");
     setActionError("");
     chooseOrg(account.organizations[0]?.id || organizations[0]?.id || "", account);
@@ -233,6 +249,8 @@ export default function PlatformAccountsPage() {
   }
 
   const staffEditable = selected && ["advisor", "admin"].includes(selected.app_role);
+  const protectedAccount = Boolean(selected && (selected.id === viewerId || selected.platform_roles.includes("super_owner")));
+  const deleteIdentity = selected?.email || selected?.id || "";
   const accountOrg = selected?.organizations.find(o => o.id === chosenOrgId);
   const accountTeam = selected?.teams.find(t => t.id === chosenTeamId);
 
