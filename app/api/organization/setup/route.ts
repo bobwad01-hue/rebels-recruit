@@ -6,6 +6,12 @@ import { createAdminClient } from "@/lib/supabase-admin";
 function code() {
   return randomBytes(5).toString("hex").toUpperCase();
 }
+const FAMILY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function familySignupCode() {
+  const bytes = randomBytes(10);
+  const chars = Array.from(bytes, byte => FAMILY_ALPHABET[byte % FAMILY_ALPHABET.length]).join("");
+  return `${chars.slice(0, 4)}-${chars.slice(4, 8)}-${chars.slice(8)}`;
+}
 async function viewer() {
   const c = await createClient();
   const {
@@ -206,17 +212,46 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     if (action === "getJoinLinks") {
-      const {data:organization}=await admin.from("organizations").select("id,name,teams(id,name,age_group,archived_at)").eq("id",organizationId).single();
+      const {data:organization,error:orgError}=await admin.from("organizations").select("id,name,teams(id,name,age_group,archived_at)").eq("id",organizationId).single();
+      if(orgError)throw new Error(orgError.message);
       const visibleTeams=(organization?.teams||[]).filter((t:any)=>!t.archived_at&&(scope?.organization_admin!==false||scope?.team_ids?.includes(String(t.id))));
-      const scopes=[...(scope?.organization_admin===false?[]:[{role:"advisor",teamId:null,requiresApproval:false},{role:"admin",teamId:null,requiresApproval:false},{role:"advisor_admin",teamId:null,requiresApproval:false}]),...visibleTeams.flatMap((t:any)=>["admin","advisor","advisor_admin","athlete","parent"].map(role=>({role,teamId:t.id,requiresApproval:false})))];
-      for(const scope of scopes){
-        const {data:existing}=await admin.from("organization_join_links").select("id").eq("organization_id",organizationId).eq("role",scope.role).eq("active",true).is("team_id",scope.teamId).maybeSingle();
-        if(!existing)await admin.from("organization_join_links").insert({organization_id:organizationId,team_id:scope.teamId,role:scope.role,requires_approval:scope.requiresApproval,created_by:user.id});
+      // One family link per team. Advisor links remain separate and require Admin approval.
+      const scopes=visibleTeams.flatMap((t:any)=>[
+        {role:"family",teamId:t.id,requiresApproval:false},
+        {role:"advisor",teamId:t.id,requiresApproval:true},
+      ]);
+      for(const linkScope of scopes){
+        const {data:existing,error:lookupError}=await admin.from("organization_join_links")
+          .select("id,requires_approval,signup_code").eq("organization_id",organizationId)
+          .eq("role",linkScope.role).eq("active",true).is("team_id",linkScope.teamId).maybeSingle();
+        if(lookupError)throw new Error(lookupError.message);
+        if(!existing){
+          const {error:insertError}=await admin.from("organization_join_links").insert({
+            organization_id:organizationId,team_id:linkScope.teamId,role:linkScope.role,
+            requires_approval:linkScope.requiresApproval,created_by:user.id,
+            ...(linkScope.role==="family"?{signup_code:familySignupCode()}:{}),
+          });
+          if(insertError)throw new Error(insertError.message);
+        }else if(linkScope.role==="family"&&!existing.signup_code){
+          const {error:updateError}=await admin.from("organization_join_links")
+            .update({signup_code:familySignupCode()}).eq("id",existing.id);
+          if(updateError)throw new Error(updateError.message);
+        }else if(linkScope.role==="advisor"&&!existing.requires_approval){
+          const {error:updateError}=await admin.from("organization_join_links")
+            .update({requires_approval:true}).eq("id",existing.id);
+          if(updateError)throw new Error(updateError.message);
+        }
       }
-      const {data:links,error}=await admin.from("organization_join_links").select("id,team_id,role,token,requires_approval,active,created_at").eq("organization_id",organizationId).eq("active",true);
+      const ids=visibleTeams.map((t:any)=>t.id);
+      const {data:links,error}=ids.length?await admin.from("organization_join_links")
+        .select("id,team_id,role,token,signup_code,requires_approval,active,created_at")
+        .eq("organization_id",organizationId).eq("active",true).in("team_id",ids).in("role",["family","advisor"])
+        :{data:[],error:null};
       if(error)throw new Error(error.message);
       const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"https://www.rltnl.com").replace(/\/$/,"");
-      return NextResponse.json({ok:true,links:(links||[]).map((x:any)=>({...x,url:`${appUrl}/join/${x.token}`}))});
+      return NextResponse.json({ok:true,links:(links||[]).map((x:any)=>({
+        ...x,url:x.role==="family"?`${appUrl}/signup?join_token=${x.token}`:`${appUrl}/join/${x.token}`,
+      }))});
     }
     if(scope?.organization_admin===false&&!["getJoinLinks","manageUserRole","setTeamAccess"].includes(action))return NextResponse.json({error:"Organization Admin access is required for that action."},{status:403});
     if (action === "manageUserRole") {
