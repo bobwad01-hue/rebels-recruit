@@ -640,7 +640,7 @@ export default function CoachActionBar({
                     Email {coachName}
                   </h2>
                   <p className="muted text-sm mt-1">
-                    Use a Rebels starter, rewrite it, or write your own. You can
+                    Use a RLTNL email starter, rewrite it, or write your own. You can
                     also include other known coaches from this school.
                   </p>
                   {draftNotice && (
