@@ -58,9 +58,12 @@ export async function POST(req: NextRequest) {
     .select("app_role,profile_completed_at").eq("id", user.id).maybeSingle();
   if (profileError || !profile) return fail("Complete account registration before joining.", 403);
   const accountRole = String(profile.app_role || "");
+  // An existing Advisor/Coach can also be a parent on their single RLTNL account.
+  // Shared team links never grant Advisor/Admin privileges.
+  const familyRole = accountRole === "advisor" ? "parent" : accountRole;
   const isFamily = link.role === "family";
   const isStaff = staffRoles.includes(link.role);
-  if (isFamily && (!link.team_id || !familyRoles.includes(accountRole))) {
+  if (isFamily && (!link.team_id || !familyRoles.includes(familyRole))) {
     return fail("This team signup link is for Athlete and Parent/Guardian accounts only.", 403);
   }
   if (!isFamily && familyRoles.includes(link.role) && accountRole !== link.role) {
@@ -79,7 +82,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, pending: true });
   }
 
-  const role = isFamily ? accountRole : link.role;
+  const role = isFamily ? familyRole : link.role;
   if (!familyRoles.includes(role)) return fail("This invitation cannot grant that role.", 403);
   const { error: teamRoleError } = await admin.from("team_user_roles").upsert({
     team_id: link.team_id, user_id: user.id, role, status: "active",
