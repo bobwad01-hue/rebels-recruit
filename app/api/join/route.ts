@@ -29,5 +29,12 @@ export async function POST(req:NextRequest){
   if(member)await admin.from("organization_members").update({role:legacyRole,status:"active",organization_view_access:roles.includes("admin"),joined_at:new Date().toISOString()}).eq("id",member.id);
   else await admin.from("organization_members").insert({organization_id:link.organization_id,user_id:user.id,role:legacyRole,status:"active",organization_view_access:roles.includes("admin"),joined_at:new Date().toISOString()});
  }
- return NextResponse.json({ok:true,pending:false,role:link.role,teamId:link.team_id,organizationId:link.organization_id,next:link.role==="parent"&&link.team_id?`/parent/connect?team=${encodeURIComponent(link.team_id)}`:null});
+ let next: string | null = null;
+ if(link.role==="parent"&&link.team_id){
+  const connectPath=`/parent/connect?team=${encodeURIComponent(link.team_id)}`;
+  const{data:profile}=await admin.from("profiles").select("profile_completed_at").eq("id",user.id).maybeSingle();
+  // New parents complete their profile before selecting an athlete.
+  next=profile?.profile_completed_at?connectPath:`/parent/profile?next=${encodeURIComponent(connectPath)}`;
+ }
+ return NextResponse.json({ok:true,pending:false,role:link.role,teamId:link.team_id,organizationId:link.organization_id,next});
 }
