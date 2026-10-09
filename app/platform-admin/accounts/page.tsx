@@ -25,7 +25,7 @@ type Account = {
 type OrgOption = { id: string; name: string };
 type TeamOption = { id: string; name: string; organization_id: string; archived: boolean };
 type HistoryItem = { id: string; action: string; created_at: string; metadata: Record<string, any> | null };
-type AuthDetails = { last_sign_in_at: string | null; email_confirmed_at: string | null; providers: string[] };
+type AuthDetails = { email: string | null; last_sign_in_at: string | null; email_confirmed_at: string | null; providers: string[] };
 type LifecycleAction = "suspend" | "restore" | "delete";
 const pageSize = 25;
 const roleNames: Record<string, string> = {
@@ -306,7 +306,7 @@ export default function PlatformAccountsPage() {
 
   const staffEditable = selected && ["advisor", "admin"].includes(selected.app_role);
   const protectedAccount = Boolean(selected && (selected.id === viewerId || selected.platform_roles.includes("super_owner")));
-  const deleteIdentity = selected?.email || selected?.id || "";
+  const deleteIdentity = authDetails?.email || selected?.email || selected?.id || "";
   const accountOrg = selected?.organizations.find(o => o.id === chosenOrgId);
   const accountTeam = selected?.teams.find(t => t.id === chosenTeamId);
 
@@ -448,6 +448,8 @@ export default function PlatformAccountsPage() {
             <Detail label="Profile"><Badge tone={selected.profile_completed_at ? "green" : "amber"}>{selected.profile_completed_at ? "Complete" : "Incomplete"}</Badge></Detail>
             <Detail label="Joined">{dateLabel(selected.created_at)}</Detail>
             <Detail label="Last sign-in">{authDetails?.last_sign_in_at ? dateLabel(authDetails.last_sign_in_at) : "Unknown"}</Detail>
+            {authDetails?.email && authDetails.email.toLowerCase() !== (selected.email || "").toLowerCase() &&
+              <Detail label="Authentication email">{authDetails.email}</Detail>}
             <Detail label="Email verified">{authDetails ? (authDetails.email_confirmed_at ? "Yes" : "No") : "Unknown"}</Detail>
             {authDetails?.providers?.length ? <Detail label="Sign-in method">{authDetails.providers.join(", ")}</Detail> : null}
             <Detail label="Commercial status">{selected.commercial_status?.replaceAll("_", " ") || "Not specified"}</Detail>
@@ -533,7 +535,7 @@ export default function PlatformAccountsPage() {
       </aside>
     </div>}
     {selected && confirmAction && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
-      <div role="alertdialog" aria-modal="true" aria-label={confirmAction === "delete" ? "Confirm permanent account deletion" : "Confirm account status change"} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+      <div role="alertdialog" aria-modal="true" aria-label={confirmAction === "delete" ? "Confirm permanent account deletion" : "Confirm account status change"} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-center gap-2 text-slate-950">
           <AlertTriangle className={confirmAction === "delete" ? "text-red-600" : "text-amber-600"} size={22}/>
           <h2 className="text-xl font-black">{confirmAction === "delete" ? "Permanently delete account?" : confirmAction === "suspend" ? "Suspend this account?" : "Restore this account?"}</h2>
