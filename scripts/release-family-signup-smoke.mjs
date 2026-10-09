@@ -17,8 +17,8 @@ assert.match(migration, /requires_approval = true[\s\S]*role IN \('admin','advis
 assert.match(setup, /role:"family"/, "Admins generate one family link per team");
 assert.match(setup, /familySignupCode\(\)/, "Family links have human-readable codes");
 assert.match(setup, /signup\?join_token=/, "Team link opens signup directly");
-assert.match(join, /const role = isFamily \? accountRole : link\.role/, "Family role derives from authenticated account");
-assert.match(join, /!familyRoles\.includes\(accountRole\)/, "Staff accounts cannot join through family code");
+assert.match(join, /const role = isFamily \? familyRole : link\.role/, "Family role derives from authenticated account");
+assert.match(join, /const familyRole = accountRole === "advisor" \? "parent" : accountRole/, "An Advisor can also join as a parent without receiving staff privileges");
 assert.match(join, /isStaff \|\| link\.requires_approval/, "Staff links never auto-grant elevated roles");
 assert.match(join, /team_members/, "Athlete joins populate the team roster");
 assert.match(join, /\/parent\/connect\?team=/, "Parent joins continue to team athlete selection");
