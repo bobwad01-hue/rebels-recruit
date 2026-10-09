@@ -8,25 +8,25 @@ import { PrimaryBrand } from '@/components/BrandLogo';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?window.location.origin:'https://rltnl.com');
 
 export default function Signup() {
-  const invite=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;
-  const staffToken=invite?.get('staff_token')||'';
-  const joinToken=invite?.get('join_token')||'';
+  const [staffToken,setStaffToken]=useState('');
+  const [joinToken,setJoinToken]=useState('');
+  const [linkResolved,setLinkResolved]=useState(false);
   const accessLinkSignup=Boolean(joinToken);
   const staffInvite=Boolean(staffToken);
   const [invitedEmail,setInvitedEmail]=useState('');
   const [invitedRole,setInvitedRole]=useState('advisor');
   const [inviteOrg,setInviteOrg]=useState('');
-  const [inviteLoading,setInviteLoading]=useState(staffInvite);
+  const [inviteLoading,setInviteLoading]=useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailMode,setEmailMode]=useState(false);
   const [emailBusy,setEmailBusy]=useState(false);
-  const [joinInviteLoading,setJoinInviteLoading]=useState(accessLinkSignup);
+  const [joinInviteLoading,setJoinInviteLoading]=useState(false);
   const [joinInviteError,setJoinInviteError]=useState('');
   const [joinOrg,setJoinOrg]=useState('');
   const [joinTeam,setJoinTeam]=useState('');
-  const [role, setRole] = useState(staffInvite?'advisor':'athlete');
+  const [role, setRole] = useState('athlete');
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [error, setError] = useState('');
@@ -34,8 +34,10 @@ export default function Signup() {
   const [joining, setJoining] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
-  const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
-  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))&&(!accessLinkSignup||(!joinInviteLoading&&!joinInviteError));
+  const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">("independent");
+  const canContinue=linkResolved&&legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))&&(!accessLinkSignup||(!joinInviteLoading&&!joinInviteError));
+
+  useEffect(()=>{const params=new URLSearchParams(window.location.search);const staff=params.get('staff_token')||'';const join=params.get('join_token')||'';setStaffToken(staff);setJoinToken(join);setInviteLoading(Boolean(staff));setJoinInviteLoading(Boolean(join));if(staff){setRole('advisor');setAdvisorPath('organization')}setLinkResolved(true)},[]);
 
   useEffect(()=>{if(!staffToken)return;let live=true;(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
 
@@ -81,6 +83,8 @@ export default function Signup() {
   }
 
   const Brand=()=> <PrimaryBrand className="text-xl justify-center"/>;
+
+  if(!linkResolved)return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 w-full max-w-md bg-white text-center"><Brand/><p className="muted mt-6">Preparing your signup…</p></div></div>;
 
   if (joining) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><Brand/><h1 className="text-2xl font-black mt-8">Adding your team access…</h1><p className="muted mt-2">Your RLTNL account is ready. We’re connecting it to the organization and team from your access link.</p></div></div>;
 
