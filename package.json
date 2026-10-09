@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test:scale": "node scripts/release-scale-smoke.mjs",
-    "test:fixtures": "node scripts/release-access-fixture-smoke.mjs && node scripts/release-family-signup-smoke.mjs",
+    "test:fixtures": "node scripts/release-access-fixture-smoke.mjs && node scripts/release-family-signup-smoke.mjs && node scripts/release-account-lifecycle-smoke.mjs",
     "test:spreadsheets": "node scripts/release-spreadsheet-smoke.mjs",
     "audit:language": "node scripts/language-cta-audit.mjs"
   },
