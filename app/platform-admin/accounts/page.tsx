@@ -454,6 +454,22 @@ export default function PlatformAccountsPage() {
             {selected.advisor_account_type && <Detail label="Advisor type">{selected.advisor_account_type.replaceAll("_", " ")}</Detail>}
             {selected.platform_roles.length > 0 && <Detail label="Platform access"><Badge tone="red">{selected.platform_roles.map(roleName).join(", ")}</Badge></Detail>}
           </div>
+          <section className="rounded-2xl border border-slate-300 p-4">
+            <div className="flex items-center gap-2"><ShieldAlert size={18}/><h3 className="font-black">Manage account</h3></div>
+            <p className="mt-2 text-xs text-slate-600">Platform-wide controls. Suspending preserves recruiting data but blocks account access. Deletion is permanent.</p>
+            {selected.account_status === "suspended" && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+              <div className="font-bold text-amber-900">Account suspended {selected.suspended_at ? "on " + dateLabel(selected.suspended_at) : ""}</div>
+              {selected.suspension_reason && <div className="mt-1 text-amber-800">Reason: {selected.suspension_reason}</div>}
+            </div>}
+            {protectedAccount ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm font-semibold text-slate-600">
+              {selected.id === viewerId ? "You cannot suspend or delete your own account." : "Super Owner accounts are protected from suspension and deletion."}
+            </p> : <div className="mt-4 flex flex-wrap gap-2">
+              {selected.account_status === "suspended"
+                ? <button type="button" className="btn btn-red" disabled={saving} onClick={() => openLifecycle("restore")}><RotateCcw size={16}/>Restore account</button>
+                : <button type="button" className="btn" disabled={saving} onClick={() => openLifecycle("suspend")}><Ban size={16}/>Suspend account</button>}
+              <button type="button" className="btn border-red-200 text-red-700 hover:bg-red-50" disabled={saving} onClick={() => openLifecycle("delete")}><Trash2 size={16}/>Delete account</button>
+            </div>}
+          </section>
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Organization access</h3>
             {selected.organizations.length ? <div className="mt-3 space-y-3">{selected.organizations.map(o => <div key={o.id} className="rounded-xl bg-slate-50 p-3"><div className="font-semibold">{o.name}</div><div className="mt-2 flex flex-wrap gap-1">{o.roles.map(r => <Badge key={r}>{roleName(r)}</Badge>)}{!o.roles.length && <Badge>Membership through team</Badge>}</div>{o.grants.length > 0 && <div className="mt-2 text-xs text-slate-500">Organization-wide grants: {o.grants.map(roleName).join(", ")}</div>}</div>)}</div> : <p className="mt-2 text-sm text-slate-500">Independent. No active organization affiliation.</p>}
@@ -505,7 +521,7 @@ export default function PlatformAccountsPage() {
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Access history</h3>
             <p className="mt-1 text-xs text-slate-500">Recent changes made through the Platform Account Directory. Other historical actions may be recorded elsewhere.</p>
-            {historyLoading ? <p className="mt-3 text-sm text-slate-500">Loading history…</p> : history.length ? <div className="mt-3 divide-y">{history.map(h => <div key={h.id} className="py-3 text-sm"><div className="font-semibold">Platform access updated</div><div className="mt-1 text-xs text-slate-600">{h.metadata?.scope === "team" ? "Team role: " + roleName(h.metadata?.role || "") + (h.metadata?.enabled ? " enabled" : " revoked") : "Organization roles updated"}</div><div className="mt-1 text-xs text-slate-400">{dateLabel(h.created_at)}</div></div>)}</div> : <p className="mt-3 text-sm text-slate-500">No account-directory access changes recorded yet.</p>}
+            {historyLoading ? <p className="mt-3 text-sm text-slate-500">Loading history…</p> : history.length ? <div className="mt-3 divide-y">{history.map(h => <div key={h.id} className="py-3 text-sm"><div className="font-semibold">{h.action === "platform_account_suspended" ? "Account suspended" : h.action === "platform_account_restored" ? "Account restored" : h.action === "platform_account_deleted" ? "Account deleted" : "Platform access updated"}</div><div className="mt-1 text-xs text-slate-600">{h.action === "platform_account_suspended" ? (h.metadata?.reason || "Administrative suspension") : h.action === "platform_account_restored" ? "Sign-in access restored" : h.metadata?.scope === "team" ? "Team role: " + roleName(h.metadata?.role || "") + (h.metadata?.enabled ? " enabled" : " revoked") : "Organization roles updated"}</div><div className="mt-1 text-xs text-slate-400">{dateLabel(h.created_at)}</div></div>)}</div> : <p className="mt-3 text-sm text-slate-500">No account-directory access changes recorded yet.</p>}
           </section>
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Legacy global role flags</h3>
@@ -515,6 +531,43 @@ export default function PlatformAccountsPage() {
         </div>
         <div className="flex justify-end border-t bg-white px-5 py-4"><button className="btn" disabled={saving} onClick={() => setSelectedId("")}>Close</button></div>
       </aside>
+    </div>}
+    {selected && confirmAction && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 p-4">
+      <div role="alertdialog" aria-modal="true" aria-label={confirmAction === "delete" ? "Confirm permanent account deletion" : "Confirm account status change"} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="flex items-center gap-2 text-slate-950">
+          <AlertTriangle className={confirmAction === "delete" ? "text-red-600" : "text-amber-600"} size={22}/>
+          <h2 className="text-xl font-black">{confirmAction === "delete" ? "Permanently delete account?" : confirmAction === "suspend" ? "Suspend this account?" : "Restore this account?"}</h2>
+        </div>
+        <p className="mt-3 break-words text-sm font-semibold text-slate-900">{nameOf(selected)} · {selected.email || selected.id}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {confirmAction === "delete"
+            ? "This permanently deletes the sign-in account and can erase linked recruiting information, team relationships, messages, and other user-owned records. It cannot be undone. Deletion may be blocked when shared records require a transfer."
+            : confirmAction === "suspend"
+              ? "The account will no longer be able to sign in or access the application. Existing recruiting information and relationships will be preserved."
+              : "The account will be allowed to sign in and access its existing recruiting information again."}
+        </p>
+        {confirmAction !== "restore" && <label className="mt-4 block">
+          <span className="text-xs font-bold text-slate-700">Reason (optional)</span>
+          <textarea className="input mt-1 w-full" rows={2} maxLength={500} value={lifecycleReason} onChange={e => setLifecycleReason(e.target.value)} placeholder="Reason for this action"/>
+        </label>}
+        {confirmAction === "delete" && <div className="mt-4 space-y-3 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="text-sm font-bold text-red-900">Permanent deletion cannot be restored.</div>
+          <label className="block text-xs font-bold text-slate-800">Type the exact email (or account ID) to confirm
+            <input className="input mt-1 w-full bg-white" autoComplete="off" spellCheck={false} value={confirmIdentity} onChange={e => setConfirmIdentity(e.target.value)} placeholder={deleteIdentity}/>
+          </label>
+          <label className="block text-xs font-bold text-slate-800">Type DELETE
+            <input className="input mt-1 w-full bg-white" autoComplete="off" spellCheck={false} value={confirmDeleteText} onChange={e => setConfirmDeleteText(e.target.value)} placeholder="DELETE"/>
+          </label>
+        </div>}
+        <div className="mt-6 flex flex-wrap justify-end gap-2">
+          <button type="button" className="btn" disabled={saving} onClick={() => setConfirmAction(null)}>Cancel</button>
+          <button type="button" className={confirmAction === "restore" ? "btn btn-red" : "btn border-red-600 bg-red-600 text-white hover:bg-red-700"}
+            disabled={saving || (confirmAction === "delete" && (confirmDeleteText !== "DELETE" || confirmIdentity.trim().toLowerCase() !== deleteIdentity.trim().toLowerCase()))}
+            onClick={() => void runLifecycle()}>
+            {saving ? "Processing…" : confirmAction === "delete" ? "Permanently delete" : confirmAction === "suspend" ? "Suspend account" : "Restore account"}
+          </button>
+        </div>
+      </div>
     </div>}
   </AppShell>;
 }
