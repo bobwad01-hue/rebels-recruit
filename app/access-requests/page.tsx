@@ -69,16 +69,16 @@ export default function AccessRequests() {
     {message && <div role="status" className="rounded-xl bg-green-50 border border-green-200 p-4 text-sm font-semibold text-green-800">{message}</div>}
     {loading ? <div className="card p-6 text-sm text-slate-500">Loading your access…</div> : <>
       {accountRole === "athlete" && incoming.length > 0 && <section className="card p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2"><UserRoundCheck size={20}/><h2 className="text-lg font-black">Parent / Guardian connection requests</h2><span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2 py-1">{incoming.length}</span></div>
-        <p className="text-sm text-slate-600">Only you can approve who connects to your personal recruiting profile. You can revoke access later.</p>
-        {incoming.map(r=><div key={r.id} className="rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><div className="font-bold">{r.profile?.full_name||"Parent / Guardian"}</div><div className="text-sm text-slate-500">{r.profile?.email}</div></div><div className="flex gap-2"><button className="btn" disabled={busy} onClick={()=>post({action:"review",requestId:r.id,decision:"declined"},"Request declined.")}>Decline</button><button className="btn btn-red" disabled={busy} onClick={()=>post({action:"review",requestId:r.id,decision:"approved"},"Parent connection approved.")}>Approve</button></div></div>)}
+        <div className="flex items-center gap-2"><UserRoundCheck size={20}/><h2 className="text-lg font-black">Confirm Parent / Guardian Connections</h2><span className="rounded-full bg-red-100 text-red-700 text-xs font-bold px-2 py-1">{incoming.length}</span></div>
+        <p className="text-sm text-slate-600">Confirm the parent or guardian relationship once before private recruiting information is shared. You can revoke access later.</p>
+        {incoming.map(r=><div key={r.id} className="rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><div className="font-bold">{r.profile?.full_name||"Parent / Guardian"}</div><div className="text-sm text-slate-500">{r.profile?.email}</div></div><div className="flex gap-2"><button className="btn" disabled={busy} onClick={()=>post({action:"review",requestId:r.id,decision:"declined"},"Connection declined.")}>Not My Parent/Guardian</button><button className="btn btn-red" disabled={busy} onClick={()=>post({action:"review",requestId:r.id,decision:"approved"},"Parent connection confirmed.")}>Confirm Connection</button></div></div>)}
       </section>}
       <section className="card p-5 sm:p-6 space-y-4">
         <div><h2 className="text-lg font-black">Request access</h2><p className="text-sm text-slate-600 mt-1">Have an invitation link? Open it to join directly. Otherwise, submit a request below.</p></div>
         {accountRole==="parent" ? <>
           <label className="block text-sm font-bold" htmlFor="athlete-email">Your athlete's RLTNL account email</label>
           <input id="athlete-email" className="input w-full" type="email" autoComplete="off" value={athleteEmail} onChange={e=>setAthleteEmail(e.target.value)} placeholder="athlete@example.com"/>
-          <p className="text-xs text-slate-500">Your athlete must approve this relationship. You will not receive organization or recruiting access automatically.</p>
+          <p className="text-xs text-slate-500">Your athlete confirms the relationship once before private recruiting information becomes visible. Joining their team alone does not grant access to their recruiting data.</p>
         </> : <>
           <label className="block text-sm font-bold" htmlFor="requested-role">Request type</label>
           <select id="requested-role" className="input w-full" value={requestedRole} onChange={e=>{setRequestedRole(e.target.value);setTeams([])}}>
@@ -95,7 +95,7 @@ export default function AccessRequests() {
           </fieldset>}
           <p className="text-xs text-slate-500">{requestedRole==="org_admin"?"Organization Admin requests require an existing authorized administrator or RLTNL platform owner to approve.":requestedRole==="team_admin"?"Only an Organization Admin can grant Team Admin privileges.":"An authorized team or organization administrator will review your request."}</p>
         </>}
-        <button className="btn btn-red" disabled={busy||(accountRole==="parent"?!athleteEmail.trim():!orgId||(requestedRole!=="org_admin"&&!teams.length))} onClick={()=>post(accountRole==="parent"?{action:"submit",role:"parent",athleteEmail}:{action:"submit",role:requestedRole,organizationId:orgId,teamIds:teams},"Your request was sent for approval.")}>{busy?"Working…":"Submit Access Request"} <ArrowRight size={15}/></button>
+        <button className="btn btn-red" disabled={busy||(accountRole==="parent"?!athleteEmail.trim():!orgId||(requestedRole!=="org_admin"&&!teams.length))} onClick={()=>post(accountRole==="parent"?{action:"submit",role:"parent",athleteEmail}:{action:"submit",role:requestedRole,organizationId:orgId,teamIds:teams},"Your request was submitted.")}>{busy?"Working…":"Submit Access Request"} <ArrowRight size={15}/></button>
       </section>
       <section className="card p-5 sm:p-6 space-y-3">
         <h2 className="text-lg font-black">Your requests</h2>

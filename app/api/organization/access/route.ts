@@ -30,7 +30,59 @@ export async function POST(req:NextRequest){
  const c=await context(req);if(!c)return NextResponse.json({error:"Admin access is required."},{status:403});const{user,admin,organizationId}=c;const body=await req.json();const action=String(body.action||"");
  if(!c.organizationAdmin&&action==="review"){const{data:reqRow}=await admin.from("organization_join_requests").select("team_id").eq("id",String(body.requestId||"")).maybeSingle();if(!reqRow?.team_id||!c.teamIds?.includes(String(reqRow.team_id)))return NextResponse.json({error:"That request is outside your team Admin scope."},{status:403});}
  if(!c.organizationAdmin&&action==="saveAccess"){const selected=Array.isArray(body.teamIds)?body.teamIds.map(String):[];if(String(body.role||"")==="admin"||selected.some((id:string)=>!c.teamIds?.includes(id)))return NextResponse.json({error:"Team Admins can manage access only for their assigned team(s). Organization Admin access is required for organization-wide roles."},{status:403});}
- if(action==="review"){const id=String(body.requestId||""),decision=String(body.decision||"");const{data:r}=await admin.from("organization_join_requests").select("id,user_id,team_id,role").eq("id",id).eq("organization_id",organizationId).eq("status","pending").maybeSingle();if(!r||!["approved","declined"].includes(decision))return NextResponse.json({error:"Pending request not found."},{status:404});if(decision==="approved"){if(r.team_id){const roles=r.role==="advisor_admin"?["advisor","admin"]:[r.role];for(const role of roles)await admin.from("team_user_roles").upsert({team_id:r.team_id,user_id:r.user_id,role,status:"active",granted_by:user.id,revoked_at:null},{onConflict:"team_id,user_id,role"});for(const role of roles)await admin.from("user_roles").upsert({user_id:r.user_id,role},{onConflict:"user_id,role"});}else if(c.organizationAdmin){const roles=r.role==="advisor_admin"?["advisor","admin"]:[r.role];for(const role of roles){await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:r.user_id,role,status:"active",granted_by:user.id,revoked_at:null},{onConflict:"organization_id,user_id,role"});await admin.from("user_roles").upsert({user_id:r.user_id,role},{onConflict:"user_id,role"});}}}await admin.from("organization_join_requests").update({status:decision,reviewed_by:user.id,reviewed_at:new Date().toISOString()}).eq("id",id);return NextResponse.json({ok:true});}
+ if(action==="review"){
+  const id=String(body.requestId||""),decision=String(body.decision||"");
+  const{data:r,error:requestError}=await admin.from("organization_join_requests")
+    .select("id,user_id,team_id,role").eq("id",id).eq("organization_id",organizationId).eq("status","pending").maybeSingle();
+  if(requestError)return NextResponse.json({error:requestError.message},{status:500});
+  if(!r||!["approved","declined"].includes(decision))return NextResponse.json({error:"Pending request not found."},{status:404});
+  if(!r.team_id&&!c.organizationAdmin)return NextResponse.json({error:"Organization Admin approval is required."},{status:403});
+  if(decision==="approved"){
+    const roles=r.role==="advisor_admin"?["advisor","admin"]:[r.role];
+    if(roles.some((role:string)=>!["advisor","admin"].includes(role)))return NextResponse.json({error:"This staff request cannot be approved here."},{status:400});
+    for(const role of roles){
+      if(r.team_id){
+        const{error}=await admin.from("team_user_roles").upsert({
+          team_id:r.team_id,user_id:r.user_id,role,status:"active",granted_by:user.id,revoked_at:null,
+        },{onConflict:"team_id,user_id,role"});
+        if(error)return NextResponse.json({error:error.message},{status:500});
+      }else{
+        const{error}=await admin.from("organization_user_roles").upsert({
+          organization_id:organizationId,user_id:r.user_id,role,status:"active",granted_by:user.id,revoked_at:null,
+        },{onConflict:"organization_id,user_id,role"});
+        if(error)return NextResponse.json({error:error.message},{status:500});
+      }
+      const{error:userRoleError}=await admin.from("user_roles").upsert({
+        user_id:r.user_id,role,
+      },{onConflict:"user_id,role"});
+      if(userRoleError)return NextResponse.json({error:userRoleError.message},{status:500});
+    }
+    if(!r.team_id){
+      const primaryRole=roles.includes("admin")?"admin":"advisor";
+      const{data:existing}=await admin.from("organization_members").select("id")
+        .eq("organization_id",organizationId).eq("user_id",r.user_id).maybeSingle();
+      const membership={
+        role:primaryRole,status:"active",organization_view_access:primaryRole==="admin",
+        joined_at:new Date().toISOString(),
+      };
+      const {error:memberError}=existing
+        ?await admin.from("organization_members").update(membership).eq("id",existing.id)
+        :await admin.from("organization_members").insert({
+          organization_id:organizationId,user_id:r.user_id,...membership,
+        });
+      if(memberError)return NextResponse.json({error:memberError.message},{status:500});
+    }
+    const{error:profileError}=await admin.from("profiles").update({
+      advisor_account_type:"organization",commercial_status:"not_required",
+    }).eq("id",r.user_id);
+    if(profileError)return NextResponse.json({error:profileError.message},{status:500});
+  }
+  const{error:updateError}=await admin.from("organization_join_requests")
+    .update({status:decision,reviewed_by:user.id,reviewed_at:new Date().toISOString()})
+    .eq("id",id).eq("status","pending");
+  if(updateError)return NextResponse.json({error:updateError.message},{status:500});
+  return NextResponse.json({ok:true});
+ }
  if(action==="saveAccess"){
   const target=String(body.userId||""),role=String(body.role||""),enabled=Boolean(body.enabled),selected=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
   if(!target||!["admin","advisor","athlete","parent"].includes(role))return NextResponse.json({error:"Person and role are required."},{status:400});

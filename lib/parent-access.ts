@@ -1,6 +1,6 @@
 /**
  * Single source of truth for Parent / Guardian relationships.
- * All entry points (email request, team invite, and athlete approval) use
+ * All entry points (email request, team invite, and athlete confirmation) use
  * parent_guardian_access, which also powers the athlete's permissions UI.
  */
 type ParentStatus = "pending" | "active" | "declined" | "revoked";
@@ -66,8 +66,8 @@ export async function requestParentConnection(
   await notify(
     admin,
     athleteUserId,
-    "Parent / Guardian access request",
-    `${parent?.full_name || parent?.email || "A parent or guardian"} requested access to your recruiting profile. Review and approve or decline this request.`,
+    "Parent / Guardian connection confirmation",
+    `${parent?.full_name || parent?.email || "A parent or guardian"} wants to connect to your recruiting profile. Confirm the relationship or decline it. No private information is shared until you confirm.`,
     "/manage-access",
   );
   return { status: "pending", changed: true };
@@ -102,8 +102,8 @@ export async function setParentConnectionStatus(
   if (!data) throw new Error("This connection changed. Refresh and try again.");
 
   const message = {
-    active: ["Parent access approved", "Your athlete approved or restored your Parent / Guardian access. You can now open Parent Home."],
-    declined: ["Parent access declined", "Your athlete declined your Parent / Guardian access request."],
+    active: ["Parent connection confirmed", "Your athlete confirmed or restored your Parent / Guardian connection. You can now see the recruiting information they allow."],
+    declined: ["Parent connection declined", "Your athlete did not confirm the Parent / Guardian connection."],
     revoked: ["Parent access revoked", "Your athlete revoked your Parent / Guardian access."],
   }[nextStatus];
   await notify(admin, existing.parent_user_id, message[0], message[1], "/parent");

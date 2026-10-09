@@ -6,15 +6,27 @@ import { createClient } from '@/lib/supabase-browser';
 import { PrimaryBrand } from '@/components/BrandLogo';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?window.location.origin:'https://rltnl.com');
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+function inviteTokenFromText(text: string) {
+  const input = text.trim();
+  const direct = input.match(new RegExp("^" + UUID + "$", "i"));
+  const query = input.match(new RegExp("[?&]join_token=(" + UUID + ")", "i"));
+  const path = input.match(new RegExp("/join/(" + UUID + ")", "i"));
+  return direct?.[0] || query?.[1] || path?.[1] || "";
+}
 
 export default function Signup() {
   const [invite,setInvite]=useState<URLSearchParams|null>(null);
   useEffect(()=>{setInvite(new URLSearchParams(window.location.search))},[]);
   const staffToken=invite?.get('staff_token')||'';
   const [inviteInput,setInviteInput]=useState('');
-  const parsedInput=inviteInput.trim().match(/(?:\/join\/|^)([0-9a-f]{8}-[0-9a-f-]{27,})\/?(?:\?.*)?$/i);
-  const joinToken=invite?.get('join_token')||parsedInput?.[1]||'';
+  const [resolvedCodeToken,setResolvedCodeToken]=useState('');
+  const [codeBusy,setCodeBusy]=useState(false);
+  const [codeError,setCodeError]=useState('');
+  const parsedToken=inviteTokenFromText(inviteInput);
+  const joinToken=invite?.get('join_token')||parsedToken||resolvedCodeToken;
   const accessLinkSignup=Boolean(joinToken);
+  const inviteNeedsApply=!!inviteInput.trim()&&!accessLinkSignup;
   const staffInvite=Boolean(staffToken);
   const [invitedEmail,setInvitedEmail]=useState('');
   const [invitedRole,setInvitedRole]=useState('advisor');
@@ -29,6 +41,7 @@ export default function Signup() {
   const [joinInviteError,setJoinInviteError]=useState('');
   const [joinOrg,setJoinOrg]=useState('');
   const [joinTeam,setJoinTeam]=useState('');
+  const [joinRole,setJoinRole]=useState('');
   const [role, setRole] = useState(staffInvite?'advisor':'athlete');
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
@@ -38,11 +51,34 @@ export default function Signup() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [orgIntent,setOrgIntent]=useState(false);
   const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
-  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))&&(!accessLinkSignup||(!joinInviteLoading&&!joinInviteError));
+  const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&!inviteNeedsApply&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))&&(!accessLinkSignup||(!joinInviteLoading&&!joinInviteError));
 
   useEffect(()=>{if(!staffToken)return;let live=true;setInviteLoading(true);(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
 
-  useEffect(()=>{if(!joinToken)return;let live=true;setJoinInviteLoading(true);(async()=>{try{const r=await fetch('/api/join?token='+encodeURIComponent(joinToken),{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'This team invitation is not available.');if(!live)return;const inviteRole=d.role==='advisor_admin'||d.role==='admin'?'advisor':d.role;setRole(['athlete','parent','advisor'].includes(inviteRole)?inviteRole:'athlete');if(['advisor','admin','advisor_admin'].includes(d.role))setAdvisorPath('organization');setJoinOrg(d.organization?.name||'');setJoinTeam(d.team?.name||'');}catch(e){if(live)setJoinInviteError(e instanceof Error?e.message:'Could not load this team invitation.')}finally{if(live)setJoinInviteLoading(false)}})();return()=>{live=false}},[joinToken]);
+  useEffect(()=>{if(!joinToken)return;let live=true;setJoinInviteLoading(true);setJoinInviteError('');setJoinRole('');(async()=>{try{const r=await fetch('/api/join?token='+encodeURIComponent(joinToken),{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'This team invitation is not available.');if(!live)return;setJoinRole(d.role);
+    if(d.role==='family')setRole(previous=>['athlete','parent'].includes(previous)?previous:'athlete');
+    else{const inviteRole=d.role==='advisor_admin'||d.role==='admin'?'advisor':d.role;setRole(['athlete','parent','advisor'].includes(inviteRole)?inviteRole:'athlete');}
+    if(['advisor','admin','advisor_admin'].includes(d.role))setAdvisorPath('organization');
+    setJoinOrg(d.organization?.name||'');setJoinTeam(d.team?.name||'');
+  }catch(e){if(live)setJoinInviteError(e instanceof Error?e.message:'Could not load this team invitation.')}finally{if(live)setJoinInviteLoading(false)}})();return()=>{live=false}},[joinToken]);
+
+  // Signed-in members use their existing account instead of creating a duplicate.
+  useEffect(()=>{if(!joinToken)return;let live=true;createClient().auth.getUser().then(({data:{user}})=>{
+    if(live&&user)window.location.replace('/join/'+encodeURIComponent(joinToken));
+  });return()=>{live=false}},[joinToken]);
+
+  async function applyTeamCode() {
+    const input=inviteInput.trim();
+    if(!input)return;
+    setCodeBusy(true);setCodeError('');
+    try{
+      const r=await fetch('/api/join?code='+encodeURIComponent(input),{cache:'no-store'});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||'Team Signup Code not found.');
+      if(d.role!=='family')throw new Error('Enter the Team Signup Code provided by your team.');
+      setResolvedCodeToken(d.token);
+    }catch(e){setCodeError(e instanceof Error?e.message:'Team Signup Code not found.')}finally{setCodeBusy(false)}
+  }
 
   function validate(){if(role==='athlete'&&!ageConfirmed){setError('Athlete accounts are available only to players age 13 or older.');return false}if(!legalAccepted){setError('Please agree to the Terms of Service and Privacy Policy to create an account.');return false}return true}
   async function submit(e: React.FormEvent) {
@@ -98,16 +134,24 @@ export default function Signup() {
         <h1 className="text-2xl font-black mt-8">{staffInvite?"Activate your RLTNL access":"Create your account"}</h1>
         {staffInvite&&<p className="muted mt-2">{inviteLoading?"Loading your invitation…":<>You've been invited{inviteOrg?<> to <strong>{inviteOrg}</strong></>:null} as {invitedRole==="admin"?"an Admin":"an Advisor"}. Use the invited email address to join.</>}</p>}
         {accessLinkSignup&&<div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm">
-          {joinInviteLoading?<span className="font-semibold">Loading your team invitation…</span>:joinInviteError?<span role="alert" className="font-semibold text-red-700">{joinInviteError}</span>:<><span className="font-bold">Joining {joinOrg||'your organization'}{joinTeam?' · '+joinTeam:''}</span><p className="text-slate-600 mt-1">Your team invitation will be connected to your account after signup.</p></>}
+          {joinInviteLoading?<span className="font-semibold">Loading your team invitation…</span>:joinInviteError?<span role="alert" className="font-semibold text-red-700">{joinInviteError}</span>:<><span className="font-bold">Joining {joinOrg||'your organization'}{joinTeam?' · '+joinTeam:''}</span><p className="text-slate-600 mt-1">{joinRole==='family'?'Your team is selected. Choose Athlete or Parent/Guardian below. No second code is needed.':'Your invitation will be connected to your account after signup.'}</p></>}
         </div>}
-        {!staffInvite&&!invite?.get("join_token")&&<div className="mt-5 rounded-xl border p-3"><label htmlFor="invite-input" className="block text-sm font-bold">Invitation link or code (optional)</label><input id="invite-input" className="input mt-2 w-full" value={inviteInput} onChange={e=>setInviteInput(e.target.value)} placeholder="Paste your RLTNL invitation link"/><p className="text-xs text-slate-500 mt-2">No invitation? Continue signup. After your profile is ready, you can request access to an organization, team, or athlete.</p>{inviteInput.trim()&&!parsedInput&&<p className="text-xs text-amber-700 mt-2">Use the full team invitation link or its invitation token.</p>}</div>}
+        {!staffInvite&&!invite?.get("join_token")&&<div className="mt-5 rounded-xl border p-3">
+          <label htmlFor="invite-input" className="block text-sm font-bold">Team Signup Code or Link (optional)</label>
+          <div className="flex flex-col sm:flex-row gap-2 mt-2">
+            <input id="invite-input" className="input flex-1 min-w-0" value={inviteInput} onChange={e=>{setInviteInput(e.target.value);setResolvedCodeToken('');setCodeError('');setJoinRole('')}} placeholder="ABCD-EFGH-JK or invitation URL"/>
+            {inviteNeedsApply&&<button type="button" className="btn" disabled={codeBusy} onClick={applyTeamCode}>{codeBusy?'Checking…':'Apply Code'}</button>}
+          </div>
+          {codeError&&<p role="alert" className="text-xs font-semibold text-red-700 mt-2">{codeError}</p>}
+          <p className="text-xs text-slate-500 mt-2">Have your team's signup link? Open it to select your role and sign up directly. You can also enter the Team Signup Code here. No code? You can create an account and request team access later.</p>
+        </div>}
         <div className="space-y-4 mt-6">
-          {!staffInvite&&<label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} disabled={accessLinkSignup} onChange={e=>{setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option><option value="advisor">Advisor / Coach — support recruiting clients</option></select>{accessLinkSignup&&<span className="block text-xs text-slate-500 mt-1">Account type is selected from your team invitation.</span>}</label>}
+          {!staffInvite&&<label className="block"><span className="text-sm font-bold">How will you use RLTNL Recruiting?</span><select className="input mt-1" value={role} disabled={accessLinkSignup&&joinRole!=='family'} onChange={e=>{setRole(e.target.value);setAgeConfirmed(false)}}><option value="athlete">Athlete — manage my own recruiting</option><option value="parent">Parent / Guardian — support an athlete</option>{joinRole!=='family'&&<option value="advisor">Advisor / Coach — support recruiting clients</option>}</select>{accessLinkSignup&&<span className="block text-xs text-slate-500 mt-1">{joinRole==='family'?'Athletes and parents use the same team signup link.':'Account type is selected from your invitation.'}</span>}</label>}
           {role==='advisor'&&!staffInvite&&<div className="rounded-xl border p-3"><div className="text-sm font-bold">Advisor account type</div><label className="flex gap-2 mt-2 text-sm"><input type="radio" disabled={accessLinkSignup} checked={advisorPath==="independent"} onChange={()=>{setAdvisorPath("independent");setOrgIntent(false)}}/> Independent Advisor / consultant</label><label className="flex gap-2 mt-2 text-sm"><input type="radio" disabled={accessLinkSignup} checked={advisorPath==="organization"} onChange={()=>setAdvisorPath("organization")}/> I work with an organization/team</label><p className="text-xs text-slate-500 mt-2">{advisorPath==="independent"?"Independent Advisor accounts require RLTNL approval before live recruiting tools are activated.":"Organization access comes from your team invitation or organization."}</p>{advisorPath==="organization"&&!accessLinkSignup&&<label className="flex items-start gap-2 mt-3 text-sm"><input type="checkbox" className="mt-1" checked={orgIntent} onChange={e=>setOrgIntent(e.target.checked)}/><span>I need to request a new organization. <span className="block text-xs text-slate-500">New organizations require RLTNL approval. Creating an account does not automatically give you Admin access.</span></span></label>}</div>}
           {role==='athlete'&&<label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={ageConfirmed} onChange={e=>setAgeConfirmed(e.target.checked)}/><span className="text-sm leading-5">I confirm that I am age 13 or older.</span></label>}
           <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
           {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}
-          {!canContinue&&!joinInviteError&&<p className="text-xs font-semibold text-slate-500 text-center">{joinInviteLoading?'Checking your team invitation…':role==='athlete'&&!ageConfirmed&&!legalAccepted?'Confirm your age and accept the Terms to continue.':role==='athlete'&&!ageConfirmed?'Confirm that you are age 13 or older to continue.':'Accept the Terms of Service and Privacy Policy to continue.'}</p>}
+          {!canContinue&&!joinInviteError&&<p className="text-xs font-semibold text-slate-500 text-center">{joinInviteLoading?'Checking your team invitation…':inviteNeedsApply?'Apply the Team Signup Code or clear the field to continue.':role==='athlete'&&!ageConfirmed&&!legalAccepted?'Confirm your age and accept the Terms to continue.':role==='athlete'&&!ageConfirmed?'Confirm that you are age 13 or older to continue.':'Accept the Terms of Service and Privacy Policy to continue.'}</p>}
           <button type="button" disabled={googleBusy||!canContinue} onClick={continueWithGoogle} className="btn btn-red w-full min-h-12 font-black disabled:opacity-40 disabled:cursor-not-allowed">{googleBusy?'Connecting to Google…':'Continue with Google'}</button>
           <p className="text-xs text-slate-500 text-center -mt-1">Use your Google account to sign up without creating a password.</p>
           <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-xs font-bold text-slate-400">OR</span><div className="h-px flex-1 bg-slate-200"/></div>
