@@ -247,7 +247,7 @@ export async function POST(req: NextRequest) {
         const { error } = await admin.from("access_requests").update({ team_ids: teamIds, requested_at: new Date().toISOString() }).eq("id", existing.id);
         if (error) throw error;
       } else {
-        const { error } = await admin.from("access_requests").insert({ user_id: user.id, organization_id: orgId, athlete_user_id: athleteId, team_ids: teamIds, role });
+        const { error } = await admin.from("access_requests").insert({ user_id: user.id, organization_id: orgId, athlete_user_id: null, team_ids: teamIds, role });
         if (error) throw error;
       }
       const name = await label(admin, user.id);
