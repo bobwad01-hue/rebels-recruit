@@ -132,10 +132,11 @@ export async function POST(req: NextRequest) {
   const next = action === "suspend"
     ? { account_status: "suspended", suspended_at: now, suspended_by: user.id, suspension_reason: reason || null }
     : { account_status: "active", suspended_at: null, suspended_by: null, suspension_reason: null };
-  const { error: updateError } = await admin.from("profiles")
-    .update(next).eq("id", targetId).eq("account_status", target.account_status);
-  if (updateError) {
-    console.error("Platform account status update failed:", updateError.message);
+  const { data: updated, error: updateError } = await admin.from("profiles")
+    .update(next).eq("id", targetId).eq("account_status", target.account_status)
+    .select("id").maybeSingle();
+  if (updateError || !updated) {
+    console.error("Platform account status update failed:", updateError?.message || "Concurrent status change");
     const { error: rollbackError } = await admin.auth.admin.updateUserById(targetId, { ban_duration: rollbackBan });
     if (rollbackError) console.error("Account Auth rollback failed:", rollbackError.message);
     return fail("Account status could not be saved. Check account status before retrying.", 500);
