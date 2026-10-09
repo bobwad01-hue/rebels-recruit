@@ -111,7 +111,7 @@ export default function PlatformAccountsPage() {
   }, [selectedId]);
 
   const teamOptions = useMemo(
-    () => teams.filter(t => !t.archived && (orgFilter === "all" || orgFilter === "independent" || t.organization_id === orgFilter))
+    () => teams.filter(t => !t.archived && (orgFilter === "all" || t.organization_id === orgFilter))
       .sort((a, b) => a.name.localeCompare(b.name)),
     [teams, orgFilter],
   );
