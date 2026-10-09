@@ -13,7 +13,21 @@ export async function GET(req:NextRequest){
  const signedIn=await authorize();if(!signedIn)return fail('Please sign in again.',401);
  const preview=req.nextUrl.searchParams.get('mode')==='manage'?{ctx:signedIn}:await previewCalendarContext(req,signedIn);
  if('error' in preview)return fail(String(preview.error),403);
- const ctx=preview.ctx!,db=createAdminClient(),orgIds=ctx.organizationIds;
+ let ctx=preview.ctx!;
+ const parentAthlete=req.nextUrl.searchParams.get('parentAthlete');
+ // Parent Events must reflect the selected athlete, not every child linked to the account.
+ if(parentAthlete&&!req.nextUrl.searchParams.has('previewRole')&&req.nextUrl.searchParams.get('mode')!=='manage'){
+  const db=createAdminClient();
+  const {data:access}=await db.from('parent_guardian_access').select('athlete_user_id,permissions').eq('parent_user_id',signedIn.userId).eq('athlete_user_id',parentAthlete).eq('status','active').maybeSingle();
+  if(!access||access.permissions?.view_events===false)return fail('Events access for this athlete is unavailable.',403);
+  const {data:membership}=await db.from('organization_members').select('organization_id').eq('user_id',parentAthlete).eq('role','athlete').eq('status','active');
+  const orgIds=[...new Set((membership||[]).map((m:any)=>String(m.organization_id)))];
+  const {data:teamMembers}=await db.from('team_members').select('team_id').eq('user_id',parentAthlete);
+  const ids=(teamMembers||[]).map((t:any)=>t.team_id);
+  const {data:teams}=ids.length?await db.from('teams').select('id,organization_id').in('id',ids):{data:[]};
+  ctx={...signedIn,organizationIds:orgIds,organizationAdminIds:[],teamAdminIds:[],teamIds:(teams||[]).filter((t:any)=>orgIds.includes(t.organization_id)).map((t:any)=>t.id)};
+ }
+ const db=createAdminClient(),orgIds=ctx.organizationIds;
  if(!orgIds.length)return NextResponse.json(req.nextUrl.searchParams.get('mode')==='manage'?{subscriptions:[],organizations:[],teams:[]}:{events:[]});
  const {data:subscriptions,error}=await db.from('calendar_subscriptions').select('*').in('organization_id',orgIds).order('created_at',{ascending:false});
  if(error)return fail('Calendar subscriptions could not be loaded.',500);
