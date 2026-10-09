@@ -216,10 +216,15 @@ export async function POST(req: NextRequest) {
       if(orgError)throw new Error(orgError.message);
       const visibleTeams=(organization?.teams||[]).filter((t:any)=>!t.archived_at&&(scope?.organization_admin!==false||scope?.team_ids?.includes(String(t.id))));
       // One family link per team. Advisor links remain separate and require Admin approval.
-      const scopes=visibleTeams.flatMap((t:any)=>[
-        {role:"family",teamId:t.id,requiresApproval:false},
-        {role:"advisor",teamId:t.id,requiresApproval:true},
-      ]);
+      const scopes=[
+        ...(scope?.organization_admin===false?[]:["advisor","admin","advisor_admin"].map(role=>({
+          role,teamId:null,requiresApproval:true,
+        }))),
+        ...visibleTeams.flatMap((t:any)=>[
+          {role:"family",teamId:t.id,requiresApproval:false},
+          {role:"advisor",teamId:t.id,requiresApproval:true},
+        ]),
+      ];
       for(const linkScope of scopes){
         const {data:existing,error:lookupError}=await admin.from("organization_join_links")
           .select("id,requires_approval,signup_code").eq("organization_id",organizationId)
@@ -236,20 +241,22 @@ export async function POST(req: NextRequest) {
           const {error:updateError}=await admin.from("organization_join_links")
             .update({signup_code:familySignupCode()}).eq("id",existing.id);
           if(updateError)throw new Error(updateError.message);
-        }else if(linkScope.role==="advisor"&&!existing.requires_approval){
+        }else if(["advisor","admin","advisor_admin"].includes(linkScope.role)&&!existing.requires_approval){
           const {error:updateError}=await admin.from("organization_join_links")
             .update({requires_approval:true}).eq("id",existing.id);
           if(updateError)throw new Error(updateError.message);
         }
       }
       const ids=visibleTeams.map((t:any)=>t.id);
-      const {data:links,error}=ids.length?await admin.from("organization_join_links")
+      const {data:links,error}=await admin.from("organization_join_links")
         .select("id,team_id,role,token,signup_code,requires_approval,active,created_at")
-        .eq("organization_id",organizationId).eq("active",true).in("team_id",ids).in("role",["family","advisor"])
-        :{data:[],error:null};
+        .eq("organization_id",organizationId).eq("active",true).in("role",["family","advisor","admin","advisor_admin"]);
       if(error)throw new Error(error.message);
+      const visible=(links||[]).filter((x:any)=>x.team_id
+        ? ids.includes(x.team_id)&&["family","advisor"].includes(x.role)
+        : scope?.organization_admin!==false&&["advisor","admin","advisor_admin"].includes(x.role));
       const appUrl=(process.env.NEXT_PUBLIC_APP_URL||"https://www.rltnl.com").replace(/\/$/,"");
-      return NextResponse.json({ok:true,links:(links||[]).map((x:any)=>({
+      return NextResponse.json({ok:true,links:visible.map((x:any)=>({
         ...x,url:x.role==="family"?`${appUrl}/signup?join_token=${x.token}`:`${appUrl}/join/${x.token}`,
       }))});
     }
