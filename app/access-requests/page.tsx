@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Clock3, UserRoundCheck, XCircle, Building2, ArrowRight } from "lucide-react";
 import AppShell from "@/components/AppShell";
@@ -12,6 +12,7 @@ type Request = { id: string; organization_id: string | null; team_ids: string[];
 const titles: Record<string,string> = { athlete: "Athlete", parent: "Parent / Guardian", advisor: "Advisor / Coach", team_admin: "Team Admin", org_admin: "Organization Admin" };
 export default function AccessRequests() {
   const [accountRole, setAccountRole] = useState("athlete");
+  const initialRoleLoaded = useRef(false);
   const [requestedRole, setRequestedRole] = useState("athlete");
   const [organizations, setOrganizations] = useState<Org[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
@@ -37,7 +38,11 @@ export default function AccessRequests() {
       ]);
       if (!mine.ok) throw new Error(mine.error || "Unable to load access requests.");
       const role = profile.data?.app_role || "athlete";
-      setAccountRole(role);setRequestedRole(role === "advisor" ? "advisor" : role);
+      setAccountRole(role);
+      if (!initialRoleLoaded.current) {
+        setRequestedRole(role === "advisor" ? "advisor" : role);
+        initialRoleLoaded.current = true;
+      }
       setOrganizations(mine.organizations || []);setRequests(mine.requests || []);
       setIncoming(athlete.ok ? athlete.requests || [] : []);
       setOrgId(previous => previous || mine.organizations?.[0]?.id || "");
@@ -50,7 +55,9 @@ export default function AccessRequests() {
     try {
       const r = await fetch("/api/access-requests",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
       const d = await r.json();if(!r.ok)throw new Error(d.error||"Unable to update request.");
-      setMessage(success);await load();
+      setMessage(success);
+      if (body.action === "submit" && body.role === "parent") setAthleteEmail("");
+      await load();
     }catch(e){setError(e instanceof Error?e.message:"Unable to update request.")}
     finally{setBusy(false)}
   }
