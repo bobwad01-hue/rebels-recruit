@@ -90,7 +90,9 @@ export default function ParentProfile() {
     else {
       setMsg("Profile saved.");
       if (isOnboarding) {
-        location.href = "/access-requests";
+        const next = new URLSearchParams(window.location.search).get("next") || "";
+        // Only allow the internal parent team-connection continuation.
+        location.href = next.startsWith("/parent/connect?team=") ? next : "/access-requests";
         return;
       }
     }
