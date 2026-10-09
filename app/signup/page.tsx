@@ -8,7 +8,8 @@ import { PrimaryBrand } from '@/components/BrandLogo';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || (typeof window!=='undefined'?window.location.origin:'https://rltnl.com');
 
 export default function Signup() {
-  const invite=typeof window!=='undefined'?new URLSearchParams(window.location.search):null;
+  const [invite,setInvite]=useState<URLSearchParams|null>(null);
+  useEffect(()=>{setInvite(new URLSearchParams(window.location.search))},[]);
   const staffToken=invite?.get('staff_token')||'';
   const joinToken=invite?.get('join_token')||'';
   const accessLinkSignup=Boolean(joinToken);
@@ -16,13 +17,13 @@ export default function Signup() {
   const [invitedEmail,setInvitedEmail]=useState('');
   const [invitedRole,setInvitedRole]=useState('advisor');
   const [inviteOrg,setInviteOrg]=useState('');
-  const [inviteLoading,setInviteLoading]=useState(staffInvite);
+  const [inviteLoading,setInviteLoading]=useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailMode,setEmailMode]=useState(false);
   const [emailBusy,setEmailBusy]=useState(false);
-  const [joinInviteLoading,setJoinInviteLoading]=useState(accessLinkSignup);
+  const [joinInviteLoading,setJoinInviteLoading]=useState(false);
   const [joinInviteError,setJoinInviteError]=useState('');
   const [joinOrg,setJoinOrg]=useState('');
   const [joinTeam,setJoinTeam]=useState('');
@@ -37,9 +38,9 @@ export default function Signup() {
   const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">(staffInvite?"organization":"independent");
   const canContinue=legalAccepted&&(role!=='athlete'||ageConfirmed)&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))&&(!accessLinkSignup||(!joinInviteLoading&&!joinInviteError));
 
-  useEffect(()=>{if(!staffToken)return;let live=true;(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
+  useEffect(()=>{if(!staffToken)return;let live=true;setInviteLoading(true);(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
 
-  useEffect(()=>{if(!joinToken)return;let live=true;(async()=>{try{const r=await fetch('/api/join?token='+encodeURIComponent(joinToken),{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'This team invitation is not available.');if(!live)return;const inviteRole=d.role==='advisor_admin'||d.role==='admin'?'advisor':d.role;setRole(['athlete','parent','advisor'].includes(inviteRole)?inviteRole:'athlete');if(['advisor','admin','advisor_admin'].includes(d.role))setAdvisorPath('organization');setJoinOrg(d.organization?.name||'');setJoinTeam(d.team?.name||'');}catch(e){if(live)setJoinInviteError(e instanceof Error?e.message:'Could not load this team invitation.')}finally{if(live)setJoinInviteLoading(false)}})();return()=>{live=false}},[joinToken]);
+  useEffect(()=>{if(!joinToken)return;let live=true;setJoinInviteLoading(true);(async()=>{try{const r=await fetch('/api/join?token='+encodeURIComponent(joinToken),{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'This team invitation is not available.');if(!live)return;const inviteRole=d.role==='advisor_admin'||d.role==='admin'?'advisor':d.role;setRole(['athlete','parent','advisor'].includes(inviteRole)?inviteRole:'athlete');if(['advisor','admin','advisor_admin'].includes(d.role))setAdvisorPath('organization');setJoinOrg(d.organization?.name||'');setJoinTeam(d.team?.name||'');}catch(e){if(live)setJoinInviteError(e instanceof Error?e.message:'Could not load this team invitation.')}finally{if(live)setJoinInviteLoading(false)}})();return()=>{live=false}},[joinToken]);
 
   function validate(){if(role==='athlete'&&!ageConfirmed){setError('Athlete accounts are available only to players age 13 or older.');return false}if(!legalAccepted){setError('Please agree to the Terms of Service and Privacy Policy to create an account.');return false}return true}
   async function submit(e: React.FormEvent) {
@@ -81,6 +82,8 @@ export default function Signup() {
   }
 
   const Brand=()=> <PrimaryBrand className="text-xl justify-center"/>;
+
+  if(invite===null)return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><PrimaryBrand className="text-xl justify-center"/><p className="muted mt-6">Loading signup…</p></div></div>;
 
   if (joining) return <div className="min-h-screen grid place-items-center p-6 bg-slate-50"><div className="card p-8 max-w-md text-center bg-white"><Brand/><h1 className="text-2xl font-black mt-8">Adding your team access…</h1><p className="muted mt-2">Your RLTNL account is ready. We’re connecting it to the organization and team from your access link.</p></div></div>;
 
