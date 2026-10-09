@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { requestParentConnection, setParentConnectionStatus } from "@/lib/parent-access";
 
 const roles = ["athlete", "parent", "advisor", "team_admin", "org_admin"] as const;
 type Role = (typeof roles)[number];
@@ -122,17 +123,38 @@ export async function GET(req: NextRequest) {
   const view = req.nextUrl.searchParams.get("view") || "mine";
   try {
     if (view === "mine") {
-      const [{ data: organizations, error: orgError }, { data: requests, error: requestError }] = await Promise.all([
+      const [
+        { data: organizations, error: orgError },
+        { data: accessRequests, error: requestError },
+        { data: parentConnections, error: parentError },
+      ] = await Promise.all([
         admin.from("organizations").select("id,name,branch_name,city,state,teams(id,name,age_group,archived_at)").order("name"),
         admin.from("access_requests").select("id,organization_id,team_ids,athlete_user_id,role,status,requested_at,reviewed_at").eq("user_id", user.id).order("requested_at", { ascending: false }).limit(50),
+        admin.from("parent_guardian_access").select("id,athlete_user_id,status,created_at,updated_at").eq("parent_user_id", user.id),
       ]);
-      if (orgError || requestError) throw orgError || requestError;
-      const athleteIds = unique((requests || []).map((r: any) => r.athlete_user_id).filter(Boolean));
+      if (orgError || requestError || parentError) throw orgError || requestError || parentError;
+      // Parent requests live in parent_guardian_access, not access_requests.
+      // This is the same record the athlete uses to approve and set permissions.
+      const parentRequests = (parentConnections || []).map((p: any) => ({
+        id: p.id,
+        organization_id: null,
+        team_ids: [],
+        athlete_user_id: p.athlete_user_id,
+        role: "parent",
+        status: p.status === "active" ? "approved" : p.status,
+        requested_at: p.updated_at || p.created_at,
+        reviewed_at: null,
+      }));
+      const requests = [
+        ...(accessRequests || []).filter((r: any) => r.role !== "parent"),
+        ...parentRequests,
+      ].sort((a: any, b: any) => String(b.requested_at).localeCompare(String(a.requested_at))).slice(0, 50);
+      const athleteIds = unique(requests.map((r: any) => r.athlete_user_id).filter(Boolean));
       const { data: athletes } = athleteIds.length ? await admin.from("profiles").select("id,full_name").in("id", athleteIds) : { data: [] };
       const athleteNames = new Map((athletes || []).map((p: any) => [p.id, p.full_name]));
       return NextResponse.json({
         organizations: (organizations || []).map((o: any) => ({ ...o, teams: (o.teams || []).filter((t: any) => !t.archived_at) })),
-        requests: (requests || []).map((r: any) => ({ ...r, athlete_name: athleteNames.get(r.athlete_user_id) || null })),
+        requests: requests.map((r: any) => ({ ...r, athlete_name: athleteNames.get(r.athlete_user_id) || null })),
       });
     }
     if (view === "review") {
@@ -149,12 +171,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ requests: requests.map((r: any) => ({ ...r, profile: byId.get(r.user_id) || null })), organizationAdmin: scope.organizationAdmin });
     }
     if (view === "athlete") {
-      const { data, error } = await admin.from("access_requests").select("id,user_id,role,status,requested_at").eq("athlete_user_id", user.id).eq("role", "parent").eq("status", "pending").order("requested_at");
+      const { data, error } = await admin.from("parent_guardian_access")
+        .select("id,parent_user_id,status,created_at")
+        .eq("athlete_user_id", user.id).eq("status", "pending").order("created_at");
       if (error) throw error;
-      const ids = unique((data || []).map((r: any) => r.user_id));
+      const ids = unique((data || []).map((r: any) => r.parent_user_id));
       const { data: profiles } = ids.length ? await admin.from("profiles").select("id,full_name,email").in("id", ids) : { data: [] };
       const byId = new Map((profiles || []).map((p: any) => [p.id, p]));
-      return NextResponse.json({ requests: (data || []).map((r: any) => ({ ...r, profile: byId.get(r.user_id) || null })) });
+      return NextResponse.json({
+        requests: (data || []).map((r: any) => ({
+          id: r.id, user_id: r.parent_user_id, role: "parent", status: r.status,
+          requested_at: r.created_at, profile: byId.get(r.parent_user_id) || null,
+        })),
+      });
     }
     return fail("Unknown view.");
   } catch (error) {
@@ -178,16 +207,15 @@ export async function POST(req: NextRequest) {
         return fail("The requested access does not match your account type.");
       }
       let orgId: string | null = null;
-      let athleteId: string | null = null;
       let teamIds: string[] = [];
       if (role === "parent") {
         const athleteEmail = String(body.athleteEmail || "").trim().toLowerCase();
         if (!athleteEmail || athleteEmail.length > 254 || !athleteEmail.includes("@")) return fail("Enter your athlete's account email.");
         const { data: athlete } = await admin.from("profiles").select("id").ilike("email", athleteEmail).eq("app_role", "athlete").maybeSingle();
         if (!athlete || athlete.id === user.id) return fail("We couldn't send this request. Confirm the athlete's RLTNL account email.");
-        athleteId = athlete.id;
-        const { data: active } = await admin.from("parent_guardian_access").select("id").eq("athlete_user_id", athleteId).eq("parent_user_id", user.id).eq("status", "active").maybeSingle();
-        if (active) return fail("You already have access to this athlete.");
+        const result = await requestParentConnection(admin, user.id, athlete.id);
+        if (result.status === "active") return fail("You already have access to this athlete.");
+        return NextResponse.json({ ok: true, pending: true, alreadyPending: !result.changed });
       } else {
         orgId = String(body.organizationId || "");
         if (!uuid.test(orgId)) return fail("Select an organization.");
@@ -207,7 +235,7 @@ export async function POST(req: NextRequest) {
         }
       }
       let existingQuery = admin.from("access_requests").select("id").eq("user_id", user.id).eq("role", role).eq("status", "pending");
-      existingQuery = role === "parent" ? existingQuery.eq("athlete_user_id", athleteId!) : existingQuery.eq("organization_id", orgId!);
+      existingQuery = existingQuery.eq("organization_id", orgId!);
       const { data: existing } = await existingQuery.maybeSingle();
       if (existing) {
         const { error } = await admin.from("access_requests").update({ team_ids: teamIds, requested_at: new Date().toISOString() }).eq("id", existing.id);
@@ -217,21 +245,46 @@ export async function POST(req: NextRequest) {
         if (error) throw error;
       }
       const name = await label(admin, user.id);
-      const recipients = role === "parent" ? [athleteId!] : await reviewers(admin, orgId!, teamIds, role);
-      await notify(admin, recipients.filter(id => id !== user.id), "New access request", role === "parent" ? `${name} requested Parent / Guardian access to your recruiting profile.` : `${name} requested ${role.replaceAll("_", " ")} access.`, role === "parent" ? "/access-requests" : "/organization/setup");
+      const recipients = await reviewers(admin, orgId!, teamIds, role);
+      await notify(admin, recipients.filter(id => id !== user.id), "New access request", `${name} requested ${role.replaceAll("_", " ")} access.`, "/organization/setup");
       return NextResponse.json({ ok: true, pending: true });
     }
     if (action === "cancel") {
       const requestId = String(body.requestId || "");
       if (!uuid.test(requestId)) return fail("Invalid request.");
+      const { data: parentRequest, error: parentLookupError } = await admin.from("parent_guardian_access")
+        .select("id").eq("id", requestId).eq("parent_user_id", user.id).eq("status", "pending").maybeSingle();
+      if (parentLookupError) throw parentLookupError;
+      if (parentRequest) {
+        const { data, error } = await admin.from("parent_guardian_access")
+          .update({ status: "revoked", updated_at: new Date().toISOString() })
+          .eq("id", requestId).eq("parent_user_id", user.id).eq("status", "pending").select("id").maybeSingle();
+        if (error) throw error;
+        return data ? NextResponse.json({ ok: true }) : fail("Pending request not found.", 404);
+      }
       const { data, error } = await admin.from("access_requests").update({ status: "cancelled" }).eq("id", requestId).eq("user_id", user.id).eq("status", "pending").select("id").maybeSingle();
       if (error) throw error;
       return data ? NextResponse.json({ ok: true }) : fail("Pending request not found.", 404);
+    }
+    if (action === "family_status") {
+      const requestId = String(body.requestId || "");
+      const nextStatus = String(body.status || "");
+      if (!uuid.test(requestId) || !["active", "declined", "revoked"].includes(nextStatus)) return fail("Invalid family access change.");
+      const result = await setParentConnectionStatus(admin, user.id, requestId, nextStatus as "active" | "declined" | "revoked");
+      return result ? NextResponse.json({ ok: true, status: result.status }) : fail("Family connection not found.", 404);
     }
     if (action === "review") {
       const requestId = String(body.requestId || "");
       const decision = String(body.decision || "");
       if (!uuid.test(requestId) || !["approved","declined"].includes(decision)) return fail("Invalid review.");
+      const { data: parentRequest, error: parentLookupError } = await admin.from("parent_guardian_access")
+        .select("id,athlete_user_id").eq("id", requestId).eq("status", "pending").maybeSingle();
+      if (parentLookupError) throw parentLookupError;
+      if (parentRequest) {
+        if (parentRequest.athlete_user_id !== user.id) return fail("Only the athlete can approve parent access.", 403);
+        const result = await setParentConnectionStatus(admin, user.id, requestId, decision === "approved" ? "active" : "declined", true);
+        return result ? NextResponse.json({ ok: true }) : fail("Pending request not found.", 404);
+      }
       const { data: request, error } = await admin.from("access_requests").select("*").eq("id", requestId).eq("status", "pending").maybeSingle();
       if (error) throw error;
       if (!request) return fail("Pending request not found.", 404);
