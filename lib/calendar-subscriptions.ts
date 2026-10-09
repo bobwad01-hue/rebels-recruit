@@ -37,14 +37,14 @@ export async function syncCalendarSubscription(subscription:any){
   for(const row of history||[]){const m:any=row.metadata||{},name=String(m.event_name||''),date=String(m.event_date||''),id=String(m.event_id||'');if(!name||!date||!id.startsWith('google:'+org+':'))continue;const k=key(name,date);if(!legacy.has(k))legacy.set(k,new Set());legacy.get(k)!.add(id);}
   for(const e of parsed){const k=key(e.name,e.date);matches.set(k,(matches.get(k)||0)+1);}
   for(const e of parsed){const k=key(e.name,e.date),ids=legacy.get(k);if(ids?.size===1&&matches.get(k)===1)e.eventId=[...ids][0];}
-  for(let i=0;i<parsed.length;i+=150){const rows=parsed.slice(i,i+150).map(e=>({...e,subscription_id:id,organization_id:org,updated_at:new Date().toISOString()}));const {error}=await db.from('calendar_subscription_events').upsert(rows,{onConflict:'subscription_id,event_key'});if(error)throw error;}
+  for(let i=0;i<parsed.length;i+=150){const rows=parsed.slice(i,i+150).map(e=>({event_key:e.eventKey,event_id:e.eventId,name:e.name,date:e.date,end_date:e.end_date,location:e.location,description:e.description,registration_url:e.registration_url,subscription_id:id,organization_id:org,updated_at:new Date().toISOString()}));const {error}=await db.from('calendar_subscription_events').upsert(rows,{onConflict:'subscription_id,event_key'});if(error)throw error;}
   const {data:previous,error:readError}=await db.from('calendar_subscription_events').select('id,event_key').eq('subscription_id',id);
   if(readError)throw readError;
   const current=new Set(parsed.map(x=>x.eventKey)),obsolete=(previous||[]).filter((r:any)=>!current.has(r.event_key)).map((r:any)=>r.id);
   for(let i=0;i<obsolete.length;i+=150){const {error}=await db.from('calendar_subscription_events').delete().in('id',obsolete.slice(i,i+150));if(error)throw error;}
   const {error:stateError}=await db.from('calendar_subscriptions').update({last_synced_at:new Date().toISOString(),last_error:null}).eq('id',id);if(stateError)throw stateError;
   return{ok:true,count:parsed.length};
- }catch(e){const message=e instanceof Error?e.message:'Calendar sync failed';await db.from('calendar_subscriptions').update({last_error:message.slice(0,300)}).eq('id',id);return{ok:false,error:message}}
+ }catch(e){const message=e instanceof Error?e.message:(e&&typeof e==='object'&&'message' in e?String((e as {message:unknown}).message):'Calendar sync failed');await db.from('calendar_subscriptions').update({last_error:message.slice(0,300)}).eq('id',id);return{ok:false,error:message}}
 }
 export async function calendarEventAccess(ctx:CalendarContext,eventId:string){
  const db=createAdminClient();
