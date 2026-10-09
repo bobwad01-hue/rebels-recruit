@@ -248,6 +248,62 @@ export default function PlatformAccountsPage() {
     void updateAccess({ action: "setTeamStaffRole", teamId: chosenTeamId, role: teamRole, enabled: teamEnabled }, "Team access saved.");
   }
 
+  function openLifecycle(action: LifecycleAction) {
+    setConfirmAction(action);
+    setConfirmIdentity("");
+    setConfirmDeleteText("");
+    setLifecycleReason("");
+    setActionError("");
+    setActionMessage("");
+  }
+  async function runLifecycle() {
+    if (!selected || !confirmAction || protectedAccount) return;
+    const action = confirmAction;
+    if (action === "delete" && (
+      confirmDeleteText !== "DELETE" ||
+      confirmIdentity.trim().toLowerCase() !== deleteIdentity.trim().toLowerCase()
+    )) return;
+    setSaving(true); setActionError(""); setActionMessage(""); setNotice("");
+    try {
+      const response = await fetch("/api/platform/accounts/lifecycle", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action, userId: selected.id, reason: lifecycleReason.trim(),
+          ...(action === "delete" ? { confirmText: confirmDeleteText, confirmIdentity: confirmIdentity.trim() } : {}),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Account action failed.");
+      const refresh = await fetch("/api/platform/accounts", { cache: "no-store" });
+      const refreshed = await refresh.json();
+      if (!refresh.ok) throw new Error(refreshed.error || "Action completed but the account list could not refresh.");
+      setAccounts(refreshed.accounts || []);
+      setOrganizations(refreshed.organizations || []);
+      setTeams(refreshed.teams || []);
+      setViewerId(refreshed.viewerId || "");
+      setConfirmAction(null);
+      if (action === "delete") {
+        setSelectedId("");
+        setNotice("Account permanently deleted. Its sign-in credentials and associated user records have been removed.");
+      } else {
+        setActionMessage(action === "suspend"
+          ? "Account suspended. Sign-in is blocked and recruiting data is preserved."
+          : "Account restored. Sign-in and application access are enabled.");
+        const historyResponse = await fetch("/api/platform/accounts?historyFor=" + encodeURIComponent(selected.id), { cache: "no-store" });
+        if (historyResponse.ok) {
+          const detail = await historyResponse.json();
+          setHistory(detail.history || []);
+          setAuthDetails(detail.authDetails || null);
+        }
+      }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : "Account action failed.");
+      setConfirmAction(null);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const staffEditable = selected && ["advisor", "admin"].includes(selected.app_role);
   const protectedAccount = Boolean(selected && (selected.id === viewerId || selected.platform_roles.includes("super_owner")));
   const deleteIdentity = selected?.email || selected?.id || "";
