@@ -139,7 +139,7 @@ export default function Signup() {
         {!staffInvite&&!invite?.get("join_token")&&<div className="mt-5 rounded-xl border p-3">
           <label htmlFor="invite-input" className="block text-sm font-bold">Team Signup Code or Link (optional)</label>
           <div className="flex flex-col sm:flex-row gap-2 mt-2">
-            <input id="invite-input" className="input flex-1 min-w-0" value={inviteInput} onChange={e=>{setInviteInput(e.target.value);setResolvedCodeToken('');setCodeError('')}} placeholder="ABCD-EFGH-JK or invitation URL"/>
+            <input id="invite-input" className="input flex-1 min-w-0" value={inviteInput} onChange={e=>{setInviteInput(e.target.value);setResolvedCodeToken('');setCodeError('');setJoinRole('')}} placeholder="ABCD-EFGH-JK or invitation URL"/>
             {inviteNeedsApply&&<button type="button" className="btn" disabled={codeBusy} onClick={applyTeamCode}>{codeBusy?'Checking…':'Apply Code'}</button>}
           </div>
           {codeError&&<p role="alert" className="text-xs font-semibold text-red-700 mt-2">{codeError}</p>}
