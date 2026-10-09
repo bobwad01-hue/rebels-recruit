@@ -42,7 +42,7 @@ type TeamAccess = {
 export async function GET(req: NextRequest) {
   const ctx = await ownerContext();
   if (!ctx) return jsonError("Super Owner access required.", 403);
-  const { admin } = ctx;
+  const { admin, actorId } = ctx;
   const historyFor = req.nextUrl.searchParams.get("historyFor");
   if (historyFor !== null) {
     if (!uuid.test(historyFor)) return jsonError("Invalid account ID.");
@@ -161,6 +161,7 @@ export async function GET(req: NextRequest) {
       account.pending_requests.sort((a: any, b: any) => b.requested_at.localeCompare(a.requested_at));
     }
     return NextResponse.json({
+      viewerId: actorId,
       accounts: [...accountById.values()],
       organizations: organizations.map((o: any) => ({ id: o.id, name: o.name + (o.branch_name ? " · " + o.branch_name : "") })),
       teams: teams.map((t: any) => ({ id: t.id, name: t.name, organization_id: t.organization_id, archived: Boolean(t.archived_at) })),
