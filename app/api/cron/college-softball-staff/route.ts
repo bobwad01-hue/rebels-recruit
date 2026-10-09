@@ -9,11 +9,20 @@ const STALE_PROCESSING_MINUTES=10;
 
 const FETCH_TIMEOUT_MS=12000;
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY!,
-  { auth: { persistSession: false } }
-);
+function initializeSupabase() {
+  const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key=process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+  if(!url || !key) throw new Error("Supabase service is not configured.");
+  return createClient(url,key,{auth:{persistSession:false}});
+}
+let cachedSupabase:ReturnType<typeof initializeSupabase>|undefined;
+// Delay construction until a cron request executes; preview builds do not have production secrets.
+const supabase = new Proxy({} as ReturnType<typeof initializeSupabase>, {
+  get(_target,property) {
+    cachedSupabase ??= initializeSupabase();
+    return Reflect.get(cachedSupabase,property);
+  }
+});
 
 const clean=(s:string)=>s.replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g," ").trim();
 const abs=(u:string,b:string)=>{try{return new URL(u,b).toString()}catch{return ""}};
