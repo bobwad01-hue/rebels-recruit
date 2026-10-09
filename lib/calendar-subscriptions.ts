@@ -32,7 +32,7 @@ export async function syncCalendarSubscription(subscription:any){
   const parsed=await fetchPublicIcs(subscription.feed_url,org);
   // Reattach historical RSVP records from the removed OAuth integration using unambiguous name/date matches.
   const {data:history}=await db.from('audit_log').select('metadata').eq('organization_id',org).eq('entity_type','organization_calendar_event_rsvp').order('created_at',{ascending:false}).limit(1000);
-  const key=(name:string,date:string)=>name.trim().toLowerCase().replace(/\\s+/g,' ')+'|'+date;
+  const key=(name:string,date:string)=>name.trim().toLowerCase().replace(/\s+/g,' ')+'|'+date;
   const legacy=new Map<string,Set<string>>(),matches=new Map<string,number>();
   for(const row of history||[]){const m:any=row.metadata||{},name=String(m.event_name||''),date=String(m.event_date||''),id=String(m.event_id||'');if(!name||!date||!id.startsWith('google:'+org+':'))continue;const k=key(name,date);if(!legacy.has(k))legacy.set(k,new Set());legacy.get(k)!.add(id);}
   for(const e of parsed){const k=key(e.name,e.date);matches.set(k,(matches.get(k)||0)+1);}
