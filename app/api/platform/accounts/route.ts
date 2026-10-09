@@ -32,7 +32,7 @@ async function allRows(makeQuery: () => any) {
 }
 
 type OrganizationAccess = {
-  id: string; name: string; roles: string[]; status: string;
+  id: string; name: string; roles: string[]; grants: string[]; status: string;
 };
 type TeamAccess = {
   id: string; name: string; organization_id: string; organization_name: string;
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
       if (!map.has(organizationId)) {
         map.set(organizationId, {
           id: org.id, name: org.name + (org.branch_name ? " · " + org.branch_name : ""),
-          roles: [], status: "active",
+          roles: [], grants: [], status: "active",
         });
       }
       return map.get(organizationId)!;
@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     }
     for (const r of orgRoles) {
       const org = organizationFor(r.user_id, r.organization_id);
-      if (org) addRole(org.roles, r.role);
+      if (org) { addRole(org.roles, r.role); addRole(org.grants, r.role); }
     }
     for (const r of teamRoles) {
       const team = teamFor(r.user_id, r.team_id);
