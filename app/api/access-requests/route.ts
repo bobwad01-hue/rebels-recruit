@@ -76,6 +76,10 @@ async function grant(admin: any, request: any, reviewerId: string) {
   }
   const orgRole = role === "athlete" ? "athlete" : "advisor";
   if (role === "athlete" || role === "advisor") await ensureOrgMembership(admin, organization_id, user_id, orgRole);
+  if (["advisor","team_admin","org_admin"].includes(role)) {
+    const { error } = await admin.from("profiles").update({ advisor_account_type: "organization", commercial_status: "not_required" }).eq("id", user_id);
+    if (error) throw error;
+  }
   if (role === "org_admin") {
     const { data: existing } = await admin.from("organization_members").select("id").eq("organization_id", organization_id).eq("user_id", user_id).maybeSingle();
     if (existing) {
@@ -98,6 +102,13 @@ async function grant(admin: any, request: any, reviewerId: string) {
   } else {
     for (const teamId of team_ids) {
       const { error } = await admin.from("team_members").upsert({ team_id: teamId, user_id }, { onConflict: "team_id,user_id" });
+      if (error) throw error;
+    }
+  }
+  if (role === "athlete" && team_ids.length) {
+    const { data: athlete } = await admin.from("athlete_profiles").select("primary_team_id").eq("user_id", user_id).maybeSingle();
+    if (!athlete?.primary_team_id) {
+      const { error } = await admin.from("athlete_profiles").update({ primary_organization_id: organization_id, primary_team_id: team_ids[0] }).eq("user_id", user_id);
       if (error) throw error;
     }
   }
