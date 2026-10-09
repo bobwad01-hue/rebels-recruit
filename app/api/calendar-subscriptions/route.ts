@@ -6,11 +6,40 @@ import {normalizePublicGoogleIcs} from '@/lib/calendar-ics';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 async function authorize(){const client=await createClient();const {data:{user}}=await client.auth.getUser();if(!user)return null;return await calendarContext(user.id)}
+// Super Owner role previews use the target athlete's team memberships, never the owner's broad access.
+async function previewCalendarContext(req:NextRequest,ctx:Awaited<ReturnType<typeof calendarContext>>){
+ const role=req.nextUrl.searchParams.get('previewRole');
+ if(!role)return {ctx};
+ if(!['athlete','parent','advisor','admin'].includes(role))return {error:'Invalid preview role.'};
+ const client=await createClient();
+ const {data:{user}}=await client.auth.getUser();
+ if(!user)return {error:'Sign in to preview events.'};
+ const {data:platform}=await client.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle();
+ if(!platform)return {error:'Role previews require Super Owner access.'};
+ const db=createAdminClient();
+ if(role==='admin'){
+  const orgId=req.nextUrl.searchParams.get('previewOrg')||'';
+  if(!orgId)return {error:'Choose an organization to preview.'};
+  const {data:org}=await db.from('organizations').select('id').eq('id',orgId).maybeSingle();
+  if(!org)return {error:'Organization not found.'};
+  return {ctx:{...ctx,organizationIds:[orgId],organizationAdminIds:[orgId],teamIds:[],teamAdminIds:[]}};
+ }
+ const athleteId=req.nextUrl.searchParams.get('previewAthlete')||'';
+ if(!athleteId)return {error:'Choose an athlete to preview.'};
+ const {data:membership}=await db.from('organization_members').select('organization_id').eq('user_id',athleteId).eq('role','athlete').eq('status','active').limit(1).maybeSingle();
+ if(!membership)return {error:'Preview athlete has no active organization membership.'};
+ const {data:teamRows}=await db.from('team_members').select('team_id').eq('user_id',athleteId);
+ const {data:teams}=await db.from('teams').select('id,organization_id').in('id',(teamRows||[]).map((t:any)=>t.team_id).length?(teamRows||[]).map((t:any)=>t.team_id):['00000000-0000-0000-0000-000000000000']);
+ const valid=(teams||[]).filter((t:any)=>t.organization_id===membership.organization_id);
+ return {ctx:{...ctx,organizationIds:[membership.organization_id],organizationAdminIds:[],teamIds:valid.map((t:any)=>t.id),teamAdminIds:[]}};
+}
 async function teamsInOrg(db:any,org:string){const {data}=await db.from('teams').select('id,name,organization_id').eq('organization_id',org).is('archived_at',null).order('name');return data||[]}
 function fail(message:string,status=400){return NextResponse.json({error:message},{status})}
 export async function GET(req:NextRequest){
- const ctx=await authorize();if(!ctx)return fail('Please sign in again.',401);
- const db=createAdminClient(),orgIds=ctx.organizationIds;
+ const signedIn=await authorize();if(!signedIn)return fail('Please sign in again.',401);
+ const preview=req.nextUrl.searchParams.get('mode')==='manage'?{ctx:signedIn}:await previewCalendarContext(req,signedIn);
+ if('error' in preview)return fail(String(preview.error),403);
+ const ctx=preview.ctx!,db=createAdminClient(),orgIds=ctx.organizationIds;
  if(!orgIds.length)return NextResponse.json(req.nextUrl.searchParams.get('mode')==='manage'?{subscriptions:[],organizations:[],teams:[]}:{events:[]});
  const {data:subscriptions,error}=await db.from('calendar_subscriptions').select('*').in('organization_id',orgIds).order('created_at',{ascending:false});
  if(error)return fail('Calendar subscriptions could not be loaded.',500);
