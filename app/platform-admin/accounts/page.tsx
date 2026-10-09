@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, ArrowUpDown, Building2, CheckCircle2, Clock3, FilterX,
+  ArrowLeft, ArrowUpDown, Building2, Clock3, FilterX,
   Search, ShieldCheck, Users, X, RefreshCw, UserRoundCog, Mail, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
@@ -35,6 +35,11 @@ const dateLabel = (value: string | null | undefined) => value
 const nameOf = (a: Account) => a.full_name?.trim() || a.email || "Unnamed account";
 const firstOrg = (a: Account) => a.organizations[0]?.name || "Independent";
 const firstTeam = (a: Account) => a.teams[0]?.name || "No team";
+const accessRole = (a: Account) => a.platform_roles.includes("super_owner") ? "Super Owner"
+  : a.organizations.some(o => o.roles.includes("admin")) ? "Organization Admin"
+  : a.teams.some(t => t.roles.includes("admin")) ? "Team Admin"
+  : a.organizations.some(o => o.roles.includes("advisor")) || a.teams.some(t => t.roles.includes("advisor")) ? "Advisor"
+  : roleName(a.app_role);
 const normalized = (value: string) => value.toLocaleLowerCase().trim();
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "red" | "green" | "amber" }) {
@@ -140,6 +145,7 @@ export default function PlatformAccountsPage() {
         case "name_desc": return -alpha(a, b);
         case "email_asc": return compare(a.email || "", b.email || "") || alpha(a, b);
         case "role_asc": return compare(roleName(a.app_role), roleName(b.app_role)) || alpha(a, b);
+        case "access_role_asc": return compare(accessRole(a), accessRole(b)) || alpha(a, b);
         case "organization_asc": return compare(a.organizations[0]?.name || "\uffff", b.organizations[0]?.name || "\uffff") || alpha(a, b);
         case "team_asc": return compare(a.teams[0]?.name || "\uffff", b.teams[0]?.name || "\uffff") || alpha(a, b);
         case "newest": return compare(b.created_at || "", a.created_at || "") || alpha(a, b);
@@ -300,7 +306,7 @@ export default function PlatformAccountsPage() {
               <ArrowUpDown size={15} className="pointer-events-none absolute right-9 top-1/2 -translate-y-1/2 text-slate-400"/>
               <select className="input w-full" value={sort} onChange={e => setSort(e.target.value)}>
                 <option value="name_asc">Name A–Z</option><option value="name_desc">Name Z–A</option>
-                <option value="email_asc">Email A–Z</option><option value="role_asc">Account type A–Z</option>
+                <option value="email_asc">Email A–Z</option><option value="role_asc">Account type A–Z</option><option value="access_role_asc">Access role A–Z</option>
                 <option value="organization_asc">Organization A–Z</option><option value="team_asc">Team A–Z</option>
                 <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
                 <option value="incomplete_first">Incomplete profiles first</option>
