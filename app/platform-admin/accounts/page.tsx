@@ -319,6 +319,7 @@ export default function PlatformAccountsPage() {
         action={<Link href="/platform-admin" className="btn"><ArrowLeft size={16}/>Platform Admin</Link>}
       />
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {notice && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-800">{notice}</div>}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<Users size={18}/>} label="Total accounts" value={accounts.length}/>
         <Stat icon={<Building2 size={18}/>} label="Organization-affiliated" value={accounts.length - independentCount}/>
@@ -367,6 +368,12 @@ export default function PlatformAccountsPage() {
               <option value="incomplete">Incomplete</option><option value="pending">Pending access request</option>
             </select>
           </Field>
+          <Field label="Account status">
+            <select className="input w-full" value={accountFilter} onChange={e => setAccountFilter(e.target.value)}>
+              <option value="all">All accounts</option><option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </Field>
           <Field label="Commercial status">
             <select className="input w-full" value={commercialFilter} onChange={e => setCommercialFilter(e.target.value)}>
               <option value="all">All commercial statuses</option>
@@ -398,9 +405,9 @@ export default function PlatformAccountsPage() {
         {loading ? <div className="p-8 text-center text-sm text-slate-500">Loading accounts…</div> :
           !filtered.length ? <div className="p-10 text-center"><div className="font-bold">No accounts match these filters.</div><button className="btn mt-4" onClick={resetFilters}>Reset filters</button></div> :
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full min-w-[940px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr><th className="px-5 py-3">Account</th><th className="px-4 py-3">Account type / roles</th><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Team</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3 text-right">Details</th></tr>
+                <tr><th className="px-5 py-3">Account</th><th className="px-4 py-3">Account type / roles</th><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Team</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3 text-right">Details</th></tr>
               </thead>
               <tbody className="divide-y">
                 {visible.map(a => <tr key={a.id} className="hover:bg-slate-50/80">
@@ -408,7 +415,8 @@ export default function PlatformAccountsPage() {
                   <td className="px-4 py-4"><div><Badge tone={a.app_role === "admin" ? "red" : "neutral"}>{roleName(a.app_role)}</Badge></div><div className="mt-1 flex max-w-52 flex-wrap gap-1">{a.platform_roles.includes("super_owner") && <Badge tone="red">Super Owner</Badge>}{a.organizations.some(o => o.roles.includes("admin")) && <Badge>Org Admin</Badge>}{a.teams.some(t => t.roles.includes("admin")) && <Badge>Team Admin</Badge>}{a.organizations.some(o => o.roles.includes("advisor")) && <Badge>Advisor</Badge>}</div></td>
                   <td className="px-4 py-4"><div className="max-w-48 font-medium">{firstOrg(a)}</div>{a.organizations.length > 1 && <div className="text-xs text-slate-500">+{a.organizations.length - 1} more</div>}</td>
                   <td className="px-4 py-4"><div className="max-w-48">{firstTeam(a)}</div>{a.teams.length > 1 && <div className="text-xs text-slate-500">+{a.teams.length - 1} more</div>}</td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{dateLabel(a.created_at)}</td>
+                  <td className="px-4 py-4"><Badge tone={a.account_status === "suspended" ? "amber" : "green"}>{a.account_status === "suspended" ? "Suspended" : "Active"}</Badge></td>
+                   <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{dateLabel(a.created_at)}</td>
                   <td className="px-4 py-4 text-right"><button className="btn whitespace-nowrap text-xs" onClick={() => openAccount(a)}>View account</button></td>
                 </tr>)}
               </tbody>
@@ -436,8 +444,12 @@ export default function PlatformAccountsPage() {
           {actionMessage && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-700">{actionMessage}</div>}
           <div className="grid grid-cols-2 gap-3">
             <Detail label="Account type"><Badge>{roleName(selected.app_role)}</Badge></Detail>
+            <Detail label="Account status"><Badge tone={selected.account_status === "suspended" ? "amber" : "green"}>{selected.account_status === "suspended" ? "Suspended" : "Active"}</Badge></Detail>
             <Detail label="Profile"><Badge tone={selected.profile_completed_at ? "green" : "amber"}>{selected.profile_completed_at ? "Complete" : "Incomplete"}</Badge></Detail>
             <Detail label="Joined">{dateLabel(selected.created_at)}</Detail>
+            <Detail label="Last sign-in">{authDetails?.last_sign_in_at ? dateLabel(authDetails.last_sign_in_at) : "Unknown"}</Detail>
+            <Detail label="Email verified">{authDetails ? (authDetails.email_confirmed_at ? "Yes" : "No") : "Unknown"}</Detail>
+            {authDetails?.providers?.length ? <Detail label="Sign-in method">{authDetails.providers.join(", ")}</Detail> : null}
             <Detail label="Commercial status">{selected.commercial_status?.replaceAll("_", " ") || "Not specified"}</Detail>
             {selected.advisor_account_type && <Detail label="Advisor type">{selected.advisor_account_type.replaceAll("_", " ")}</Detail>}
             {selected.platform_roles.length > 0 && <Detail label="Platform access"><Badge tone="red">{selected.platform_roles.map(roleName).join(", ")}</Badge></Detail>}
