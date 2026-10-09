@@ -31,6 +31,7 @@ function splitDescription(raw:string|undefined|null){
 export default function CalendarAttendanceModal({event,onClose}:{event:EventDetails;onClose:()=>void}){
  const content=useMemo(()=>splitDescription(event.description),[event.description]);
  const link=normalizeEventUrl(event.registration_url||event.infoUrl)||extractEventUrl(event.description,event.url_text);
+ const hasDescription=content.details.length>0||content.narrative.length>0||Boolean(content.source);
  const date=event.date?new Date(`${event.date}T12:00:00`):null;
  const dateLabel=date&&!Number.isNaN(date.getTime())?date.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}):event.date;
  const attendees=event.going||[];
@@ -53,13 +54,14 @@ export default function CalendarAttendanceModal({event,onClose}:{event:EventDeta
     </div>
    </header>
    <div className="space-y-6 px-5 py-6 sm:px-7">
-    {(content.details.length>0||content.narrative.length>0||content.source||link)&&<section aria-label="Event information">
+    <section aria-label="Event information">
      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-[.12em] text-slate-500">Event Details</h3>
+     {!hasDescription&&<p className="text-sm leading-6 text-slate-600">{link?'Additional event details are available through the registration link.':'No additional event details have been provided yet.'}</p>}
      {content.details.length>0&&<div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">{content.details.map((detail,i)=><div key={i} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"><div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">{detail.label}</div><div className="mt-1 text-sm font-bold leading-5 text-slate-900">{detail.value}</div></div>)}</div>}
      {content.narrative.length>0&&<div className="space-y-3 text-sm leading-6 text-slate-700">{content.narrative.map((line,i)=><p key={i}>{line}</p>)}</div>}
      {content.source&&<p className="mt-4 border-l-2 border-slate-200 pl-3 text-xs leading-5 text-slate-500"><span className="font-bold">Source:</span> {content.source}</p>}
      {link&&<a href={link} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100"><ExternalLink size={15}/>Event Info / Registration</a>}
-    </section>}
+    </section>
     <section className="border-t border-slate-200 pt-5" aria-label="Event attendance">
      <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-base font-black text-slate-900"><Users size={19}/>Players Attending</h3><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-extrabold text-slate-700">{attendees.length} {attendees.length===1?'player':'players'}</span></div>
      {attendees.length===0?<div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-7 text-center"><Users size={22} className="mx-auto mb-2 text-slate-400"/><p className="text-sm font-semibold text-slate-700">No {org} players have marked Going yet.</p><p className="mt-1 text-xs text-slate-500">Players who RSVP will appear here, grouped by team.</p></div>:<div className="space-y-3">
