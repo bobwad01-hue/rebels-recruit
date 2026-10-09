@@ -71,21 +71,34 @@ export async function POST(req: NextRequest) {
     const { data: team, error: teamError } = await admin.from("teams").select("id,name,organization_id").eq("id", teamId).eq("organization_id", organizationId).is("archived_at", null).maybeSingle();
     if (teamError) throw new Error(teamError.message);
     if (!team) return NextResponse.json({ error: "Please choose a team from the selected organization." }, { status: 400 });
-    const { data: existingMember, error: existingMemberError } = await admin.from("organization_members").select("organization_id").eq("organization_id", organizationId).eq("user_id", user.id).eq("role", "athlete").maybeSingle();
-    if (existingMemberError) throw new Error(existingMemberError.message);
-    if (existingMember) {
-      const { error } = await admin.from("organization_members").update({ status: "active" }).eq("organization_id", organizationId).eq("user_id", user.id).eq("role", "athlete");
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await admin.from("organization_members").insert({ organization_id: organizationId, user_id: user.id, role: "athlete", status: "active" });
-      if (error) throw new Error(error.message);
+    // Selecting a team in the athlete profile is a request, not authorization.
+    // Existing approved team members can update their primary team; others must be approved.
+    const { data: existingTeam, error: existingError } = await admin.from("team_members")
+      .select("team_id").eq("team_id", teamId).eq("user_id", user.id).maybeSingle();
+    if (existingError) throw new Error(existingError.message);
+    if (!existingTeam) {
+      const { data: pending } = await admin.from("access_requests")
+        .select("id").eq("user_id", user.id).eq("organization_id", organizationId)
+        .eq("role", "athlete").eq("status", "pending").maybeSingle();
+      const { error: requestError } = pending
+        ? await admin.from("access_requests").update({ team_ids: [teamId], requested_at: new Date().toISOString() }).eq("id", pending.id)
+        : await admin.from("access_requests").insert({ user_id: user.id, organization_id: organizationId, team_ids: [teamId], role: "athlete" });
+      if (requestError) throw new Error(requestError.message);
+      const { data: orgAdmins } = await admin.from("organization_members").select("user_id").eq("organization_id", organizationId).eq("role", "admin").eq("status", "active");
+      const { data: teamAdmins } = await admin.from("team_user_roles").select("user_id").eq("team_id", teamId).eq("role", "admin").eq("status", "active");
+      const ids = [...new Set([...(orgAdmins || []).map((r: any) => r.user_id), ...(teamAdmins || []).map((r: any) => r.user_id)])].filter(id => id !== user.id);
+      if (ids.length) {
+        const { data: profile } = await admin.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+        await admin.from("notifications").insert(ids.map(user_id => ({
+          user_id, kind: "access_request", title: "Athlete team access requested",
+          body: `${profile?.full_name || "An athlete"} requested to join ${team.name}.`,
+          url: "/organization/setup", scheduled_for: new Date().toISOString(),
+        })));
+      }
+      return NextResponse.json({ ok: true, pending: true, team: team.name, organizationId });
     }
-    const { data: orgTeams, error: orgTeamsError } = await admin.from("teams").select("id").eq("organization_id", organizationId);
-    if (orgTeamsError) throw new Error(orgTeamsError.message);
-    const orgTeamIds = (orgTeams || []).map((t: any) => t.id);
-    if (orgTeamIds.length) await removeUserFromTeams(admin, user.id, orgTeamIds);
-    await addUserToTeam(admin, user.id, team.id);
-    const { error: profileError } = await admin.from("athlete_profiles").update({ primary_organization_id: organizationId, primary_team_id: teamId }).eq("user_id", user.id);
+    const { error: profileError } = await admin.from("athlete_profiles")
+      .update({ primary_organization_id: organizationId, primary_team_id: teamId }).eq("user_id", user.id);
     if (profileError) throw new Error(profileError.message);
     return NextResponse.json({ ok: true, team: team.name, organizationId });
   } catch (error) {
