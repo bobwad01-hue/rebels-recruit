@@ -53,6 +53,11 @@ export default function ParentConnect() {
   const chosen = data?.athletes.find(a => a.id === selected);
   const blocked = chosen?.connection === "revoked" || chosen?.connection === "declined";
 
+  function openExistingConnection(athlete: Athlete) {
+    if (athlete.connection === "active") window.localStorage.setItem("rr-parent-athlete", athlete.id);
+    router.push("/parent");
+  }
+
   async function connect() {
     if (!chosen || busy || blocked || chosen.connection === "pending" || chosen.connection === "active") return;
     setBusy(true); setError("");
@@ -116,7 +121,7 @@ export default function ParentConnect() {
             </label>)}
             {!athletes.length && <p className="muted text-sm rounded-xl border p-4">{search ? "No matching athletes on this team." : "No athletes are available yet. Ask your team administrator to check the roster."}</p>}
           </div>
-          <button className="btn btn-red w-full justify-center" disabled={!chosen || busy} onClick={() => chosen?.connection === "active" || chosen?.connection === "pending" ? router.push("/parent") : setStep(2)}>
+          <button className="btn btn-red w-full justify-center" disabled={!chosen || busy} onClick={() => chosen?.connection === "active" || chosen?.connection === "pending" ? openExistingConnection(chosen) : setStep(2)}>
             {chosen?.connection === "active" ? "Go to Parent Dashboard" : chosen?.connection === "pending" ? "View Pending Connection" : "Continue"} <ArrowRight size={16}/>
           </button>
         </div>}
