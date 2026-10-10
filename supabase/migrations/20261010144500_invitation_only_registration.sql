@@ -34,7 +34,7 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
-END $$;
+END; $;
 
 -- OAuth does not allow a client-supplied user_metadata join token before
 -- creating the Auth user. A short-lived, email-bound intent bridges that gap.
@@ -122,7 +122,7 @@ BEGIN
 
   RAISE EXCEPTION 'RLTNL Recruiting is invitation-only. A valid team or organization invitation is required.'
     USING ERRCODE = 'P0001';
-END $$;
+END; $;
 
 DROP TRIGGER IF EXISTS enforce_invitation_only_auth_signup ON auth.users;
 CREATE TRIGGER enforce_invitation_only_auth_signup
@@ -190,112 +190,4 @@ BEGIN
       'CREATE POLICY registration_required ON %I.%I AS RESTRICTIVE FOR ALL TO authenticated USING ((SELECT public.registration_is_active())) WITH CHECK ((SELECT public.registration_is_active()))',
       rec.schema_name, rec.table_name);
   END LOOP;
-END $$;
- THEN
-    IF EXISTS (
-      SELECT 1 FROM public.organization_join_links l
-      LEFT JOIN public.teams t ON t.id = l.team_id
-      WHERE l.token = join_token::uuid AND l.active = true
-        AND (l.team_id IS NULL OR (t.id IS NOT NULL AND t.archived_at IS NULL))
-        AND (
-          (l.role = 'family' AND l.team_id IS NOT NULL AND requested_role IN ('athlete','parent'))
-          OR (l.role IN ('athlete','parent') AND l.role = requested_role)
-          OR (l.role IN ('advisor','admin','advisor_admin') AND requested_role = 'advisor')
-        )
-    ) THEN
-    RETURN NEW;
-  END IF;
-
-  -- Google signup requires a recent server-validated intent for the exact
-  -- Google account email. A revoked invitation cannot be reused.
-  SELECT sa.id INTO authorized_id
-  FROM public.signup_authorizations sa
-  JOIN public.organization_join_links l ON l.id = sa.join_link_id
-  LEFT JOIN public.teams t ON t.id = l.team_id
-  WHERE sa.email = normalized_email
-    AND sa.expires_at > now() AND l.active = true
-    AND (l.team_id IS NULL OR (t.id IS NOT NULL AND t.archived_at IS NULL))
-    AND (
-      (l.role = 'family' AND l.team_id IS NOT NULL AND sa.requested_role IN ('athlete','parent'))
-      OR (l.role IN ('athlete','parent') AND l.role = sa.requested_role)
-      OR (l.role IN ('advisor','admin','advisor_admin') AND sa.requested_role = 'advisor')
-    )
-  ORDER BY sa.created_at DESC
-  LIMIT 1;
-
-  IF authorized_id IS NOT NULL THEN
-    DELETE FROM public.signup_authorizations WHERE id = authorized_id;
-    RETURN NEW;
-  END IF;
-
-  RAISE EXCEPTION 'RLTNL Recruiting is invitation-only. A valid team or organization invitation is required.'
-    USING ERRCODE = 'P0001';
-END $$;
-
-DROP TRIGGER IF EXISTS enforce_invitation_only_auth_signup ON auth.users;
-CREATE TRIGGER enforce_invitation_only_auth_signup
-BEFORE INSERT ON auth.users
-FOR EACH ROW EXECUTE FUNCTION public.enforce_invitation_only_auth_signup();
-
--- Existing JWT sessions and direct PostgREST access must not allow a new,
--- unredeemed account to use recruiting tables. Restrictive RLS is added to
--- every current public table; service_role and postgres bypass RLS.
-CREATE OR REPLACE FUNCTION public.registration_is_active()
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = ''
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.profiles p
-    WHERE p.id = (SELECT auth.uid())
-      AND p.registration_status = 'active'
-      AND p.account_status = 'active'
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION public.current_registration_status()
-RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = ''
-AS $$
-  SELECT COALESCE((
-    SELECT p.registration_status FROM public.profiles p
-    WHERE p.id = (SELECT auth.uid())
-  ), 'pending_invite');
-$$;
-
--- Middleware needs an RLS-independent account check. Suspended accounts
--- cannot read their own profile under the restrictive policies above.
-CREATE OR REPLACE FUNCTION public.current_account_access()
-RETURNS TABLE (app_role text, account_status text, registration_status text)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $
-  SELECT p.app_role::text, p.account_status::text, p.registration_status::text
-  FROM public.profiles p
-  WHERE p.id = (SELECT auth.uid());
-$;
-
-REVOKE ALL ON FUNCTION public.current_account_access() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.current_account_access() TO authenticated;
-
-REVOKE ALL ON FUNCTION public.registration_is_active() FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.current_registration_status() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.registration_is_active() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.current_registration_status() TO authenticated;
-
-DO $$
-DECLARE rec record;
-BEGIN
-  FOR rec IN
-    SELECT n.nspname AS schema_name, c.relname AS table_name
-    FROM pg_class c
-    JOIN pg_namespace n ON n.oid = c.relnamespace
-    WHERE n.nspname = 'public'
-      AND c.relkind IN ('r','p')
-      AND c.relrowsecurity
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS registration_required ON %I.%I',
-      rec.schema_name, rec.table_name);
-    EXECUTE format(
-      'CREATE POLICY registration_required ON %I.%I AS RESTRICTIVE FOR ALL TO authenticated USING ((SELECT public.registration_is_active())) WITH CHECK ((SELECT public.registration_is_active()))',
-      rec.schema_name, rec.table_name);
-  END LOOP;
-END $$;
+END; $;
