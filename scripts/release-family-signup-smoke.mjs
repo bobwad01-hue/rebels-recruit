@@ -7,6 +7,7 @@ const setup = read("app/api/organization/setup/route.ts");
 const join = read("app/api/join/route.ts");
 const signup = read("app/signup/page.tsx");
 const connect = read("app/api/parent/connect/route.ts");
+const parentConnect = read("app/parent/connect/page.tsx");
 const relationship = read("lib/parent-access.ts");
 const context = read("lib/parent-context.ts");
 const parentHome = read("app/parent/page.tsx");
