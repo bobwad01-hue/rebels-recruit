@@ -98,6 +98,12 @@ export async function POST(req: NextRequest) {
     if (rosterError) return fail("Could not add athlete to the team roster.", 500);
   }
 
+  // A new registration becomes usable only after a real, active team
+  // membership has been created. A staff approval request alone is not enough.
+  const { error: activationError } = await admin.from("profiles")
+    .update({ registration_status: "active" }).eq("id", user.id);
+  if (activationError) return fail("Team access was added, but account activation could not be completed. Please retry.", 500);
+
   let next: string;
   if (role === "parent") {
     const connectPath = `/parent/connect?team=${encodeURIComponent(String(link.team_id))}`;
