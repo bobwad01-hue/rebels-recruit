@@ -85,7 +85,7 @@ export default function Login() {
           </div>}
           {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}
         </div>
-        <p className="text-sm muted mt-6 text-center">Don't have an account? <Link className="font-bold text-slate-900" href={joinToken?'/signup?join_token='+encodeURIComponent(joinToken):'/signup'}>Create one</Link></p>
+        <p className="text-sm muted mt-6 text-center">Have a team invitation? <Link className="font-bold text-slate-900" href={joinToken?'/signup?join_token='+encodeURIComponent(joinToken):'/signup'}>Join your team</Link></p>
       </form>
     </div>
   );
