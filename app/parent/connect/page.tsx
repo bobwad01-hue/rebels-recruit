@@ -113,7 +113,6 @@ export default function ParentConnect() {
               <span className="h-9 w-9 rounded-full bg-slate-100 grid place-items-center shrink-0"><UserRound size={18}/></span>
               <span className="min-w-0 flex-1"><span className="block font-black truncate">{a.full_name || "Athlete"}</span>
                 {a.jersey_number !== null && a.jersey_number !== undefined && String(a.jersey_number).trim() !== "" && <span className="block text-xs text-slate-600">Jersey #{a.jersey_number}</span>}
-                {a.jersey_number !== null && a.jersey_number !== undefined && String(a.jersey_number).trim() !== "" && <span className="block text-xs text-slate-600">Jersey #{a.jersey_number}</span>}
                 {a.connection === "pending" && <span className="text-xs text-amber-700">Awaiting confirmation</span>}
                 {a.connection === "active" && <span className="text-xs text-green-700">Already connected</span>}
                 {(a.connection === "revoked" || a.connection === "declined") && <span className="text-xs text-slate-500">Connection {a.connection}. Only the athlete can restore access.</span>}
