@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Clock3, Search, ShieldCheck, UserRound, Users } from "lucide-react";
 import { PrimaryBrand } from "@/components/BrandLogo";
 
-type Athlete = { id: string; full_name: string | null; connection: string | null };
+type Athlete = { id: string; full_name: string | null; jersey_number: number | string | null; connection: string | null };
 type Team = { id: string; name: string; age_group?: string | null };
 type TeamResponse = { team: Team; athletes: Athlete[] };
 type Relationship = "parent" | "guardian";
@@ -112,6 +112,7 @@ export default function ParentConnect() {
               <input type="radio" name="athlete" value={a.id} checked={selected === a.id} onChange={() => setSelected(a.id)} className="accent-red-600"/>
               <span className="h-9 w-9 rounded-full bg-slate-100 grid place-items-center shrink-0"><UserRound size={18}/></span>
               <span className="min-w-0 flex-1"><span className="block font-black truncate">{a.full_name || "Athlete"}</span>
+                {a.jersey_number !== null && a.jersey_number !== undefined && String(a.jersey_number).trim() !== "" && <span className="block text-xs text-slate-600">Jersey #{a.jersey_number}</span>}
                 {a.connection === "pending" && <span className="text-xs text-amber-700">Awaiting confirmation</span>}
                 {a.connection === "active" && <span className="text-xs text-green-700">Already connected</span>}
                 {(a.connection === "revoked" || a.connection === "declined") && <span className="text-xs text-slate-500">Connection {a.connection}. Only the athlete can restore access.</span>}
@@ -127,7 +128,7 @@ export default function ParentConnect() {
         </div>}
         {!loading && data && step === 2 && chosen && <div className="mt-6 space-y-5">
           <div className="flex items-center gap-3 rounded-xl border p-4"><span className="h-12 w-12 rounded-full bg-slate-100 grid place-items-center"><UserRound size={21}/></span>
-            <div><div className="font-black">{chosen.full_name || "Athlete"}</div><div className="muted text-sm">{data.team.name}</div></div>
+            <div><div className="font-black">{chosen.full_name || "Athlete"}</div><div className="muted text-sm">{data.team.name}{chosen.jersey_number !== null && chosen.jersey_number !== undefined && String(chosen.jersey_number).trim() !== "" ? ` · Jersey #${chosen.jersey_number}` : ""}</div></div>
           </div>
           <fieldset className="space-y-2"><legend className="font-bold text-sm mb-2">Your relationship to this athlete</legend>
             {([["parent","Parent"],["guardian","Legal Guardian"]] as const).map(([value,label]) =>
