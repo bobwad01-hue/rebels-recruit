@@ -58,12 +58,11 @@ export default function Signup() {
     &&!inviteNeedsApply&&(!staffInvite||(!inviteLoading&&Boolean(invitedEmail)))
     &&(!accessLinkSignup||(!joinInviteLoading&&!joinInviteError&&Boolean(joinRole)));
 
-  useEffect(()=>{if(!staffToken)return;let live=true;setInviteLoading(true);(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor');setAdvisorPath('organization')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
+  useEffect(()=>{if(!staffToken)return;let live=true;setInviteLoading(true);(async()=>{try{const r=await fetch(`/api/staff-invite?token=${encodeURIComponent(staffToken)}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load invitation.');if(!live)return;setInvitedEmail(d.email||'');setEmail(d.email||'');setInvitedRole(d.role||'advisor');setInviteOrg(d.organization?.name||'');setRole('advisor')}catch(e){if(live)setError(e instanceof Error?e.message:'Could not load invitation.')}finally{if(live)setInviteLoading(false)}})();return()=>{live=false}},[staffToken]);
 
   useEffect(()=>{if(!joinToken)return;let live=true;setJoinInviteLoading(true);setJoinInviteError('');setJoinRole('');(async()=>{try{const r=await fetch('/api/join?token='+encodeURIComponent(joinToken),{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.error||'This team invitation is not available.');if(!live)return;setJoinRole(d.role);
     if(d.role==='family')setRole(previous=>['athlete','parent'].includes(previous)?previous:'athlete');
     else{const inviteRole=d.role==='advisor_admin'||d.role==='admin'?'advisor':d.role;setRole(['athlete','parent','advisor'].includes(inviteRole)?inviteRole:'athlete');}
-    if(['advisor','admin','advisor_admin'].includes(d.role))setAdvisorPath('organization');
     setJoinOrg(d.organization?.name||'');setJoinTeam(d.team?.name||'');
   }catch(e){if(live)setJoinInviteError(e instanceof Error?e.message:'Could not load this team invitation.')}finally{if(live)setJoinInviteLoading(false)}})();return()=>{live=false}},[joinToken]);
 
