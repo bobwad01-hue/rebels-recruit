@@ -75,3 +75,10 @@ assert.match(pendingParentApi, /permitted\.has/, "Pending athlete labels are sco
 assert.match(parentHome, /pendingAthletes\.map/, "Pending dashboard identifies the athlete and team");
 assert.match(parentHome, /pending\?<\>/, "Pending dashboard hides redundant email access request");
 assert.match(pendingApprovals, /if \(!pending\.length\) return null/, "Approval card disappears after last decision");
+
+assert.match(context, /\|\|rows\[0\]/, "Parent Home falls back to first approved athlete when saved selection is stale");
+const parentShell = read("components/AppShell.tsx");
+assert.match(parentShell, /\|\|\(rows\|\|\[\]\)\[0\]/, "Parent navigation also falls back to an approved athlete");
+assert.match(parentShell, /const parentNav:any\[\]=\[\[parentHref\('\/parent'\),'Home'/, "Parent navigation starts with Home");
+assert.match(parentShell, /'Find Schools',Compass/, "Parent navigation includes Find Schools when permitted");
+assert.match(parentHome, /setPending\(false\);setPendingAthletes\(\[\]\)/, "Approved Parent Home clears stale onboarding status");

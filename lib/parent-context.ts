@@ -13,7 +13,7 @@ export async function resolveParentView(c:any,preferredAthleteId?:string|null):P
    }
  }
  const {data}=await c.from('parent_guardian_access').select('id,athlete_user_id,permissions').eq('parent_user_id',user.id).eq('status','active').order('created_at',{ascending:true});const rows=data||[];
- const queryAthlete=sp.get('athlete');const stored=typeof window!=='undefined'?window.localStorage.getItem(STORAGE_KEY):null;const requested=preferredAthleteId||queryAthlete||stored;const selected=requested?rows.find((x:any)=>String(x.athlete_user_id)===String(requested)):rows[0];if(!selected)return null;
+ const queryAthlete=sp.get('athlete');const stored=typeof window!=='undefined'?window.localStorage.getItem(STORAGE_KEY):null;const requested=preferredAthleteId||queryAthlete||stored;const selected=(requested?rows.find((x:any)=>String(x.athlete_user_id)===String(requested)):null)||rows[0];if(!selected)return null;
  if(typeof window!=='undefined')window.localStorage.setItem(STORAGE_KEY,String(selected.athlete_user_id));
  return{athleteId:String(selected.athlete_user_id),permissions:selected.permissions||{},preview:false,accessId:selected.id};
 }
