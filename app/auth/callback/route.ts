@@ -106,7 +106,7 @@ export async function GET(request: Request) {
 
   // Materialize any verified organization staff invitation for this email.
   // Access is granted only after Supabase has authenticated the exact invited email.
-  if(user.email){
+  if(user.email && user.email_confirmed_at){
     const email=user.email.trim().toLowerCase();
     const{data:invites}=await admin.from('organization_staff_invites').select('id,organization_id,role,organization_view_access').ilike('email',email).eq('status','pending');
     for(const invite of invites||[]){
