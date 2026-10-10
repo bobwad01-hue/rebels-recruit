@@ -34,7 +34,7 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
   RETURN NEW;
-END; $;
+END; $$;
 
 -- OAuth does not allow a client-supplied user_metadata join token before
 -- creating the Auth user. A short-lived, email-bound intent bridges that gap.
@@ -122,7 +122,7 @@ BEGIN
 
   RAISE EXCEPTION 'RLTNL Recruiting is invitation-only. A valid team or organization invitation is required.'
     USING ERRCODE = 'P0001';
-END; $;
+END; $$;
 
 DROP TRIGGER IF EXISTS enforce_invitation_only_auth_signup ON auth.users;
 CREATE TRIGGER enforce_invitation_only_auth_signup
@@ -159,11 +159,11 @@ $$;
 CREATE OR REPLACE FUNCTION public.current_account_access()
 RETURNS TABLE (app_role text, account_status text, registration_status text)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
-AS $
+AS $$
   SELECT p.app_role::text, p.account_status::text, p.registration_status::text
   FROM public.profiles p
   WHERE p.id = (SELECT auth.uid());
-$;
+$$;
 
 REVOKE ALL ON FUNCTION public.current_account_access() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.current_account_access() TO authenticated;
@@ -190,4 +190,4 @@ BEGIN
       'CREATE POLICY registration_required ON %I.%I AS RESTRICTIVE FOR ALL TO authenticated USING ((SELECT public.registration_is_active())) WITH CHECK ((SELECT public.registration_is_active()))',
       rec.schema_name, rec.table_name);
   END LOOP;
-END; $;
+END; $$;
