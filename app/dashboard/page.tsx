@@ -20,6 +20,7 @@ import SmartNextMoves, {
 import HomeUpcomingEvents from "@/components/HomeUpcomingEvents";
 import HomeTopTargets from "@/components/HomeTopTargets";
 import QuickAddMenu from "@/components/QuickAddMenu";
+import PendingParentApprovals, { type PendingParentRequest } from "@/components/PendingParentApprovals";
 import ReminderStickyBoard from "@/components/ReminderStickyBoard";
 import WeeklyRecruitingMomentum from "@/components/WeeklyRecruitingMomentum";
 import { createClient } from "@/lib/supabase-server";
@@ -301,6 +302,36 @@ export default async function Dashboard({
       one(r.colleges)?.name || "School",
     ]),
   );
+  // Parent requests are private to the signed-in athlete. Never surface them
+  // when an organization owner is previewing another athlete's dashboard.
+  let pendingParentRequests: PendingParentRequest[] = [];
+  let parentRequestError = false;
+  if (!preview.active) {
+    const { data: requests, error: requestError } = await supabase
+      .from("parent_guardian_access")
+      .select("id,parent_user_id,relationship_type")
+      .eq("athlete_user_id", user.id)
+      .eq("status", "pending")
+      .order("created_at", { ascending: true });
+    parentRequestError = !!requestError;
+    if (requests?.length) {
+      const { data: parents, error: parentsError } = await supabase
+        .from("profiles")
+        .select("id,full_name,email")
+        .in("id", requests.map(row => row.parent_user_id));
+      if (parentsError) parentRequestError = true;
+      const names = new Map((parents || []).map(parent => [parent.id, parent]));
+      pendingParentRequests = requests.map(row => {
+        const parent = names.get(row.parent_user_id);
+        return {
+          id: row.id,
+          parentName: parent?.full_name || "Parent / Guardian",
+          parentEmail: parent?.email || "Email unavailable",
+          relationship: row.relationship_type === "guardian" ? "guardian" : "parent",
+        };
+      });
+    }
+  }
   return (
     <AppShell>
       <div className="w-full min-w-0 max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6">
@@ -317,6 +348,8 @@ export default async function Dashboard({
           eyebrow={null}
           action={preview.active ? undefined : <QuickAddMenu />}
         />
+        {parentRequestError && !preview.active && <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Parent / Guardian requests could not be loaded. <Link href="/manage-access" className="underline">Review them in Manage Access</Link>.</div>}
+        {pendingParentRequests.length > 0 && <PendingParentApprovals requests={pendingParentRequests} />}
         <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">
         <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
