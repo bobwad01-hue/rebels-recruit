@@ -153,6 +153,20 @@ AS $$
   ), 'pending_invite');
 $$;
 
+-- Middleware needs an RLS-independent account check. Suspended accounts
+-- cannot read their own profile under the restrictive policies above.
+CREATE OR REPLACE FUNCTION public.current_account_access()
+RETURNS TABLE (app_role text, account_status text, registration_status text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $
+  SELECT p.app_role::text, p.account_status::text, p.registration_status::text
+  FROM public.profiles p
+  WHERE p.id = (SELECT auth.uid());
+$;
+
+REVOKE ALL ON FUNCTION public.current_account_access() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.current_account_access() TO authenticated;
+
 REVOKE ALL ON FUNCTION public.registration_is_active() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.current_registration_status() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.registration_is_active() TO authenticated;
