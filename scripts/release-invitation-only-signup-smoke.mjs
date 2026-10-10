@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
-const migration = read("supabase/migrations/20261010144500_invitation_only_registration.sql");
+const migration = read("supabase/migrations/20261010144346_invitation_only_registration.sql");
 const signup = read("app/signup/page.tsx");
 const authorize = read("app/api/signup/authorize/route.ts");
 const callback = read("app/auth/callback/route.ts");
