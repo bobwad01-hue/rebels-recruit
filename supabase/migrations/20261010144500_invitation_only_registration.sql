@@ -83,7 +83,9 @@ BEGIN
 
   -- Email/password signup passes the actual team invitation token in Auth
   -- metadata. Only live links with a valid role and non-archived team qualify.
-  IF join_token ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
+  IF join_token ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' THEN
+    IF EXISTS (
+      SELECT 1 FROM public.organization_join_links l
       LEFT JOIN public.teams t ON t.id = l.team_id
       WHERE l.token = join_token::uuid AND l.active = true
         AND (l.team_id IS NULL OR (t.id IS NOT NULL AND t.archived_at IS NULL))
@@ -96,7 +98,6 @@ BEGIN
       RETURN NEW;
     END IF;
   END IF;
-
   -- Google signup requires a recent server-validated intent for the exact
   -- Google account email. A revoked invitation cannot be reused.
   SELECT sa.id INTO authorized_id
