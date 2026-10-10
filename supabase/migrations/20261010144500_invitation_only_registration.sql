@@ -52,6 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_signup_authorizations_expiry
   ON public.signup_authorizations(expires_at);
 ALTER TABLE public.signup_authorizations ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.signup_authorizations FROM anon, authenticated, PUBLIC;
+GRANT ALL ON public.signup_authorizations TO service_role;
 
 -- Resolve invitations inside Auth's transaction. User-provided metadata is
 -- never trusted without matching a currently active team or staff invitation.
