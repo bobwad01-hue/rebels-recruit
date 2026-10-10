@@ -49,8 +49,6 @@ export default function Signup() {
   const [sent, setSent] = useState(false);
   const [joining, setJoining] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
-  const [orgIntent,setOrgIntent]=useState(false);
-  const [advisorPath,setAdvisorPath]=useState<"independent"|"organization">("organization");
   const invitedAccount = staffInvite || accessLinkSignup;
   const permittedRole = staffInvite ? role === "advisor" : joinRole === "family"
     ? ["athlete", "parent"].includes(role)
@@ -124,7 +122,7 @@ export default function Signup() {
     setGoogleBusy(true);
     if (accessLinkSignup && !staffInvite) {
       const googleEmail = email.trim().toLowerCase();
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(googleEmail)) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) {
         setError("Enter the email address of the Google account you will use.");
         setGoogleBusy(false);
         return;
@@ -145,7 +143,7 @@ export default function Signup() {
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=${orgIntent?'1':'0'}&advisor_account_type=${role==='advisor'?advisorPath:''}&staff_token=${encodeURIComponent(staffToken)}&join_token=${encodeURIComponent(joinToken)}`,
+        redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=0&advisor_account_type=${role==='advisor'?'organization':''}&staff_token=${encodeURIComponent(staffToken)}&join_token=${encodeURIComponent(joinToken)}`,
         queryParams: { prompt: 'select_account', ...(email.trim() ? { login_hint: email.trim() } : {}) },
       },
     });
