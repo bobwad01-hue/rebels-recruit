@@ -21,6 +21,7 @@ export async function requestParentConnection(
   admin: any,
   parentUserId: string,
   athleteUserId: string,
+  relationship: "parent" | "guardian" = "parent",
 ): Promise<{ status: "pending" | "active"; changed: boolean }> {
   if (parentUserId === athleteUserId) throw new Error("You cannot request access to your own account.");
 
@@ -42,6 +43,11 @@ export async function requestParentConnection(
   if (lookupError) throw lookupError;
   if (existing?.status === "active") return { status: "active", changed: false };
   if (existing?.status === "pending") return { status: "pending", changed: false };
+  // Revoked and declined relationships require an explicit athlete restoration.
+  // A team-wide signup link must never be used to bypass an athlete's decision.
+  if (existing?.status === "revoked" || existing?.status === "declined") {
+    throw new Error("This connection was declined or revoked. Only the athlete can restore it.");
+  }
 
   if (existing) {
     const { data, error } = await admin
@@ -58,6 +64,7 @@ export async function requestParentConnection(
       athlete_user_id: athleteUserId,
       parent_user_id: parentUserId,
       status: "pending",
+      relationship_type: relationship,
     });
     if (error) throw error;
   }
