@@ -56,6 +56,12 @@ export async function GET(req: NextRequest) {
       : { data: [], error: null };
     if (profileError) throw profileError;
     const athleteIds = (profiles || []).map((p: any) => p.id);
+    // Jersey numbers are team-visible identifiers, not private recruiting details.
+    const { data: athleteProfiles, error: jerseyError } = athleteIds.length
+      ? await admin.from("athlete_profiles").select("user_id,jersey_number").in("user_id", athleteIds)
+      : { data: [], error: null };
+    if (jerseyError) throw jerseyError;
+    const jerseyById = new Map((athleteProfiles || []).map((a: any) => [a.user_id, a.jersey_number]));
     const { data: connections, error: connectionError } = athleteIds.length
       ? await admin.from("parent_guardian_access").select("athlete_user_id,status")
           .eq("parent_user_id", user.id).in("athlete_user_id", athleteIds)
@@ -65,7 +71,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       team,
       athletes: (profiles || []).map((p: any) => ({
-        id: p.id, full_name: p.full_name, connection: byAthlete.get(p.id) || null,
+        id: p.id, full_name: p.full_name, jersey_number: jerseyById.get(p.id) ?? null, connection: byAthlete.get(p.id) || null,
       })),
     });
   } catch (error) {
