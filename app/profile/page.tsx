@@ -196,7 +196,18 @@ export default function Profile() {
     }
     if (user?.id) window.localStorage.removeItem(`rr-profile-draft:${user.id}`);
     setMsg("Profile saved.");
-    if (isOnboarding) location.href = "/access-requests";
+    if (isOnboarding) {
+      // Team invitation signup already creates active membership before profile setup.
+      // Only athletes without approved team access need the access-request screen.
+      try {
+        const membership = await fetch("/api/profile/team", { cache: "no-store" });
+        if (!membership.ok) throw new Error("Could not verify team membership.");
+        const access = (await membership.json()) as { hasActiveTeamAccess?: boolean };
+        location.href = access.hasActiveTeamAccess ? "/dashboard" : "/access-requests";
+      } catch {
+        setMsg("Your profile was saved, but we could not verify your team access. Please refresh and try again.");
+      }
+    }
   }
 
   return (
