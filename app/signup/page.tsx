@@ -119,31 +119,11 @@ export default function Signup() {
       return;
     }
     setGoogleBusy(true);
-    if (accessLinkSignup && !staffInvite) {
-      const googleEmail = email.trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(googleEmail)) {
-        setError("Enter the email address of the Google account you will use.");
-        setGoogleBusy(false);
-        return;
-      }
-      try {
-        const response = await fetch("/api/signup/authorize", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: googleEmail, joinToken, role }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Your team invitation could not be verified.");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Your invitation could not be verified.");
-        setGoogleBusy(false);
-        return;
-      }
-    }
     const { error } = await createClient().auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: `${window.location.origin}/auth/callback?signup_role=${encodeURIComponent(role)}&legal_signup=1&age_13_plus=${role==='athlete'?'1':'0'}&organization_admin_interest=0&advisor_account_type=${role==='advisor'?'organization':''}&staff_token=${encodeURIComponent(staffToken)}&join_token=${encodeURIComponent(joinToken)}`,
-        queryParams: { prompt: 'select_account', ...(email.trim() ? { login_hint: email.trim() } : {}) },
+        queryParams: { prompt: 'select_account', ...(staffInvite && invitedEmail ? { login_hint: invitedEmail } : {}) },
       },
     });
     if (error) { setError(error.message); setGoogleBusy(false); }
@@ -188,7 +168,6 @@ export default function Signup() {
           <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><input type="checkbox" className="mt-1 h-4 w-4" checked={legalAccepted} onChange={e=>setLegalAccepted(e.target.checked)}/><span className="text-sm leading-5">I agree to the <Link href="/terms" target="_blank" className="font-bold text-red-700 hover:underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="font-bold text-red-700 hover:underline">Privacy Policy</Link>.</span></label>
           {error&&<p role="alert" className="text-sm text-red-600">{error}</p>}
           {!canContinue&&!joinInviteError&&<p className="text-xs font-semibold text-slate-500 text-center">{!invitedAccount?'Enter a Team Signup Code or open your invitation link to continue.':joinInviteLoading?'Checking your team invitation…':joinInviteError?'This invitation is invalid or inactive.':inviteNeedsApply?'Apply the Team Signup Code to continue.':role==='athlete'&&!ageConfirmed&&!legalAccepted?'Confirm your age and accept the Terms to continue.':role==='athlete'&&!ageConfirmed?'Confirm that you are age 13 or older to continue.':'Accept the Terms of Service and Privacy Policy to continue.'}</p>}
-          {accessLinkSignup&&!staffInvite&&!emailMode&&<label className="block"><span className="text-sm font-bold">Google account email *</span><input className="input mt-1 w-full" type="email" autoComplete="email" placeholder="Enter the email you use with Google" value={email} onChange={e=>setEmail(e.target.value)} /><span className="block text-xs text-slate-500 mt-1">This must match the Google account you select. Your invitation is verified before Google signup.</span></label>}
           <button type="button" disabled={googleBusy||!canContinue} onClick={continueWithGoogle} className="btn btn-red w-full min-h-12 font-black disabled:opacity-40 disabled:cursor-not-allowed">{googleBusy?'Connecting to Google…':'Continue with Google'}</button>
           <p className="text-xs text-slate-500 text-center -mt-1">Use your Google account to sign up without creating a password.</p>
           <div className="flex items-center gap-3"><div className="h-px flex-1 bg-slate-200"/><span className="text-xs font-bold text-slate-400">OR</span><div className="h-px flex-1 bg-slate-200"/></div>
