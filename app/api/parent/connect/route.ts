@@ -76,7 +76,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await currentUser();
   if (!user) return fail("Please sign in.", 401);
-  const { teamId, athleteId } = await req.json();
+  const { teamId, athleteId, relationship } = await req.json();
+  if (relationship !== "parent" && relationship !== "guardian") return fail("Select Parent or Legal Guardian.");
   if (!uuid.test(String(teamId || "")) || !uuid.test(String(athleteId || ""))) return fail("Choose a valid athlete and team.");
   const admin = createAdminClient();
   try {
@@ -85,7 +86,7 @@ export async function POST(req: NextRequest) {
       .select("user_id").eq("team_id", String(teamId)).eq("user_id", String(athleteId)).maybeSingle();
     if (memberError) throw memberError;
     if (!membership) return fail("That athlete is not available for this Parent connection.", 403);
-    const result = await requestParentConnection(admin, user.id, String(athleteId));
+    const result = await requestParentConnection(admin, user.id, String(athleteId), relationship);
     return NextResponse.json({ ok: true, status: result.status });
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Could not request connection.", 500);
