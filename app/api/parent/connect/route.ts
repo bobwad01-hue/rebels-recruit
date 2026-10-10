@@ -56,6 +56,8 @@ export async function GET(req: NextRequest) {
       : { data: [], error: null };
     if (profileError) throw profileError;
     const athleteIds = (profiles || []).map((p: any) => p.id);
+    const { data: jerseys } = await admin.from('athlete_profiles').select('user_id,jersey_number').in('user_id', athleteIds);
+    const jerseyById = new Map((jerseys || []).map((row: any) => [row.user_id, row.jersey_number]));
     // Jersey numbers are team-visible identifiers, not private recruiting details.
     const { data: athleteProfiles, error: jerseyError } = athleteIds.length
       ? await admin.from("athlete_profiles").select("user_id,jersey_number").in("user_id", athleteIds)
