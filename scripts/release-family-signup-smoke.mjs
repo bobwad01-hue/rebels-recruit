@@ -82,3 +82,8 @@ assert.match(parentShell, /\|\|\(rows\|\|\[\]\)\[0\]/, "Parent navigation also f
 assert.match(parentShell, /const parentNav:any\[\]=\[\[parentHref\('\/parent'\),'Home'/, "Parent navigation starts with Home");
 assert.match(parentShell, /'Find Schools',Compass/, "Parent navigation includes Find Schools when permitted");
 assert.match(parentHome, /setPending\(false\);setPendingAthletes\(\[\]\)/, "Approved Parent Home clears stale onboarding status");
+
+assert.match(parentHome, /Active Schools/, 'Parent Home school summary');
+assert.match(parentHome, /Open Next Steps/, 'Parent Home action summary');
+assert.match(parentHome, /Upcoming Events/, 'Parent Home event summary');
+assert.match(parentHome, /Recent Activity/, 'Parent Home activity summary');
