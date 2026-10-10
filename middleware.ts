@@ -1,8 +1,9 @@
 import {createServerClient} from '@supabase/ssr';import {NextResponse,type NextRequest} from 'next/server';
 export async function middleware(request:NextRequest){let response=NextResponse.next({request});const supabase=createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{cookies:{getAll:()=>request.cookies.getAll(),setAll:(cs)=>{cs.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request});cs.forEach(({name,value,options})=>response.cookies.set(name,value,options))}}});const pathname=request.nextUrl.pathname;if(/\.[a-zA-Z0-9]+$/.test(pathname)&&!pathname.startsWith('/api/'))return response;if(pathname==='/api/google/gmail/push'||pathname==='/api/google/gmail/sync'||pathname==='/api/cron/college-softball-staff')return response;if(pathname==='/intelligence'||pathname.startsWith('/intelligence/')){const url=request.nextUrl.clone();url.pathname=pathname.replace(/^\/intelligence/,'/insights');return NextResponse.redirect(url,308)}const {data:{user}}=await supabase.auth.getUser();
-const {data:sessionProfile}=user
+const {data:sessionProfileRaw}=user
   ?await supabase.rpc('current_account_access').maybeSingle()
   :{data:null};
+const sessionProfile=sessionProfileRaw as {app_role?:string;account_status?:string;registration_status?:string}|null;
 if(user&&sessionProfile?.account_status==='suspended'){
   if(pathname==='/account-suspended')return response;
   if(pathname.startsWith('/api/'))return NextResponse.json(
