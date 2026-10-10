@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return fail("Sign in or create an account first.", 401);
+  if (!user.email_confirmed_at) return fail("Verify your email address before joining your team.", 403);
   const { token } = await req.json();
   if (!uuid.test(String(token || ""))) return fail("Invalid invitation link.");
   const admin = createAdminClient();
