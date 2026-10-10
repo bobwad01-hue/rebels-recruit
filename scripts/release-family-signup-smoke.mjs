@@ -10,6 +10,8 @@ const connect = read("app/api/parent/connect/route.ts");
 const relationship = read("lib/parent-access.ts");
 const context = read("lib/parent-context.ts");
 const parentHome = read("app/parent/page.tsx");
+const athleteProfile = read("app/profile/page.tsx");
+const athleteTeam = read("app/api/profile/team/route.ts");
 
 assert.match(migration, /role IN \('admin','advisor','advisor_admin','athlete','parent','family'\)/, "Family is a separate nonprivileged link role");
 assert.match(migration, /signup_code_unique/, "Each short signup code is unique");
@@ -21,6 +23,11 @@ assert.match(join, /const role = isFamily \? familyRole : link\.role/, "Family r
 assert.match(join, /const familyRole = accountRole === "advisor" \? "parent" : accountRole/, "An Advisor can also join as a parent without receiving staff privileges");
 assert.match(join, /isStaff \|\| link\.requires_approval/, "Staff links never auto-grant elevated roles");
 assert.match(join, /team_members/, "Athlete joins populate the team roster");
+assert.match(join, /registration_status: "active"/, "Team invitation activates the account before profile setup");
+assert.match(athleteTeam, /\.eq\("role", "athlete"\)\.eq\("status", "active"\)\.limit\(1\)/, "Profile checks approved team roles, not a manually selected team");
+assert.match(athleteTeam, /hasActiveTeamAccess: Boolean\(activeTeamRoles\?\.length\)/, "Profile API reports active team access");
+assert.match(athleteProfile, /location\.href = access\.hasActiveTeamAccess \? "\/dashboard" : "\/access-requests"/, "Invited athletes go directly to dashboard after first profile save");
+assert.doesNotMatch(athleteProfile, /if \(isOnboarding\) location\.href = "\/access-requests"/, "Onboarding never forces approved athletes to request access again");
 assert.match(join, /\/parent\/connect\?team=/, "Parent joins continue to team athlete selection");
 assert.match(signup, /joinRole==='family'/, "Family signup permits role selection");
 assert.match(signup, /applyTeamCode/, "Manual team code can be applied");
