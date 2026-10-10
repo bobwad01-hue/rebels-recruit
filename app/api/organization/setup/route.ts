@@ -272,7 +272,11 @@ export async function POST(req: NextRequest) {
         if(!teamIds.length||teamIds.some((id:string)=>!scope.team_ids?.includes(id)))return NextResponse.json({error:"Team Admins can manage roles only inside their assigned team(s)."},{status:403});
         for(const teamId of scope.team_ids||[])await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).eq("team_id",teamId);
         if(enabled)for(const teamId of teamIds)await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});
-        if(enabled)await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+        if(enabled){
+          await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+          const {error:activationError}=await admin.from("profiles").update({registration_status:"active"}).eq("id",target);
+          if(activationError)throw new Error(activationError.message);
+        }
         return NextResponse.json({ok:true});
       }
       if(enabled)await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});
@@ -280,6 +284,10 @@ export async function POST(req: NextRequest) {
       if(role!=="admin"){
         if(!enabled)await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).in("team_id",(await admin.from("teams").select("id").eq("organization_id",organizationId)).data?.map((x:any)=>x.id)||[]);
         else for(const teamId of teamIds){const {data:team}=await admin.from("teams").select("id").eq("id",teamId).eq("organization_id",organizationId).maybeSingle();if(team)await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});}
+      }
+      if(enabled){
+        const {error:activationError}=await admin.from("profiles").update({registration_status:"active"}).eq("id",target);
+        if(activationError)throw new Error(activationError.message);
       }
       return NextResponse.json({ok:true});
     }
@@ -299,6 +307,8 @@ export async function POST(req: NextRequest) {
       const {data:legacy}=await admin.from("organization_members").select("id").eq("organization_id",organizationId).eq("user_id",target).maybeSingle();
       if(legacy){const {error:e}=await admin.from("organization_members").update({role:legacyRole,status:"active",organization_view_access:wantsAdmin}).eq("id",legacy.id);if(e)throw new Error(e.message)}
       else{const {error:e}=await admin.from("organization_members").insert({organization_id:organizationId,user_id:target,role:legacyRole,status:"active",organization_view_access:wantsAdmin,joined_at:new Date().toISOString()});if(e)throw new Error(e.message)}
+      const {error:activationError}=await admin.from("profiles").update({registration_status:"active"}).eq("id",target);
+      if(activationError)throw new Error(activationError.message);
       return NextResponse.json({ok:true});
     }
     if (action === "inviteStaff") {

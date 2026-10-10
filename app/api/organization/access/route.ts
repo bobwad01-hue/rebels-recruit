@@ -73,7 +73,7 @@ export async function POST(req:NextRequest){
       if(memberError)return NextResponse.json({error:memberError.message},{status:500});
     }
     const{error:profileError}=await admin.from("profiles").update({
-      advisor_account_type:"organization",commercial_status:"not_required",
+      advisor_account_type:"organization",commercial_status:"not_required",registration_status:"active",
     }).eq("id",r.user_id);
     if(profileError)return NextResponse.json({error:profileError.message},{status:500});
   }
@@ -93,7 +93,11 @@ export async function POST(req:NextRequest){
    if(ids.length)await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).in("team_id",ids);
    if(enabled)for(const teamId of selected){if(ids.includes(teamId))await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});}
   }
-  if(enabled)await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+  if(enabled){
+    await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});
+    const {error:activationError}=await admin.from("profiles").update({registration_status:"active"}).eq("id",target);
+    if(activationError)return NextResponse.json({error:"Account access was granted but activation could not be completed."},{status:500});
+  }
   return NextResponse.json({ok:true});
  }
  return NextResponse.json({error:"Unknown action."},{status:400});

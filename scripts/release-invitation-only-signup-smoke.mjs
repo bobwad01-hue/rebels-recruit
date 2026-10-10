@@ -1,0 +1,58 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const read = path => readFileSync(new URL("../" + path, import.meta.url), "utf8");
+const migration = read("supabase/migrations/20261010144346_invitation_only_registration.sql");
+const signup = read("app/signup/page.tsx");
+const authorize = read("app/api/signup/authorize/route.ts");
+const callback = read("app/auth/callback/route.ts");
+const middleware = read("middleware.ts");
+const join = read("app/api/join/route.ts");
+const staffReview = read("app/api/organization/access/route.ts");
+const staffSetup = read("app/api/organization/setup/route.ts");
+const accessRequests = read("app/api/access-requests/route.ts");
+const pending = read("app/invitation-required/page.tsx");
+const home = read("app/page.tsx");
+
+assert.match(migration, /ALTER COLUMN registration_status SET DEFAULT 'pending_invite'/, "New profiles begin uninvited");
+assert.match(migration, /ADD COLUMN IF NOT EXISTS registration_status text NOT NULL DEFAULT 'active'/, "Existing accounts are grandfathered");
+assert.match(migration, /BEFORE INSERT ON auth\.users/, "Auth database enforces invitation before creating users");
+assert.match(migration, /organization_join_links l/, "Signup requires a live team invitation");
+assert.match(migration, /organization_staff_invites si/, "Staff email invitation is supported");
+assert.match(migration, /si\.status = 'pending'/, "Cancelled staff invites do not qualify");
+assert.match(migration, /l\.active = true/, "Inactive team links are rejected");
+assert.match(migration, /t\.archived_at IS NULL/, "Archived team invitations are rejected");
+assert.match(migration, /RLTNL Recruiting is invitation-only/, "Direct signup without an invitation is rejected");
+assert.match(migration, /signup_authorizations/, "Google OAuth is email-bound to a temporary verified invitation");
+assert.match(migration, /sa\.expires_at > now\(\)/, "Google invitation expires");
+assert.match(migration, /DELETE FROM public\.signup_authorizations WHERE id = authorized_id/, "Google authorization is single use");
+assert.match(migration, /registration_status IS DISTINCT FROM NEW\.registration_status/, "Users cannot activate themselves");
+assert.match(migration, /AS RESTRICTIVE FOR ALL TO authenticated/, "Uninvited direct Supabase data access is denied");
+assert.match(migration, /registration_is_active\(\)/, "Database enforces activated account status");
+assert.match(migration, /current_account_access/, "Middleware can inspect status even if RLS denies a suspended user");
+
+assert.match(signup, /const canContinue=invitedAccount&&permittedRole/, "Signup cannot proceed without a verified invitation");
+assert.match(signup, /join_token:joinToken\|\|undefined/, "Email signup carries invitation for database verification");
+assert.match(signup, /staff_token:staffToken\|\|undefined/, "Staff email signup carries its invitation");
+assert.match(signup, /\/api\/signup\/authorize/, "Google signup verifies invitation and email before OAuth");
+assert.match(signup, /Team Signup Code or Link \(required\)/, "Code is required in UI");
+assert.doesNotMatch(signup, /No code\? You can create an account/, "No standalone signup is offered");
+assert.doesNotMatch(signup, /Independent Advisor \/ consultant/, "Independent advisor signup is closed");
+assert.match(authorize, /signup_authorizations/, "Google preflight writes only an expiring authorization");
+assert.match(authorize, /joinToken/, "Google preflight validates the actual join token");
+assert.match(authorize, /onConflict: "email,join_link_id"/, "Google grants are bounded per email and link");
+assert.match(callback, /registration_status === 'pending_invite'/, "OAuth callback checks unredeemed registration");
+assert.match(callback, /if \(!validJoin && !staffInvite\)/, "Callback rejects uninvited users");
+assert.match(callback, /registration_status:'active'/, "Verified staff invite activates account");
+assert.match(middleware, /rpc\('current_account_access'\)/, "Middleware uses privileged status lookup");
+assert.match(middleware, /sessionProfile\?\.registration_status!=='active'/, "Pending users cannot access the app");
+assert.match(middleware, /pendingApiAllowed/, "Only required join and legal endpoints are open");
+assert.match(middleware, /sessionProfile\?\.account_status==='suspended'/, "Suspension protection remains");
+assert.match(join, /registration_status: "active"/, "Team join activates new athlete and parent");
+assert.match(staffReview, /registration_status:"active"/, "Staff approval activates registration");
+assert.match(staffSetup, /registration_status:"active"/, "Explicit Admin role grant activates registration");
+assert.match(accessRequests, /registration_status: "active"/, "Approved access request activates registration");
+assert.match(pending, /Team invitation required/, "Pending members get an explanation and code redemption");
+assert.match(home, /A team invitation is required to sign up/, "Public website explains invite-only status");
+
+console.log("Invitation-only registration and access safeguards smoke checks passed.");

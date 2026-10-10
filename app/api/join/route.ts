@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return fail("Sign in or create an account first.", 401);
+  if (!user.email_confirmed_at) return fail("Verify your email address before joining your team.", 403);
   const { token } = await req.json();
   if (!uuid.test(String(token || ""))) return fail("Invalid invitation link.");
   const admin = createAdminClient();
@@ -97,6 +98,12 @@ export async function POST(req: NextRequest) {
       .upsert({ team_id: link.team_id, user_id: user.id }, { onConflict: "team_id,user_id" });
     if (rosterError) return fail("Could not add athlete to the team roster.", 500);
   }
+
+  // A new registration becomes usable only after a real, active team
+  // membership has been created. A staff approval request alone is not enough.
+  const { error: activationError } = await admin.from("profiles")
+    .update({ registration_status: "active" }).eq("id", user.id);
+  if (activationError) return fail("Team access was added, but account activation could not be completed. Please retry.", 500);
 
   let next: string;
   if (role === "parent") {
