@@ -10,6 +10,7 @@ const connect = read("app/api/parent/connect/route.ts");
 const relationship = read("lib/parent-access.ts");
 const context = read("lib/parent-context.ts");
 const parentHome = read("app/parent/page.tsx");
+const relationshipMigration = read("supabase/migrations/20261010160500_parent_relationship_type.sql");
 const athleteProfile = read("app/profile/page.tsx");
 const athleteTeam = read("app/api/profile/team/route.ts");
 
@@ -32,6 +33,14 @@ assert.match(join, /\/parent\/connect\?team=/, "Parent joins continue to team at
 assert.match(signup, /joinRole==='family'/, "Family signup permits role selection");
 assert.match(signup, /applyTeamCode/, "Manual team code can be applied");
 assert.match(connect, /hasParentTeamAccess/, "Roster lookup is scoped to parent team membership");
+assert.match(connect, /relationship !== "parent" && relationship !== "guardian"/, "Relationship choice is validated on the server");
+assert.match(connect, /relationship\)/, "Relationship choice is passed to the shared access writer");
+assert.match(relationshipMigration, /relationship_type/, "Parent/guardian relationship type is persisted");
+assert.match(relationship, /existing\?\.status === "revoked" \|\| existing\?\.status === "declined"/, "Revoked or declined relationships cannot be re-requested");
+assert.match(parentConnect, /Step \{step\} of 2/, "Parent onboarding is a two-step flow");
+assert.match(parentConnect, /Search/, "Parents can search their team roster");
+assert.match(parentConnect, /Legal Guardian/, "Parents choose their relationship");
+assert.match(parentConnect, /router\.push\("\/parent"\)/, "Parent dashboard is available immediately");
 assert.match(connect, /requestParentConnection\(admin, user\.id/, "Parent selection creates a relationship request");
 assert.match(relationship, /status: "pending"/, "Parent requests are not automatically approved");
 assert.match(context, /eq\('status','active'\)/, "Only confirmed parents may view recruiting data");
