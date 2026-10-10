@@ -34,6 +34,7 @@ export async function GET(request: Request) {
   const advisorAccountType=requestUrl.searchParams.get('advisor_account_type')
   const joinToken=requestUrl.searchParams.get('join_token')
   const supabase = await createClient()
+  const admin = createAdminClient()
 
   if (code) await supabase.auth.exchangeCodeForSession(code)
 
@@ -54,24 +55,44 @@ export async function GET(request: Request) {
     if(!ageRecorded)return NextResponse.redirect(new URL('/signup?error=age_recording',requestUrl.origin))
   }
 
-  const { data } = await supabase
+  const { data } = await admin
     .from('profiles')
-    .select('app_role,profile_completed_at')
+    .select('app_role,profile_completed_at,registration_status')
     .eq('id', user.id)
     .single()
+
+  // New accounts may not use RLTNL until a live invitation is redeemed.
+  // Check invitation on the server, not merely the signup page or OAuth URL.
+  if (data?.registration_status === 'pending_invite') {
+    let validJoin = false
+    if (joinToken && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(joinToken)) {
+      const { data: link } = await admin.from('organization_join_links')
+        .select('role,team_id,active,team:teams(id,archived_at)')
+        .eq('token',joinToken).eq('active',true).maybeSingle()
+      const requestedRole = signupRole || user.user_metadata?.app_role || data.app_role || 'athlete'
+      validJoin = Boolean(link && (!link.team_id || ((link.team as any)?.id && !(link.team as any)?.archived_at)) && (
+        (link.role === 'family' && link.team_id && ['athlete','parent'].includes(requestedRole)) ||
+        (['athlete','parent'].includes(link.role) && link.role === requestedRole) ||
+        (['advisor','admin','advisor_admin'].includes(link.role) && requestedRole === 'advisor')
+      ))
+    }
+    const { data: staffInvite } = user.email ? await admin.from('organization_staff_invites')
+      .select('id').ilike('email',user.email.trim()).eq('status','pending').limit(1).maybeSingle() : {data:null}
+    if (!validJoin && !staffInvite) return NextResponse.redirect(new URL('/invitation-required',requestUrl.origin))
+  }
 
   let profile: ProfileState | null = data
     ? { app_role: data.app_role ?? null, profile_completed_at: data.profile_completed_at ?? null }
     : null
 
   if (!profile?.profile_completed_at && (signupRole === 'athlete' || signupRole === 'advisor' || signupRole === 'parent') && profile?.app_role !== signupRole) {
-    await supabase.from('profiles').update({ app_role: signupRole }).eq('id', user.id)
+    await admin.from('profiles').update({ app_role: signupRole }).eq('id', user.id)
     profile = { app_role: signupRole, profile_completed_at: profile?.profile_completed_at ?? null }
   }
 
   if((signupRole==='advisor'||user.user_metadata?.app_role==='advisor')&&!profile?.profile_completed_at){
     const accountType=advisorAccountType||user.user_metadata?.advisor_account_type||'independent'
-    await createAdminClient().from('profiles').update({advisor_account_type:accountType,commercial_status:accountType==='independent'?'pending':'not_required'}).eq('id',user.id)
+    await admin.from('profiles').update({advisor_account_type:accountType,commercial_status:accountType==='independent'?'pending':'not_required'}).eq('id',user.id)
   }
 
   const {data:accepted,error:acceptError}=await supabase.rpc('has_current_legal_acceptance')
@@ -86,7 +107,6 @@ export async function GET(request: Request) {
   // Materialize any verified organization staff invitation for this email.
   // Access is granted only after Supabase has authenticated the exact invited email.
   if(user.email){
-    const admin=createAdminClient();
     const email=user.email.trim().toLowerCase();
     const{data:invites}=await admin.from('organization_staff_invites').select('id,organization_id,role,organization_view_access').ilike('email',email).eq('status','pending');
     for(const invite of invites||[]){
@@ -98,10 +118,15 @@ export async function GET(request: Request) {
         organization_view_granted_at:role==='admin'||invite.organization_view_access?new Date().toISOString():null
       },{onConflict:'organization_id,user_id'});
       if(!memberError){
-        await admin.from('user_roles').upsert({user_id:user.id,role},{onConflict:'user_id,role'});
+        const {error:roleError}=await admin.from('user_roles').upsert({user_id:user.id,role},{onConflict:'user_id,role'});
+        if(roleError)continue;
+        const {error:profileError}=await admin.from('profiles').update({
+          app_role:'advisor',advisor_account_type:'organization',commercial_status:'not_required',
+          registration_status:'active'
+        }).eq('id',user.id);
+        if(profileError)continue;
         await admin.from('organization_staff_invites').update({status:'accepted'}).eq('id',invite.id);
-        if(!profile?.profile_completed_at&&profile?.app_role!=='advisor'){
-          await admin.from('profiles').update({app_role:'advisor',advisor_account_type:'organization',commercial_status:'not_required'}).eq('id',user.id);
+        if(!profile?.profile_completed_at){
           profile={app_role:'advisor',profile_completed_at:profile?.profile_completed_at??null};
         }
       }
