@@ -52,7 +52,12 @@ export async function GET() {
     const { data: athlete } = await admin.from("athlete_profiles").select("primary_organization_id,primary_team_id").eq("user_id", user.id).maybeSingle();
     const firstCurrent = (existing || []).map((r: any) => Array.isArray(r.teams) ? r.teams[0] : r.teams).find(Boolean);
     const active = (memberships || []).filter((m: any) => m.status === "active");
-    return NextResponse.json({ organizations, teams: teams || [], currentOrganizationId: athlete?.primary_organization_id || firstCurrent?.organization_id || active[0]?.organization_id || "", currentTeamId: athlete?.primary_team_id || firstCurrent?.id || "" });
+    // The shared team invitation grants active membership before profile setup.
+    // The first-time profile flow must distinguish that from a manual access request.
+    const { data: activeTeamRoles, error: activeTeamError } = await admin.from("team_user_roles")
+      .select("team_id").eq("user_id", user.id).eq("role", "athlete").eq("status", "active").limit(1);
+    if (activeTeamError) throw new Error(activeTeamError.message);
+    return NextResponse.json({ organizations, teams: teams || [], currentOrganizationId: athlete?.primary_organization_id || firstCurrent?.organization_id || active[0]?.organization_id || "", currentTeamId: athlete?.primary_team_id || firstCurrent?.id || "", hasActiveTeamAccess: Boolean(activeTeamRoles?.length) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not load organizations and teams." }, { status: 500 });
   }
