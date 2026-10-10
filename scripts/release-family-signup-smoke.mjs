@@ -62,3 +62,16 @@ assert.match(pendingApprovals, /action: "family_status"/, "Home approval uses th
 assert.match(pendingApprovals, /decide\(request\.id, "active"\)/, "Athlete can confirm in one tap");
 assert.match(pendingApprovals, /decide\(request\.id, "declined"\)/, "Athlete can decline in one tap");
 assert.match(pendingApprovals, /href="\/manage-access"/, "Athlete can manage or revoke family access after approval");
+
+const roleSwitcher = read("components/RoleSwitcher.tsx");
+const shell = read("components/AppShell.tsx");
+const pendingParentApi = read("app/api/parent/pending/route.ts");
+assert.match(roleSwitcher, /athlete_profiles/, "Parent-only accounts cannot switch into a phantom Athlete role");
+assert.match(shell, /available\.delete\('athlete'\)/, "Saved Athlete view is ignored for parent-only accounts");
+assert.match(connect, /jersey_number/, "Team roster API returns jersey numbers");
+assert.match(parentConnect, /Jersey #/, "Duplicate athlete names can be distinguished by jersey number");
+assert.match(pendingParentApi, /parent_user_id/, "Pending connections are scoped to signed-in parent");
+assert.match(pendingParentApi, /permitted\.has/, "Pending athlete labels are scoped to joined teams");
+assert.match(parentHome, /pendingAthletes\.map/, "Pending dashboard identifies the athlete and team");
+assert.match(parentHome, /pending\?<\>/, "Pending dashboard hides redundant email access request");
+assert.match(pendingApprovals, /if \(!pending\.length\) return null/, "Approval card disappears after last decision");
