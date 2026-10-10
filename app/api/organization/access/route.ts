@@ -73,7 +73,7 @@ export async function POST(req:NextRequest){
       if(memberError)return NextResponse.json({error:memberError.message},{status:500});
     }
     const{error:profileError}=await admin.from("profiles").update({
-      advisor_account_type:"organization",commercial_status:"not_required",
+      advisor_account_type:"organization",commercial_status:"not_required",registration_status:"active",
     }).eq("id",r.user_id);
     if(profileError)return NextResponse.json({error:profileError.message},{status:500});
   }
