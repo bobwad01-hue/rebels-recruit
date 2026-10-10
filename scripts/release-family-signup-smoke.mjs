@@ -11,6 +11,8 @@ const parentConnect = read("app/parent/connect/page.tsx");
 const relationship = read("lib/parent-access.ts");
 const context = read("lib/parent-context.ts");
 const parentHome = read("app/parent/page.tsx");
+const athleteHome = read("app/dashboard/page.tsx");
+const pendingApprovals = read("components/PendingParentApprovals.tsx");
 const relationshipMigration = read("supabase/migrations/20261010160500_parent_relationship_type.sql");
 const athleteProfile = read("app/profile/page.tsx");
 const athleteTeam = read("app/api/profile/team/route.ts");
@@ -53,3 +55,10 @@ assert.equal(allowed("active"), true, "Confirmation unlocks parent-authorized da
 assert.equal(allowed("revoked"), false, "Revocation must immediately remove access");
 assert.equal(allowed("declined"), false, "Declined connections never unlock data");
 console.log("Shared family signup and parent confirmation smoke checks passed.");
+
+assert.match(athleteHome, /PendingParentApprovals requests=\{pendingParentRequests\}/, "Athlete Home prominently renders pending parent requests");
+assert.match(athleteHome, /if \(!preview\.active\)/, "Owner preview does not surface private parent requests");
+assert.match(pendingApprovals, /action: "family_status"/, "Home approval uses the existing authenticated family status API");
+assert.match(pendingApprovals, /decide\(request\.id, "active"\)/, "Athlete can confirm in one tap");
+assert.match(pendingApprovals, /decide\(request\.id, "declined"\)/, "Athlete can decline in one tap");
+assert.match(pendingApprovals, /href="\/manage-access"/, "Athlete can manage or revoke family access after approval");
