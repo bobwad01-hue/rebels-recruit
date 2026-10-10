@@ -39,7 +39,7 @@ export default function PendingParentApprovals({ requests }: { requests: Pending
     }
   }
 
-  if (!pending.length && !success && !error) return null;
+  if (!pending.length) return null;
 
   return <section aria-label="Parent or Guardian connection requests" className="mb-6 rounded-2xl border-2 border-amber-300 bg-amber-50/80 p-4 sm:p-5">
     {pending.length > 0 && <>
