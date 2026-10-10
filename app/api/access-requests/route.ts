@@ -121,6 +121,9 @@ async function grant(admin: any, request: any, reviewerId: string) {
   }
   const { error: roleError } = await admin.from("user_roles").upsert({ user_id, role: accessRole }, { onConflict: "user_id,role" });
   if (roleError) throw roleError;
+  const { error: activationError } = await admin.from("profiles")
+    .update({ registration_status: "active" }).eq("id", user_id);
+  if (activationError) throw activationError;
 }
 export async function GET(req: NextRequest) {
   const user = await session();
