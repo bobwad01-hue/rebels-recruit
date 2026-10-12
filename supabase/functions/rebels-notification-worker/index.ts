@@ -3,7 +3,7 @@ import webpush from 'npm:web-push@3.6.7';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { max: 1, prepare: false });
 const VAPID_PUBLIC_KEY = 'BMBT6hH2_JTlpzZwVR3P2WWHov3-htCifqaJXDKBb77SiQvTClLPzGhvqw9G6rio-aYhiXfhapWhIEOm5BO9dgI';
-const VAPID_SUBJECT = 'https://rebels-recruit.vercel.app';
+const VAPID_SUBJECT = 'https://www.rltnl.com';
 
 async function getSecret(name: string) {
   const rows = await sql<{ decrypted_secret: string }[]>`select decrypted_secret from vault.decrypted_secrets where name = ${name} limit 1`;
@@ -36,6 +36,7 @@ async function queueDueNotifications() {
 
 function preferenceEnabled(kind:string,prefs:Record<string,boolean>){
   if(kind==='message')return prefs.messages!==false;
+  if(kind==='coach_email')return prefs.coach_emails!==false;
   if(kind==='task')return prefs.tasks!==false;
   if(kind==='reminder')return prefs.reminders!==false;
   if(kind==='advisor_activity')return prefs.advisor_activity!==false;
@@ -43,7 +44,7 @@ function preferenceEnabled(kind:string,prefs:Record<string,boolean>){
 }
 
 async function processNotification(notification:any){
-  const prefsRows=await sql<any[]>`select messages,tasks,reminders,advisor_activity from public.notification_preferences where user_id=${notification.user_id} limit 1`;
+  const prefsRows=await sql<any[]>`select messages,coach_emails,tasks,reminders,advisor_activity from public.notification_preferences where user_id=${notification.user_id} limit 1`;
   const prefs=prefsRows[0]??{};
   if(!preferenceEnabled(notification.kind,prefs)){
     await sql`update public.notifications set push_sent_at=now(),push_error=null where id=${notification.id}`;
@@ -62,7 +63,7 @@ async function processNotification(notification:any){
   }
 
   const payload=JSON.stringify({
-    title:notification.title||'Rebels Recruit',
+    title:notification.title||'RLTNL Recruiting',
     body:notification.body||'You have a new recruiting update.',
     url:notification.url||'/dashboard',
     kind:notification.kind||'general',
@@ -75,7 +76,7 @@ async function processNotification(notification:any){
       await webpush.sendNotification(
         {endpoint:subscription.endpoint,keys:{p256dh:subscription.p256dh,auth:subscription.auth}},
         payload,
-        {TTL:3600,urgency:notification.kind==='message'?'high':'normal'}
+        {TTL:3600,urgency:notification.kind==='message'||notification.kind==='coach_email'?'high':'normal'}
       );
       sent++;
       await sql`update public.push_subscriptions set last_seen_at=now(),updated_at=now() where id=${subscription.id}`;

@@ -8,6 +8,7 @@ const VAPID_PUBLIC_KEY = 'BMBT6hH2_JTlpzZwVR3P2WWHov3-htCifqaJXDKBb77SiQvTClLPzG
 
 type Preferences = {
   messages: boolean;
+  coach_emails: boolean;
   tasks: boolean;
   reminders: boolean;
   advisor_activity: boolean;
@@ -38,7 +39,7 @@ export default function PushNotificationSettings() {
   const [userId, setUserId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [phoneDevice, setPhoneDevice] = useState(false);
-  const [prefs, setPrefs] = useState<Preferences>({ messages: true, tasks: true, reminders: true, advisor_activity: true });
+  const [prefs, setPrefs] = useState<Preferences>({ messages: true, coach_emails: true, tasks: true, reminders: true, advisor_activity: true });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -54,7 +55,7 @@ export default function PushNotificationSettings() {
     if (!user) { setLoading(false); return; }
     setUserId(user.id);
 
-    const { data: preference } = await supabase.from('notification_preferences').select('messages,tasks,reminders,advisor_activity').eq('user_id', user.id).maybeSingle();
+    const { data: preference } = await supabase.from('notification_preferences').select('messages,coach_emails,tasks,reminders,advisor_activity').eq('user_id', user.id).maybeSingle();
     if (preference) setPrefs(preference);
 
     if (phone && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -162,7 +163,7 @@ export default function PushNotificationSettings() {
       <div className="h-11 w-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0"><Bell size={21}/></div>
       <div className="flex-1">
         <h2 className="font-black text-lg">Phone Alerts</h2>
-        <p className="muted text-sm mt-1">Get free push notifications on your smartphone for recruiting messages, tasks, reminders and advisor activity. Desktop and tablet alerts are disabled.</p>
+        <p className="muted text-sm mt-1">Get free push notifications on your smartphone for recruiting messages, coach emails, tasks, reminders and advisor activity. Desktop and tablet alerts are disabled.</p>
       </div>
       {enabled ? <div className="text-green-700 text-sm font-bold flex items-center gap-1"><CheckCircle2 size={16}/> Enabled</div> : null}
     </div>
@@ -181,7 +182,7 @@ export default function PushNotificationSettings() {
     <div className="mt-6 border-t pt-5">
       <div className="font-bold">What should alert me?</div>
       <div className="mt-3 grid sm:grid-cols-2 gap-3">
-        {([['messages','Messages','New direct or group messages'],['tasks','Tasks','New or due recruiting tasks'],['reminders','Reminders','Due and overdue recruiting reminders'],['advisor_activity','Advisor activity','Advisor invitations and relationship updates']] as const).map(([key,label,description]) => <label key={key} className="border rounded-xl p-4 flex items-start gap-3 cursor-pointer"><input className="mt-1" type="checkbox" checked={prefs[key]} onChange={e=>savePreference(key,e.target.checked)}/><span><span className="font-bold block">{label}</span><span className="muted text-xs">{description}</span></span></label>)}
+        {([['messages','Messages','New direct or group messages'],['coach_emails','Coach Emails','New recruiting emails from coaches in Connections'],['tasks','Tasks','New or due recruiting tasks'],['reminders','Reminders','Due and overdue recruiting reminders'],['advisor_activity','Advisor activity','Advisor invitations and relationship updates']] as const).map(([key,label,description]) => <label key={key} className="border rounded-xl p-4 flex items-start gap-3 cursor-pointer"><input className="mt-1" type="checkbox" checked={prefs[key]} onChange={e=>savePreference(key,e.target.checked)}/><span><span className="font-bold block">{label}</span><span className="muted text-xs">{description}</span></span></label>)}
       </div>
     </div>
 
