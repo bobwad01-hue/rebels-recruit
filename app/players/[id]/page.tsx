@@ -521,21 +521,26 @@ export default function Player360() {
         {can("view_game_plan") && (
           <section id="next-moves" className="card p-5 mt-6 scroll-mt-24">
             <div className="rr-eyebrow">
-              {parent ? "READ-ONLY WORK VIEW" : "NEXT STEPS"}
+              {parent ? "RECRUITING GUIDANCE" : "NEXT STEPS"}
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 size={19} />
               <h2 className="font-black text-lg">
-                {parent ? "Current Next Steps" : advisor ? `${String(player?.full_name||"Player").split(" ")[0]}'s Next Steps` : "What should happen next"}
+                {parent ? "Suggested Recruiting Follow-Ups" : advisor ? `${String(player?.full_name||"Player").split(" ")[0]}'s Next Steps` : "What should happen next"}
               </h2>
             </div>
             <p className="muted text-sm mt-1">
               {parent
-                ? "Read-only view of what the athlete is working on. Use this to support, not take over."
+                ? "Read-only suggestions based on recruiting activity and coach relationships. These are not assigned Next Steps or overdue reminders."
                 : advisor
                   ? `Work ${String(player?.full_name||"the player").split(" ")[0]} is responsible for completing. Review progress here, and assign a new Next Step when coaching support is needed.`
                   : "Prioritized from your current recruiting state. As relationships, events and Next Steps change, this list changes too."}
             </p>
+            {parent && (
+              <Link href={parentHref("/parent/goals")} className="inline-flex mt-3 text-sm font-bold text-red-700 hover:underline">
+                View the athlete&apos;s actual Next Steps →
+              </Link>
+            )}
             <div className="mt-4">
               {parent || advisor ? (
                 <div className="space-y-2">
