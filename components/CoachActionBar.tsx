@@ -427,6 +427,7 @@ export default function CoachActionBar({
         return;
       }
       setEmailStatus("success");
+      window.dispatchEvent(new CustomEvent('rltnl:coach-emails-updated', { detail: { emailId: d.repliedToEmailId || null } }));
       try {
         localStorage.removeItem(draftKey);
       } catch {}

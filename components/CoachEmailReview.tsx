@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 type Email={id:string;subject:string|null;received_at:string;summary:string|null;reviewed_at:string|null;interaction_id:string|null;recruiting_intent:string|null};
 export default function CoachEmailReview({email,coachId,coachName,collegeName}:{email:Email;coachId:string;coachName:string;collegeName:string}){
  const [reviewed,setReviewed]=useState(!!email.reviewed_at),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{const onReply=(event:Event)=>{if((event as CustomEvent<{emailId?:string}>).detail?.emailId===email.id)setReviewed(true)};window.addEventListener('rltnl:coach-emails-updated',onReply);return()=>window.removeEventListener('rltnl:coach-emails-updated',onReply)},[email.id]);
  async function markReviewed(){
   setBusy(true);setError('');
   try{
