@@ -1,8 +1,8 @@
 'use client';
 
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import Link from 'next/link';
-import {Plus,Search,X} from 'lucide-react';
+import {CheckCircle2,Info,Plus,Search,X,XCircle} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {factorFor,FitResult} from '@/lib/college-fit';
 
@@ -17,7 +17,7 @@ type Props={
   suggestions?:Suggestion[];
   schoolHref?:(id:string)=>string;
 };
-type Row={label:string;value:(school:School)=>string;hint?:(school:School)=>string};
+type Row={label:string;value:(school:School)=>string};
 const unavailable='Data unavailable';
 const clean=(v:any)=>String(v||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function level(v:any){
@@ -46,6 +46,8 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
   const c=useMemo(()=>createClient(),[]);
   const [selected,setSelected]=useState<string[]>([]);
   const [pickerSlot,setPickerSlot]=useState<number|null>(null);
+  const [fitInfoSchoolId,setFitInfoSchoolId]=useState<string|null>(null);
+  const fitInfoTriggerRef=useRef<HTMLButtonElement|null>(null);
   const [query,setQuery]=useState('');
   const [hideSimilar,setHideSimilar]=useState(false);
   const [enrichment,setEnrichment]=useState<Record<string,any>>({});
@@ -56,6 +58,9 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
   const [selectionNotice,setSelectionNotice]=useState('');
   const byId=useMemo(()=>new Map(schools.map(s=>[s.id,s])),[schools]);
   const chosen=selected.map(id=>byId.get(id)).filter((s):s is School=>!!s);
+  const fitInfoSchool=fitInfoSchoolId?byId.get(fitInfoSchoolId):null;
+  const fitInfo=fitInfoSchoolId?fitById[fitInfoSchoolId]:null;
+  function closeFitInfo(){setFitInfoSchoolId(null);fitInfoTriggerRef.current?.focus();}
   const presets=suggestions.map(g=>({title:g.title,ids:[...new Set(g.ids)].filter(id=>byId.has(id)).slice(0,3)})).filter(g=>g.ids.length>=2).slice(0,4);
   const options=useMemo(()=>{
     const q=query.trim().toLowerCase();
@@ -109,7 +114,7 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
     const r=fitById[s.id];
     if(!r||r.percent==null)return unavailable;
     if(r.pending)return 'Calculating academic fit…';
-    return r.percent+'% Match · '+r.evaluated+' factor'+(r.evaluated===1?'':'s')+' checked';
+    return r.percent+'% Match';
   }
   function driveAndPreference(s:School){
     const d=driveLabel(s);
@@ -130,7 +135,7 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
       {label:'School type',value:s=>readable(s.school_type)},
     ]},
     {id:'fit',title:'College Fit',rows:[
-      {label:'College Fit match',value:fitSummary,hint:s=>fitById[s.id]?.unavailable.length?'Not yet evaluated: '+fitById[s.id]!.unavailable.join(', '):'Based on the survey factors we can evaluate for this school'},
+      {label:'College Fit match',value:fitSummary},
       {label:'Academic interests',value:s=>factor(s,'academics')},
       {label:'Climate preference',value:s=>factor(s,'climate')},
       {label:'Competitive level',value:s=>factor(s,'division')},
@@ -195,13 +200,29 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
             <th scope="col" className="sticky left-0 z-20 w-[190px] min-w-[190px] border-b border-r bg-slate-50 p-4 align-top text-xs font-black">Compare</th>
             {chosen.map(s=><th scope="col" key={s.id} className="min-w-[195px] border-b border-r p-4 align-top"><div className="font-black">{s.name}</div><div className="text-xs font-normal text-slate-500 mt-1">{[s.city,s.state].filter(Boolean).join(', ')}</div><Link href={href(s.id)} className="mt-2 inline-block text-xs font-bold text-red-700 hover:underline">View school & reviews →</Link></th>)}
           </tr></thead>
-          <tbody>{visibleGroups.map(g=><FragmentRows key={g.id} id={g.id} title={g.title} rows={g.rows} chosen={chosen} loading={loading} emptyMessage="No differences among the available values in this category."/>)}</tbody>
+          <tbody>{visibleGroups.map(g=><FragmentRows key={g.id} id={g.id} title={g.title} rows={g.rows} chosen={chosen} loading={loading} fitById={fitById} onShowFitInfo={(schoolId,trigger)=>{fitInfoTriggerRef.current=trigger;setFitInfoSchoolId(schoolId)}} emptyMessage="No differences among the available values in this category."/>)}</tbody>
         </table>
       </div>
       {hideSimilar&&visibleGroups.length===0&&<p className="mt-3 rounded-xl border bg-white p-4 text-sm text-slate-600">All available details are the same for these schools. Turn off Hide similarities to review them.</p>}
       {!loading&&!hasCostData&&<p className="mt-3 text-xs text-slate-500" role="note">{costPreferenceSet?'Cost preferences aren’t included yet; verified cost data is unavailable for these schools.':'Verified cost data isn’t available for these schools yet.'}</p>}
       
     </>}
+    {fitInfoSchool&&fitInfo&&fitInfo.percent!=null&&!fitInfo.pending&&<div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget)closeFitInfo()}}>
+      <div role="dialog" aria-modal="true" aria-labelledby="fit-info-title" onKeyDown={e=>{if(e.key==='Escape')closeFitInfo()}} className="w-full max-w-md max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-5 sm:p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div><p className="text-xs font-black uppercase tracking-wide text-red-600">College Fit Match</p><h3 id="fit-info-title" className="mt-1 text-lg font-black">{fitInfoSchool.name}</h3></div>
+          <button type="button" autoFocus aria-label="Close match details" onClick={closeFitInfo} className="shrink-0 rounded-lg border p-2 text-slate-600 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600"><X size={18}/></button>
+        </div>
+        <p className="mt-4 text-xl font-black">{fitInfo.percent}% Match</p>
+        <h4 className="mt-5 text-sm font-black">Factors used in this match</h4>
+        <ul className="mt-3 space-y-3">
+          {fitInfo.factors.map(f=><li key={f.key} className="flex items-start gap-3 rounded-xl border border-slate-200 p-3">
+            {f.matched?<CheckCircle2 size={19} className="mt-0.5 shrink-0 text-green-600" aria-label="Matches preference"/>:<XCircle size={19} className="mt-0.5 shrink-0 text-red-600" aria-label="Does not match preference"/>}
+            <div className="min-w-0"><div className="text-sm font-bold text-slate-900">{f.label}</div><div className="mt-0.5 text-sm leading-relaxed text-slate-600">{f.detail}</div></div>
+          </li>)}
+        </ul>
+      </div>
+    </div>}
     {pickerSlot!==null&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget)setPickerSlot(null)}}>
       <div role="dialog" aria-modal="true" aria-labelledby="compare-picker-title" onKeyDown={e=>{if(e.key==='Escape')setPickerSlot(null)}} className="flex w-full max-w-xl flex-col rounded-2xl bg-white p-4 sm:p-6 shadow-xl max-h-[min(78dvh,640px)]">
         <div className="flex items-center justify-between gap-3"><div><h3 id="compare-picker-title" className="text-lg font-black">Choose a School</h3><p className="muted text-xs mt-1">Search any college in the RLTNL directory.</p></div><button type="button" aria-label="Close school selector" onClick={()=>setPickerSlot(null)} className="rounded-lg border p-2"><X size={18}/></button></div>
@@ -211,9 +232,9 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
     </div>}
   </section>;
 }
-function FragmentRows({id,title,rows,chosen,loading,emptyMessage}:{id:string;title:string;rows:Row[];chosen:School[];loading:boolean;emptyMessage:string}){
+function FragmentRows({id,title,rows,chosen,loading,fitById,onShowFitInfo,emptyMessage}:{id:string;title:string;rows:Row[];chosen:School[];loading:boolean;fitById:Record<string,FitResult|null>;onShowFitInfo:(schoolId:string,trigger:HTMLButtonElement)=>void;emptyMessage:string}){
   return <><tr id={'compare-'+id} className="scroll-mt-24 bg-slate-100"><th colSpan={chosen.length+1} className="p-3.5 text-xs font-black uppercase tracking-wide">{title}</th></tr>{rows.length===0?<tr><td colSpan={chosen.length+1} className="border-b bg-white p-4 text-sm text-slate-600">{loading?'Loading comparison details…':emptyMessage}</td></tr>:rows.map(r=><tr key={id+'-'+r.label}>
     <th scope="row" className="sticky left-0 z-10 w-[190px] min-w-[190px] border-b border-r bg-white p-4 align-top text-xs sm:text-sm font-bold">{r.label}</th>
-    {chosen.map(s=><td key={s.id} title={r.hint?.(s)} className="border-b border-r p-4 align-top text-sm leading-relaxed">{loading&&id!=='overview'&&id!=='fit'?'Loading…':r.value(s)}</td>)}
+    {chosen.map(s=><td key={s.id} className="border-b border-r p-4 align-top text-sm leading-relaxed"><span className="inline-flex items-center gap-2">{loading&&id!=='overview'&&id!=='fit'?'Loading…':r.value(s)}{id==='fit'&&r.label==='College Fit match'&&fitById[s.id]?.percent!=null&&!fitById[s.id]?.pending&&<button type="button" aria-label={'View factors used for '+s.name+' College Fit Match'} onClick={e=>onShowFitInfo(s.id,e.currentTarget)} className="inline-flex shrink-0 items-center justify-center rounded-full text-slate-500 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-600"><Info size={17} aria-hidden="true"/></button>}</span></td>)}
   </tr>)}</>;
 }
