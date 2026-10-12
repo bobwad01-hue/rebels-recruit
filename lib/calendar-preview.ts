@@ -1,5 +1,6 @@
 import {NextRequest} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
+import {createAdminClient} from '@/lib/supabase-admin';
 import {calendarContext,athleteCalendarContext,type CalendarContext} from '@/lib/calendar-subscriptions';
 
 // Super Owner role previews use the target athlete's team memberships, never the owner's broad access.
