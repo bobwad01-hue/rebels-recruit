@@ -66,13 +66,13 @@ assert.doesNotMatch(player360,/setPermissions\(a\.permissions/,'Player 360 ignor
 
 const importPage=read('app/import/page.tsx');
 const parentImportReadOnly=read('supabase/migrations/20261012180000_parent_import_read_only.sql');
-assert.doesNotMatch(parentHome,/href="\\/import"/,'Parent Home does not offer a recruiting-history import action');
-assert.match(importPage,/if\\(accessLoading\\|\\|role==='parent'\\|\\|loadError\\)/,'Parent import UI is blocked before any upload controls render');
-assert.match(importPage,/if\\(accessLoading\\|\\|role==='parent'\\|\\|loadError\\|\\|!me\\)/,'Parent import mutation handler rejects parent access');
+assert.ok(!parentHome.includes('href="/import"'),'Parent Home does not offer a recruiting-history import action');
+assert.ok(importPage.includes("if(accessLoading||role==='parent'||loadError)"),'Parent import UI is blocked before upload controls render');
+assert.ok(importPage.includes("if(accessLoading||role==='parent'||loadError||!me)"),'Parent import mutation handler rejects parent access');
 for(const policy of ['parents import linked college relationships','parents import linked coach relationships','parents import linked interactions']){
   assert.ok(parentImportReadOnly.includes('DROP POLICY IF EXISTS "'+policy+'"'),'Parent import RLS exception is removed: '+policy);
 }
 assert.match(player360,/Suggested Recruiting Follow-Ups/,'Player 360 names suggestions distinctly from assigned tasks');
 assert.match(player360,/These are not assigned Next Steps or overdue reminders/,'Parent suggestions explain their distinction');
-assert.match(player360,/parentHref\\("\\/parent\\/goals"\\)/,'Player 360 links parents to actual Next Steps');
+assert.ok(player360.includes('parentHref("/parent/goals")'),'Player 360 links parents to actual Next Steps');
 console.log('Parent read-only import and suggested follow-up regression checks passed');
