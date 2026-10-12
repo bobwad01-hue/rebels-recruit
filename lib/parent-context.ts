@@ -17,4 +17,4 @@ export async function resolveParentView(c:any,preferredAthleteId?:string|null):P
  if(typeof window!=='undefined')window.localStorage.setItem(STORAGE_KEY,String(selected.athlete_user_id));
  return{athleteId:String(selected.athlete_user_id),permissions:selected.permissions||{},preview:false,accessId:selected.id};
 }
-export function parentCan(ctx:ParentViewContext|null,key:string){return !!ctx&&ctx.permissions?.[key]!==false}
+export function parentCan(ctx:ParentViewContext|null,key:string){return !!ctx}
