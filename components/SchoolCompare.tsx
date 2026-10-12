@@ -168,6 +168,7 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
       {label:'Athlete recruiting experiences',value:review},
     ]},
   ];
+  const visibleGroups=fit?groups:groups.filter(g=>g.id!=='fit');
   const href=(id:string)=>schoolHref?schoolHref(id):'/colleges/'+id;
 
   return <section id="compare-schools" className="mb-10 scroll-mt-24 min-w-0 w-full">
@@ -190,7 +191,7 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
     {selectionNotice&&<p role="status" className="mt-3 text-sm font-medium text-slate-600">{selectionNotice}</p>}
     {chosen.length<2?<div className="mt-3 rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-slate-600">Select at least two schools to see the comparison. You can replace any school without starting over.</div>:<>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">{groups.map(g=><a key={g.id} href={'#compare-'+g.id} className="rounded-full border bg-white px-3 py-2 text-xs font-bold hover:border-red-400 hover:text-red-700">{g.title}</a>)}</div>
+        <div className="flex flex-wrap gap-2">{visibleGroups.map(g=><a key={g.id} href={'#compare-'+g.id} className="rounded-full border bg-white px-3 py-2 text-xs font-bold hover:border-red-400 hover:text-red-700">{g.title}</a>)}</div>
         <label className="flex cursor-pointer items-center gap-2 text-sm font-bold"><input type="checkbox" checked={hideSimilar} onChange={e=>setHideSimilar(e.target.checked)} className="h-4 w-4 accent-red-600"/>Hide similarities</label>
       </div>
       {loadError&&<p role="alert" className="mt-3 text-xs font-bold text-amber-800">Some comparison details couldn't load. Try refreshing the page; missing values are not treated as poor matches.</p>}
@@ -201,7 +202,7 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
             <th scope="col" className="sticky left-0 z-20 w-[190px] min-w-[190px] border-b border-r bg-slate-50 p-4 align-top text-xs font-black">Compare</th>
             {chosen.map(s=><th scope="col" key={s.id} className="min-w-[195px] border-b border-r p-4 align-top"><div className="font-black">{s.name}</div><div className="text-xs font-normal text-slate-500 mt-1">{[s.city,s.state].filter(Boolean).join(', ')}</div><Link href={href(s.id)} className="mt-2 inline-block text-xs font-bold text-red-700 hover:underline">View school & reviews →</Link></th>)}
           </tr></thead>
-          <tbody>{groups.map(g=>{
+          <tbody>{visibleGroups.map(g=>{
             const available=g.rows.filter(r=>chosen.some(s=>r.value(s)!==unavailable));
             const visible=available.filter(r=>!hideSimilar||chosen.length<2||!chosen.every(s=>r.value(s)===r.value(chosen[0])));
             const emptyMessage=available.length===0?(g.id==='cost'?'Verified cost information has not been loaded for these colleges yet. RLTNL will not estimate or invent costs.':g.id==='campus'?'Verified academic and campus information is not yet available for these colleges.':'No comparable data is available for this category.'): 'No differences among the available values in this category.';
