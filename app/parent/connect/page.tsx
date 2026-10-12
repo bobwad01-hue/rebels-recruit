@@ -111,7 +111,7 @@ export default function ParentConnect() {
         </div>}
         {!loading && data && step === 1 && <div className="mt-6 space-y-4">
           <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold"><Users size={18}/>{data.team.name}</div>
-          {duplicateAthleteKeys.size > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Some test roster entries share a name and jersey number. Confirm the correct roster record with your team administrator before requesting access.</p>}
+          {duplicateAthleteKeys.size > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Some roster entries share a name and jersey number. Confirm the correct roster record with your team administrator before requesting access.</p>}
           <label className="block text-sm font-semibold" htmlFor="athlete-search">Find your athlete</label>
           <div className="relative">
             <Search size={18} className="pointer-events-none absolute left-3 top-3.5 text-slate-400"/>
