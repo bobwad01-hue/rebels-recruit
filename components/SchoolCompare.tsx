@@ -2,7 +2,7 @@
 
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import {ArrowLeftRight,Check,Plus,Search,X} from 'lucide-react';
+import {Plus,Search,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 
 type School={id:string;name:string;city?:string|null;state?:string|null;division?:string|null;conference?:string|null;school_type?:string|null;logo_url?:string|null};
@@ -77,7 +77,7 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
       setLoadError(!!(e.error||m.error||r.error));
     }).catch(()=>{if(active)setLoadError(true)}).finally(()=>{if(active)setLoading(false)});
     return()=>{active=false};
-  },[c,selected.join('|')]);
+  },[c,selected]);
 
   function choose(id:string){
     if(selected.includes(id))return;
