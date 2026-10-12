@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const family=read('app/manage-access/FamilyAccessSection.tsx');
+const page=read('app/manage-access/page.tsx');
+const ctx=read('lib/parent-context.ts');
+const calendar=read('app/api/calendar-subscriptions/route.ts');
+const subscriptions=read('lib/calendar-subscriptions.ts');
+const migration=read('supabase/migrations/20261012094500_parent_full_access.sql');
+assert.doesNotMatch(family,/onChange=\{\(\)=>toggle\(/,'No granular parent toggles');
+assert.match(family,/Full Parent \/ Guardian Access/,'Full access messaging');
+assert.match(page,/full recruiting visibility/,'Athlete support team describes full access');
+assert.match(ctx,/return !!ctx\}/,'Parent sections depend on active relationship, not individual flags');
+assert.doesNotMatch(calendar,/permissions\?\.view_events===false/,'Subscribed events do not honor old event opt-outs');
+assert.doesNotMatch(subscriptions,/permissions\?\.view_events!==false/,'Calendar subscriptions ignore old event flags');
+assert.match(migration,/p.status = 'active'/,'Database requires active relationship');
+assert.doesNotMatch(migration,/permission_key is null or/,'Database no longer checks section permissions');
+console.log('Parent full-access smoke checks passed');
