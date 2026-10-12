@@ -1,6 +1,6 @@
-export type EmailStarterId='introduction'|'season_schedule'|'weekend_schedule'|'monthly_update'|'new_video'|'pre_camp'|'post_camp'|'coach_watched'|'weekend_highlights'|'recruiting_needs'|'coach_response'|'visit_followup'|'offer_followup'|'custom';
+export type EmailStarterId=string;
 export type OpeningOption={label:string;text:string};
-export type EmailStarter={id:EmailStarterId;label:string;purpose:string;guidance:string;ask:string;openings:OpeningOption[];fullSignature?:boolean;requiresSchoolReason?:boolean};
+export type EmailStarter={id:EmailStarterId;label:string;purpose:string;guidance:string;ask:string;openings:OpeningOption[];fullSignature?:boolean;requiresSchoolReason?:boolean;subjectTemplate?:string;isActive?:boolean;sortOrder?:number};
 export const EMAIL_STARTERS:EmailStarter[]=[
 {id:'introduction',label:'Introduce Myself',purpose:'Player Profile',guidance:'Introduce who you are, give one specific reason this school fits you, then make a clear ask.',ask:'I would love for you to review my profile and video and follow me this season. Thank you for your time!',fullSignature:true,requiresSchoolReason:true,openings:[{label:'Introduction',text:'My name is {{name}}. I am a {{grad}} graduate at {{school}} and play {{positions}}.\n\nI am very interested in {{college}} because [ADD ONE SPECIFIC, GENUINE REASON THIS SCHOOL FITS YOU].'}]},
 {id:'season_schedule',label:'Send Season Schedule',purpose:'Season Schedule',guidance:'Share your upcoming fall or summer schedule. The reason for emailing is the schedule—not another full introduction.',ask:'I would love the opportunity for you to see me play. I have included my schedule below.\n\n[ADD SEASON SCHEDULE / LINK]',openings:[{label:'Direct',text:'Our upcoming season schedule is finalized, so I wanted to send it your way. We will be playing several events this season, and I would love the opportunity for you to see me play.'},{label:'Personal',text:'I hope you are doing well! Our upcoming schedule just came out, and I wanted to share it with you in case you have an opportunity to watch us this season.'},{label:'Previous Contact',text:'It was great connecting with you at [PREVIOUS EVENT/CAMP]. Our upcoming schedule is now finalized, so I wanted to send you our dates and locations for this season.'}]},
@@ -17,5 +17,25 @@ export const EMAIL_STARTERS:EmailStarter[]=[
 {id:'offer_followup',label:'Offer Follow-Up',purpose:'Offer Follow Up',guidance:'Thank the staff for the offer and keep the message thoughtful and personal.',ask:'Thank you again. [CONFIRM NEXT STEPS OR ASK ANY QUESTIONS YOU NEED ANSWERED BEFORE MAKING A DECISION.]',openings:[{label:'Thank You',text:'Thank you again for the opportunity to continue my softball career at {{college}}. I really appreciate the confidence you and your staff have shown in me.'},{label:'Appreciation',text:'I am very grateful for the offer from {{college}}. Thank you to you and your staff for the time you have invested in getting to know me.'},{label:'Next Steps',text:'Thank you again for the offer. I am excited and grateful for the opportunity, and I wanted to follow up about [QUESTION / NEXT STEP].'}]},
 {id:'custom',label:'Write My Own',purpose:'Recruiting',guidance:'Write a personal recruiting email completely in your own words.',ask:'',openings:[{label:'Blank Email',text:''}]}
 ];
-export function starterById(id:string){return EMAIL_STARTERS.find(x=>x.id===id)||EMAIL_STARTERS[0]}
+export type EmailTemplateRow={id:string;label:string;purpose:string;guidance:string;ask:string;openings:OpeningOption[];subject_template?:string|null;full_signature?:boolean;requires_school_reason?:boolean;is_active?:boolean;sort_order?:number};
+export function mergeEmailStarters(rows:EmailTemplateRow[]=[],includeInactive=false):EmailStarter[]{
+ const defaults=EMAIL_STARTERS.filter(x=>x.id!=='custom');
+ const overrides=new Map(rows.filter(x=>x.id!=='custom').map(x=>[x.id,x]));
+ const fromRow=(r:EmailTemplateRow,base?:EmailStarter,index=1000):EmailStarter=>({
+  id:r.id,label:r.label||base?.label||'Email Template',purpose:r.purpose||base?.purpose||'Recruiting',
+  guidance:r.guidance??base?.guidance??'',ask:r.ask??base?.ask??'',
+  openings:Array.isArray(r.openings)&&r.openings.length?r.openings.map(o=>({label:String(o?.label||'Opening'),text:String(o?.text||'')})):base?.openings||[{label:'Opening',text:''}],
+  fullSignature:r.full_signature??base?.fullSignature??false,requiresSchoolReason:r.requires_school_reason??base?.requiresSchoolReason??false,
+  subjectTemplate:r.subject_template||undefined,isActive:r.is_active!==false,sortOrder:r.sort_order??index
+ });
+ const merged:EmailStarter[]=defaults.map((d,i)=>{
+  const r=overrides.get(d.id);
+  return r?fromRow(r,d,i*10):{...d,isActive:true,sortOrder:i*10};
+ });
+ for(const r of rows)if(r.id!=='custom'&&!defaults.some(d=>d.id===r.id))merged.push(fromRow(r,undefined,1000));
+ merged.sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)||a.label.localeCompare(b.label));
+ const custom=EMAIL_STARTERS.find(x=>x.id==='custom')!;
+ return [{...custom,isActive:true,sortOrder:-1},...merged.filter(x=>includeInactive||x.isActive!==false)];
+}
+export function starterById(id:string,templates:EmailStarter[]=EMAIL_STARTERS){return templates.find(x=>x.id===id)||templates.find(x=>x.id==='custom')||EMAIL_STARTERS.find(x=>x.id==='custom')!}
 export function suggestedStarter(interactionType?:string|null,daysSince?:number|null){const t=(interactionType||'').toLowerCase();if(t.includes('camp'))return t.includes('attend')||t.includes('completed')?'post_camp':'pre_camp';if(t.includes('watched')||t.includes('in person'))return'coach_watched';if(t.includes('response')||t.includes('replied'))return'coach_response';if(t.includes('video'))return'new_video';if(t.includes('visit'))return'visit_followup';if((daysSince??0)>=28)return'monthly_update';return'introduction'}

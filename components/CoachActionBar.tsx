@@ -20,6 +20,7 @@ import {
 import { createClient } from "@/lib/supabase-browser";
 import {
   EMAIL_STARTERS,
+  mergeEmailStarters,
   starterById,
   type EmailStarterId,
 } from "@/lib/recruiting-email-playbook";
@@ -42,7 +43,7 @@ type Props = {
   primaryAction?: PrimaryAction;
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
-  contextualReply?: {interactionId:string;kind:string;choice?:string};
+  contextualReply?: {interactionId:string;kind:string;choice?:string;subject?:string};
   onEmailSent?: (detail?: any) => void | Promise<void>;
   staffMode?: boolean;
   athleteEntitlement?: "free" | "full";
@@ -59,7 +60,7 @@ export default function CoachActionBar({
   hideReminder = false,
   hideRelationship = false,
   primaryAction = null,
-  initialEmailStarter = "introduction",
+  initialEmailStarter = "custom",
   autoOpenEmail = false,
   contextualReply,
   onEmailSent,
@@ -78,6 +79,7 @@ export default function CoachActionBar({
       : requestedValid && requested ? requested : initialEmailStarter,
     shouldAutoOpen = autoOpenEmail || !!requestedValid || !!contextualReply;
   const [emailOpen, setEmailOpen] = useState(false),
+    [templates, setTemplates] = useState(() => mergeEmailStarters([])),
     [subject, setSubject] = useState(""),
     [body, setBody] = useState(""),
     [bodyHtml, setBodyHtml] = useState(""),
@@ -97,6 +99,19 @@ export default function CoachActionBar({
     [schoolCoaches, setSchoolCoaches] = useState<any[]>([]),
     [ccCoachIds, setCcCoachIds] = useState<string[]>([]),
     [actionPrompt, setActionPrompt] = useState<null | "connect-gmail" | "upgrade-gmail" | "desktop-text" | "desktop-call">(null);
+  useEffect(() => {
+    let alive = true;
+    void c.from("recruiting_email_templates")
+      .select("id,label,purpose,guidance,ask,subject_template,openings,full_signature,requires_school_reason,is_active,sort_order")
+      .then(({ data, error }) => {
+        if (alive && !error) setTemplates(mergeEmailStarters((data || []) as any[]));
+      });
+    return () => { alive = false; };
+  }, []);
+  function originalReplySubject() {
+    const original = contextualReply?.subject?.trim();
+    return original ? (/^re:/i.test(original) ? original : `Re: ${original}`) : null;
+  }
   async function context() {
     const {
       data: { user },
@@ -177,18 +192,21 @@ export default function CoachActionBar({
     return lines.join("\n");
   }
   function compose(id: EmailStarterId, index: number, p: any) {
-    const s = starterById(id),
+    const s = starterById(id, templates),
       v = values(p),
       sig = signature(p),
       lastName = coachName.trim().split(/\s+/).slice(-1)[0] || coachName;
     setBodyHtml("");
     if (id === "custom") {
-      setSubject("");
+      setSubject(originalReplySubject() || "");
       setBody(sig ? `\n\n${sig}` : "");
       return;
     }
     setSubject(
-      `${s.purpose} | ${v.name || "[Your Name]"} | ${v.grad || "[Grad Year]"} | ${v.positions || "[POS]"} | ${v.gpa || "[GPA]"} | #${v.jersey || "[Jersey]"}`,
+      originalReplySubject() ||
+      (s.subjectTemplate
+        ? fill(s.subjectTemplate, p)
+        : `${s.purpose} | ${v.name || "[Your Name]"} | ${v.grad || "[Grad Year]"} | ${v.positions || "[POS]"} | ${v.gpa || "[GPA]"} | #${v.jersey || "[Jersey]"}`),
     );
     const opening = fill(
         s.openings[index]?.text || s.openings[0]?.text || "",
@@ -280,7 +298,7 @@ export default function CoachActionBar({
         setBody(String(saved.body));
         setBodyHtml(String(saved.bodyHtml || ""));
         setStarter(
-          EMAIL_STARTERS.some((item) => item.id === saved.starter)
+          templates.some((item) => item.id === saved.starter)
             ? saved.starter
             : id,
         );
@@ -309,7 +327,7 @@ export default function CoachActionBar({
           questionnaire:{subject:"Re: Recruiting Questionnaire",body:"Thank you for sending the recruiting questionnaire. I've completed it and wanted to let you know. I appreciate you staying in touch."},
           offer_related:{subject:"Re: Recruiting Conversation",body:"Thank you for reaching out. I appreciate the opportunity and would like to set up a time to talk through the details and next steps."},
           follow_up:{subject:"Re: Checking In",body:"Thank you for checking in. I really appreciate you staying in touch. I wanted to send you a quick update."}
-        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
+        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
       } else buildStarter(id);
     }
     loadSchoolCoaches();
@@ -363,7 +381,7 @@ export default function CoachActionBar({
       );
       return;
     }
-    const s = starterById(starter);
+    const s = starterById(starter, templates);
     if (s.requiresSchoolReason && body.includes("[ADD ONE SPECIFIC")) {
       setEmailStatus("error");
       setMessage(
@@ -499,7 +517,7 @@ export default function CoachActionBar({
       `${primaryAction === a ? primary : a === "reminder" ? reminderSecondary : base} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`,
     logHref = `/activity/new?college=${collegeId}&coach=${coachId}${athleteUserId ? `&athlete=${athleteUserId}` : ""}`,
     hubHref = `/coaches/${coachId}${athleteUserId ? `?athlete=${athleteUserId}` : ""}`,
-    current = starterById(starter);
+    current = starterById(starter, templates);
   return (
     <div className="w-full">
       <div className="flex flex-wrap gap-2">
@@ -678,7 +696,7 @@ export default function CoachActionBar({
                         What are you emailing about?
                       </label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {(staffMode ? EMAIL_STARTERS.filter((s) => s.id === "custom") : EMAIL_STARTERS).map((s) => (
+                        {(staffMode ? templates.filter((s) => s.id === "custom") : templates).map((s) => (
                           <button
                             key={s.id}
                             onClick={() => buildStarter(s.id)}
@@ -690,7 +708,7 @@ export default function CoachActionBar({
                       </div>
                       <div className="mt-3 rounded-xl bg-slate-50 border p-3 text-sm">
                         <div className="font-black flex items-center gap-2">
-                          <Sparkles size={15} className="text-red-600" /> Rebels
+                          <Sparkles size={15} className="text-red-600" /> RLTNL
                           Email Playbook
                         </div>
                         <div className="text-slate-600 mt-1">
@@ -785,6 +803,7 @@ export default function CoachActionBar({
                       <input
                         className="input mt-1"
                         value={subject}
+                        readOnly={!!contextualReply?.subject}
                         maxLength={200}
                         onChange={(e) => setSubject(e.target.value)}
                       />
