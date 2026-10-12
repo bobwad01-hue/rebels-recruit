@@ -67,7 +67,7 @@ assert.doesNotMatch(player360,/setPermissions\(a\.permissions/,'Player 360 ignor
 
 const importPage=read('app/import/page.tsx');
 const parentImportRpc=read('supabase/migrations/20261012191500_parent_import_only_rpc.sql');
-assert.ok(parentHome.includes('href={ph("/import")}'),'Parent Home preserves selected athlete when linking to Import History');
+assert.ok(parentHome.includes("href={ph('/import?athlete='+encodeURIComponent(athlete.id))}"),'Parent Home preserves selected athlete when linking to Import History');
 assert.match(parentHome,/Bring their recruiting history/,'Parent Home retains the recruiting-history import action');
 assert.ok(importPage.includes("if(accessLoading||loadError||(role==='parent'&&!athletes.length))"),'Parent import UI is available only after approved access loads');
 assert.ok(importPage.includes("if(accessLoading||loadError||!me||(role==='parent'&&!athletes.length))"),'Parent import handler requires approved athlete access');
