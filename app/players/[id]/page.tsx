@@ -121,7 +121,7 @@ export default function Player360() {
       if (r === "parent" && viewer?.app_role !== "owner") {
         const { data: a } = await c
           .from("parent_guardian_access")
-          .select("status,permissions")
+          .select("status")
           .eq("parent_user_id", user.id)
           .eq("athlete_user_id", id)
           .eq("status", "active")
@@ -133,7 +133,8 @@ export default function Player360() {
           setLoading(false);
           return;
         }
-        setPermissions(a.permissions || {});
+        // Full Parent access depends on the active connection, never legacy section flags.
+        setPermissions({});
       }
       const [p, ap, cs, ch, int, re, ta, ae, sig, fit] = await Promise.all([
         c
