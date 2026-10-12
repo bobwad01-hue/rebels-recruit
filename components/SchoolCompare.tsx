@@ -4,6 +4,7 @@ import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import {Plus,Search,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
+import {factorFor,FitResult} from '@/lib/college-fit';
 
 type School={id:string;name:string;city?:string|null;state?:string|null;division?:string|null;conference?:string|null;school_type?:string|null;logo_url?:string|null};
 type Drive={minutes:number;distanceMiles?:number};
@@ -11,6 +12,7 @@ type Suggestion={title:string;ids:string[]};
 type Props={
   schools:School[];
   fit?:any;
+  fitById?:Record<string,FitResult|null>;
   times?:Record<string,Drive>;
   suggestions?:Suggestion[];
   schoolHref?:(id:string)=>string;
@@ -40,7 +42,7 @@ function readable(v:any){
   if(Array.isArray(v))return v.filter(Boolean).join(', ')||unavailable;
   return v===null||v===undefined||v===''?unavailable:String(v);
 }
-export default function SchoolCompare({schools,fit,times={},suggestions=[],schoolHref}:Props){
+export default function SchoolCompare({schools,fit,fitById={},times={},suggestions=[],schoolHref}:Props){
   const c=useMemo(()=>createClient(),[]);
   const [selected,setSelected]=useState<string[]>([]);
   const [pickerSlot,setPickerSlot]=useState<number|null>(null);
@@ -102,35 +104,18 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
   },[byId,selected]);
   function drive(s:School){return times[[s.city,s.state].filter(Boolean).join(', ')];}
   function driveLabel(s:School){const d=drive(s);if(!d)return unavailable;const minutes=Math.round(d.minutes);return minutes<60?'≈ '+minutes+' min':'≈ '+Math.floor(minutes/60)+' hr '+String(minutes%60).padStart(2,'0')+' min';}
-  function fitLevel(s:School){
-    if(!fit)return 'No athlete selected';
-    const levels=(fit.divisions||[]).filter((v:string)=>v!=='No preference');
-    if(!levels.length)return unavailable;
-    return levels.some((v:string)=>level(v)===level(s.division))?'Matches: '+level(s.division):'Outside selected divisions: '+level(s.division);
+  function factor(s:School,key:'division'|'school_type'|'distance'|'climate'|'academics'){return factorFor(fitById[s.id],key)?.detail||unavailable;}
+  function fitSummary(s:School){
+    const r=fitById[s.id];
+    if(!r||r.percent==null)return unavailable;
+    if(r.pending)return 'Calculating academic fit…';
+    return r.percent+'% Match · '+r.matched+' of '+r.evaluated+' evaluated factors match · '+r.evaluated+' of '+r.requested+' stated criteria evaluated';
   }
-  function fitType(s:School){
-    if(!fit)return 'No athlete selected';
-    const types=(fit.school_types||[]).filter((v:string)=>v!=='No preference');
-    if(!types.length)return unavailable;
-    if(!s.school_type)return unavailable;
-    return types.some((v:string)=>clean(s.school_type).includes(clean(v)))?'Matches: '+s.school_type:'Outside selected types: '+s.school_type;
-  }
-  function fitDistance(s:School){
-    if(!fit)return 'No athlete selected';
-    if(!fit.max_drive_minutes||fit.max_drive_minutes>=99999)return unavailable;
-    const d=drive(s);if(!d)return unavailable;
-    return (d.minutes<=fit.max_drive_minutes?'Within':'Beyond')+' preferred '+Math.round(fit.max_drive_minutes)+' min · '+driveLabel(s);
-  }
-  function preferenceMatch(s:School){
-    if(!fit)return 'No athlete Fit Preferences in this view';
-    const checks:boolean[]=[];
-    const divisions=(fit.divisions||[]).filter((v:string)=>v!=='No preference');
-    if(divisions.length&&s.division)checks.push(divisions.some((v:string)=>level(v)===level(s.division)));
-    const types=(fit.school_types||[]).filter((v:string)=>v!=='No preference');
-    if(types.length&&s.school_type)checks.push(types.some((v:string)=>clean(s.school_type).includes(clean(v))));
-    if(fit.max_drive_minutes&&fit.max_drive_minutes<99999&&drive(s))checks.push(drive(s).minutes<=fit.max_drive_minutes);
-    if(!checks.length)return unavailable;
-    return checks.filter(Boolean).length+' of '+checks.length+' checked preferences match (partial evaluation)';
+  function driveAndPreference(s:School){
+    const d=driveLabel(s);
+    if(d===unavailable)return unavailable;
+    const f=factorFor(fitById[s.id],'distance');
+    return d+(f?' · '+f.detail.toLowerCase():'');
   }
   function review(s:School){
     if(loadError&&!reviews[s.id])return unavailable;
@@ -145,11 +130,12 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
       {label:'School type',value:s=>readable(s.school_type)},
     ]},
     {id:'fit',title:'College Fit',rows:[
-      {label:'Known preference alignment',value:preferenceMatch},
-      {label:'Competitive level',value:fitLevel},
-      {label:'School type preference',value:fitType},
-      {label:'Estimated drive from home',value:driveLabel},
-      {label:'Distance preference',value:fitDistance},
+      {label:'College Fit match',value:fitSummary},
+      {label:'Academic interests',value:s=>factor(s,'academics')},
+      {label:'Climate preference',value:s=>factor(s,'climate')},
+      {label:'Competitive level',value:s=>factor(s,'division')},
+      {label:'School type preference',value:s=>factor(s,'school_type')},
+      {label:'Estimated drive from home',value:driveAndPreference},
     ]},
     {id:'campus',title:'Academics & Campus',rows:[
       {label:'Undergraduate enrollment',value:s=>number(enrichment[s.id]?.undergraduate_enrollment??enrichment[s.id]?.enrollment_total)},
@@ -180,7 +166,7 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
 
   return <section id="compare-schools" className="mb-10 scroll-mt-24 min-w-0 w-full">
     <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-      <div><div className="rr-eyebrow">COMPARE</div><h2 className="text-xl font-black mt-1">Compare Schools Side-by-Side</h2><p className="muted text-sm mt-1">Choose up to three colleges from the full directory. Only available, verified information is compared. This is not an overall college fit score.</p></div>
+      <div><div className="rr-eyebrow">COMPARE</div><h2 className="text-xl font-black mt-1">Compare Schools Side-by-Side</h2><p className="muted text-sm mt-1">Choose up to three colleges from the full directory. Match percentages reflect the survey factors RLTNL can evaluate, weighted by your priorities. Unverified factors are excluded; this is not a prediction of recruiting interest.</p></div>
       <span className="rounded-full border bg-white px-3 py-2 text-xs font-black">{selected.length} of 3 selected</span>
     </div>
     {presets.length>0&&<div className="flex flex-wrap items-center gap-2 mb-4"><span className="text-xs font-bold text-slate-600">Quick compare:</span>{presets.map(g=><button key={g.title} type="button" onClick={()=>setSelected(g.ids)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold hover:border-red-400 hover:text-red-700">{g.title} ({g.ids.length})</button>)}</div>}
@@ -214,7 +200,7 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
       </div>
       {hideSimilar&&visibleGroups.length===0&&<p className="mt-3 rounded-xl border bg-white p-4 text-sm text-slate-600">All available details are the same for these schools. Turn off Hide similarities to review them.</p>}
       {!loading&&!hasCostData&&<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4" role="note"><div className="text-sm font-black text-slate-900">Cost / affordability: Not yet evaluated</div><p className="mt-1 text-sm text-slate-700">Verified cost information has not been loaded for these colleges yet. RLTNL will not estimate or invent costs. {costPreferenceSet?'Your financial preferences are saved, but they are not included in these comparisons or school recommendations.':'Affordability is not included in the current fit evaluation.'}</p></div>}
-      <p className="mt-2 text-xs text-slate-500">Fit comparisons are partial and check only available school data. Academic programs reflect reported completions, not a complete current course catalog. Published cost figures, when available, are estimates rather than individual aid offers. Comparing never changes an athlete's Connections or rankings.</p>
+      <p className="mt-2 text-xs text-slate-500">Fit percentages are based only on evaluated survey preferences, weighted by stated priorities; the comparison shows how many criteria were checked. Academic programs reflect reported completions, not a complete current course catalog. Published cost figures, when available, are estimates rather than individual aid offers. Comparing never changes an athlete's Connections or rankings.</p>
     </>}
     {pickerSlot!==null&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget)setPickerSlot(null)}}>
       <div role="dialog" aria-modal="true" aria-labelledby="compare-picker-title" onKeyDown={e=>{if(e.key==='Escape')setPickerSlot(null)}} className="flex w-full max-w-xl flex-col rounded-2xl bg-white p-4 sm:p-6 shadow-xl max-h-[min(78dvh,640px)]">
