@@ -109,7 +109,7 @@ export async function setParentConnectionStatus(
   if (!data) throw new Error("This connection changed. Refresh and try again.");
 
   const message = {
-    active: ["Parent connection confirmed", "Your athlete confirmed or restored your Parent / Guardian connection. You can now see the recruiting information they allow."],
+    active: ["Parent connection confirmed", "Your athlete confirmed or restored your Parent / Guardian connection. You can now view their recruiting information."],
     declined: ["Parent connection declined", "Your athlete did not confirm the Parent / Guardian connection."],
     revoked: ["Parent access revoked", "Your athlete revoked your Parent / Guardian access."],
   }[nextStatus];
