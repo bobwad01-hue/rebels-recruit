@@ -51,6 +51,15 @@ export default function ParentConnect() {
 
   const athletes = useMemo(() => (data?.athletes || []).filter(a => (a.full_name || "Athlete").toLowerCase().includes(search.trim().toLowerCase())).sort((a, b) => (a.full_name || "").localeCompare(b.full_name || "")), [data, search]);
   const chosen = data?.athletes.find(a => a.id === selected);
+  const duplicateAthleteKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const athlete of data?.athletes || []) {
+      const key = `${(athlete.full_name || "").trim().toLowerCase()}|${String(athlete.jersey_number ?? "").trim()}`;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return new Set([...counts].filter(([, count]) => count > 1).map(([key]) => key));
+  }, [data]);
+  const isDuplicateAthlete = (athlete: Athlete) => duplicateAthleteKeys.has(`${(athlete.full_name || "").trim().toLowerCase()}|${String(athlete.jersey_number ?? "").trim()}`);
   const blocked = chosen?.connection === "revoked" || chosen?.connection === "declined";
 
   function openExistingConnection(athlete: Athlete) {
@@ -102,6 +111,7 @@ export default function ParentConnect() {
         </div>}
         {!loading && data && step === 1 && <div className="mt-6 space-y-4">
           <div className="flex items-center gap-2 rounded-xl bg-slate-50 p-3 text-sm font-bold"><Users size={18}/>{data.team.name}</div>
+          {duplicateAthleteKeys.size > 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">Some test roster entries share a name and jersey number. Confirm the correct roster record with your team administrator before requesting access.</p>}
           <label className="block text-sm font-semibold" htmlFor="athlete-search">Find your athlete</label>
           <div className="relative">
             <Search size={18} className="pointer-events-none absolute left-3 top-3.5 text-slate-400"/>
@@ -113,6 +123,7 @@ export default function ParentConnect() {
               <span className="h-9 w-9 rounded-full bg-slate-100 grid place-items-center shrink-0"><UserRound size={18}/></span>
               <span className="min-w-0 flex-1"><span className="block font-black truncate">{a.full_name || "Athlete"}</span>
                 {a.jersey_number !== null && a.jersey_number !== undefined && String(a.jersey_number).trim() !== "" && <span className="block text-xs text-slate-600">Jersey #{a.jersey_number}</span>}
+                {isDuplicateAthlete(a) && <span className="block text-xs text-amber-700">Roster record {a.id.slice(0, 8)}</span>}
                 {a.connection === "pending" && <span className="text-xs text-amber-700">Awaiting confirmation</span>}
                 {a.connection === "active" && <span className="text-xs text-green-700">Already connected</span>}
                 {(a.connection === "revoked" || a.connection === "declined") && <span className="text-xs text-slate-500">Connection {a.connection}. Only the athlete can restore access.</span>}
@@ -122,13 +133,13 @@ export default function ParentConnect() {
             </label>)}
             {!athletes.length && <p className="muted text-sm rounded-xl border p-4">{search ? "No matching athletes on this team." : "No athletes are available yet. Ask your team administrator to check the roster."}</p>}
           </div>
-          <button className="btn btn-red w-full justify-center" disabled={!chosen || busy} onClick={() => chosen?.connection === "active" || chosen?.connection === "pending" ? openExistingConnection(chosen) : setStep(2)}>
-            {chosen?.connection === "active" ? "Go to Parent Dashboard" : chosen?.connection === "pending" ? "View Pending Connection" : "Continue"} <ArrowRight size={16}/>
+          <button className="btn btn-red w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled={!chosen || busy || blocked} onClick={() => chosen?.connection === "active" || chosen?.connection === "pending" ? openExistingConnection(chosen) : setStep(2)}>
+            {blocked ? "Only Athlete Can Restore" : chosen?.connection === "active" ? "Go to Parent Dashboard" : chosen?.connection === "pending" ? "View Pending Connection" : "Continue"} <ArrowRight size={16}/>
           </button>
         </div>}
         {!loading && data && step === 2 && chosen && <div className="mt-6 space-y-5">
           <div className="flex items-center gap-3 rounded-xl border p-4"><span className="h-12 w-12 rounded-full bg-slate-100 grid place-items-center"><UserRound size={21}/></span>
-            <div><div className="font-black">{chosen.full_name || "Athlete"}</div><div className="muted text-sm">{data.team.name}{chosen.jersey_number !== null && chosen.jersey_number !== undefined && String(chosen.jersey_number).trim() !== "" ? ` · Jersey #${chosen.jersey_number}` : ""}</div></div>
+            <div><div className="font-black">{chosen.full_name || "Athlete"}</div><div className="muted text-sm">{data.team.name}{chosen.jersey_number !== null && chosen.jersey_number !== undefined && String(chosen.jersey_number).trim() !== "" ? ` · Jersey #${chosen.jersey_number}` : ""}</div>{isDuplicateAthlete(chosen) && <div className="text-xs text-amber-700">Roster record {chosen.id.slice(0, 8)}</div>}</div>
           </div>
           <fieldset className="space-y-2"><legend className="font-bold text-sm mb-2">Your relationship to this athlete</legend>
             {([["parent","Parent"],["guardian","Legal Guardian"]] as const).map(([value,label]) =>
@@ -143,7 +154,7 @@ export default function ParentConnect() {
           {blocked && <p className="text-sm text-amber-700 font-semibold">This athlete previously declined or revoked this connection. Only the athlete can restore access.</p>}
           <div className="flex flex-col-reverse sm:flex-row gap-2">
             <button className="btn flex-1 justify-center" disabled={busy} onClick={() => setStep(1)}><ArrowLeft size={16}/> Back</button>
-            <button className="btn btn-red flex-1 justify-center" disabled={busy || blocked} onClick={connect}>{busy ? "Connecting…" : "Connect to " + (chosen.full_name?.split(" ")[0] || "Athlete")} <ArrowRight size={16}/></button>
+            <button className="btn btn-red flex-1 justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled={busy || blocked} onClick={connect}>{blocked ? "Only Athlete Can Restore" : busy ? "Connecting…" : "Connect to " + (chosen.full_name?.split(" ")[0] || "Athlete")} <ArrowRight size={16}/></button>
           </div>
         </div>}
         <div className="mt-6 border-t pt-5"><Link href="/parent" className="btn w-full text-center">Go to Parent Dashboard</Link></div>
