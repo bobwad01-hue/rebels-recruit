@@ -161,9 +161,14 @@ export async function GET(req: NextRequest) {
       const athleteIds = unique(requests.map((r: any) => r.athlete_user_id).filter(Boolean));
       const { data: athletes } = athleteIds.length ? await admin.from("profiles").select("id,full_name").in("id", athleteIds) : { data: [] };
       const athleteNames = new Map((athletes || []).map((p: any) => [p.id, p.full_name]));
+      const { data: athleteProfiles, error: jerseyError } = athleteIds.length
+        ? await admin.from("athlete_profiles").select("user_id,jersey_number").in("user_id", athleteIds)
+        : { data: [], error: null };
+      if (jerseyError) throw jerseyError;
+      const jerseyById = new Map((athleteProfiles || []).map((p: any) => [p.user_id, p.jersey_number]));
       return NextResponse.json({
         organizations: (organizations || []).map((o: any) => ({ ...o, teams: (o.teams || []).filter((t: any) => !t.archived_at) })),
-        requests: requests.map((r: any) => ({ ...r, athlete_name: athleteNames.get(r.athlete_user_id) || null })),
+        requests: requests.map((r: any) => ({ ...r, athlete_name: athleteNames.get(r.athlete_user_id) || null, athlete_jersey_number: jerseyById.get(r.athlete_user_id) ?? null })),
       });
     }
     if (view === "review") {

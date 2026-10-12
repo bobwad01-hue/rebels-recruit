@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase-browser";
 
 type Team = { id: string; name: string; age_group?: string | null };
 type Org = { id: string; name: string; branch_name?: string | null; city?: string; state?: string; teams: Team[] };
-type Request = { id: string; organization_id: string | null; team_ids: string[]; role: string; status: string; requested_at: string; athlete_name?: string | null };
+type Request = { id: string; organization_id: string | null; team_ids: string[]; role: string; status: string; requested_at: string; athlete_user_id?: string | null; athlete_name?: string | null; athlete_jersey_number?: string | number | null };
 const titles: Record<string,string> = { athlete: "Athlete", parent: "Parent / Guardian", advisor: "Advisor / Coach", team_admin: "Team Admin", org_admin: "Organization Admin" };
 export default function AccessRequests() {
   const [accountRole, setAccountRole] = useState("athlete");
@@ -62,7 +62,12 @@ export default function AccessRequests() {
     finally{setBusy(false)}
   }
   function toggleTeam(id:string){setTeams(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id])}
-  const requestName = (r:Request) => r.role === "parent" ? (r.athlete_name || "Athlete connection") : (organizations.find(o=>o.id===r.organization_id)?.name || "Organization");
+  const requestName = (r:Request) => {
+    if (r.role !== "parent") return organizations.find(o => o.id === r.organization_id)?.name || "Organization";
+    const jersey = r.athlete_jersey_number == null || String(r.athlete_jersey_number).trim() === "" ? "" : ` · Jersey #${r.athlete_jersey_number}`;
+    const duplicate = requests.some(other => other.id !== r.id && other.role === "parent" && other.athlete_name === r.athlete_name && String(other.athlete_jersey_number ?? "") === String(r.athlete_jersey_number ?? ""));
+    return `${r.athlete_name || "Athlete connection"}${jersey}${duplicate && r.athlete_user_id ? ` · Roster record ${r.athlete_user_id.slice(0, 8)}` : ""}`;
+  };
   return <AppShell><main className="max-w-4xl mx-auto px-4 sm:px-6 py-7 space-y-5">
     <PageHeader eyebrow="YOUR RLTNL COMMUNITY" title="Organization & Athlete Access" subtitle="Join an organization, request team access, or connect with your athlete. You can use RLTNL while your request is reviewed." />
     {error && <div role="alert" className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm font-semibold text-red-700">{error}</div>}

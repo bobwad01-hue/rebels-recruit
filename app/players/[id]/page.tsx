@@ -121,7 +121,7 @@ export default function Player360() {
       if (r === "parent" && viewer?.app_role !== "owner") {
         const { data: a } = await c
           .from("parent_guardian_access")
-          .select("status,permissions")
+          .select("status")
           .eq("parent_user_id", user.id)
           .eq("athlete_user_id", id)
           .eq("status", "active")
@@ -133,7 +133,8 @@ export default function Player360() {
           setLoading(false);
           return;
         }
-        setPermissions(a.permissions || {});
+        // Full Parent access depends on the active connection, never legacy section flags.
+        setPermissions({});
       }
       const [p, ap, cs, ch, int, re, ta, ae, sig, fit] = await Promise.all([
         c
@@ -333,9 +334,9 @@ export default function Player360() {
           : advisor
             ? `#next-moves`
             : ph("/game-plan#next-moves")
-        : label === "Upcoming Events"
+        : (label === "Upcoming Events" || label === "Tracked Events")
           ? parent
-            ? parentHref("/parent/events")
+            ? parentHref("/parent/events#tracked-events")
             : advisor
               ? "/events"
               : ph("/events")
@@ -386,8 +387,8 @@ export default function Player360() {
             ["Active Schools", intelligence.activeSchools, ""],
             ["Target Schools", intelligence.targetSchools, ""],
             ["Coach Relationships", intelligence.coachRelationships, ""],
-            ["Open Next Steps", moves.length, ""],
-            ["Upcoming Events", intelligence.upcomingEvents, ""],
+            ["Open Next Steps", parent ? reminders.filter((r: any) => ["open", "snoozed"].includes(r.status)).length + tasks.filter((t: any) => t.status !== "completed").length : moves.length, ""],
+            [parent ? "Tracked Events" : "Upcoming Events", intelligence.upcomingEvents, parent ? "Athlete-added events" : ""],
           ].map(([label, value, sub]: any) => (
             <Metric
               key={label}
