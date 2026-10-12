@@ -138,7 +138,7 @@ export default function ParentConnect() {
           </fieldset>
           <div className="rounded-xl bg-slate-50 p-4">
             <div className="flex items-center gap-2 font-black text-sm"><ShieldCheck size={18}/> Your athlete's privacy matters</div>
-            <p className="text-sm text-slate-600 mt-2">You can use your Parent dashboard immediately. Your athlete will receive a one-time request to confirm your relationship. Private recruiting information stays protected until they confirm. They can change permissions or revoke access later.</p>
+            <p className="text-sm text-slate-600 mt-2">You can use your Parent dashboard immediately. Your athlete will receive a one-time request to confirm your relationship. Private recruiting information stays protected until they confirm. They can revoke or restore your entire connection later.</p>
           </div>
           {blocked && <p className="text-sm text-amber-700 font-semibold">This athlete previously declined or revoked this connection. Only the athlete can restore access.</p>}
           <div className="flex flex-col-reverse sm:flex-row gap-2">
