@@ -52,11 +52,11 @@ export async function POST(){
   const profile=await gmailJson<{emailAddress?:string}>('https://gmail.googleapis.com/gmail/v1/users/me/profile',accessToken);
   const senderEmail=profile?.emailAddress?.trim().toLowerCase()||null;
   if(!senderEmail)return NextResponse.json({updated:0,checked:0,reason:'gmail_profile_unavailable'});
-  const ids=[...new Set(pending.map(i=>i.coach_id).filter((v):v is string=>!!v))];
+  const ids=[...new Set(pending.map((i:{coach_id:string|null})=>i.coach_id).filter((v:string|null):v is string=>!!v))];
   if(!ids.length)return NextResponse.json({updated:0,checked:0});
   const {data:coaches,error:coachError}=await admin.from('college_coaches').select('id,email').in('id',ids);
   if(coachError)return NextResponse.json({error:'Could not resolve coach addresses.'},{status:500});
-  const emails=new Map((coaches||[]).map(c=>[c.id,String(c.email||'').trim().toLowerCase()]));
+  const emails=new Map((coaches||[]).map((c:{id:string;email:string|null})=>[c.id,String(c.email||'').trim().toLowerCase()]));
   let updated=0,checked=0;
   for(const row of pending){
     const coachEmail=emails.get(row.coach_id);
