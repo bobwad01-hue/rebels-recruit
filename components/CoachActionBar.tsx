@@ -16,6 +16,7 @@ import {
   AlertCircle,
   Sparkles,
   UsersRound,
+  ChevronDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
 import {
@@ -744,49 +745,31 @@ export default function CoachActionBar({
                       </div>
                     </div>
                     {schoolCoaches.length > 0 && (
-                      <div className="rounded-xl border p-4">
-                        <div className="flex items-center gap-2 font-black">
-                          <UsersRound size={17} />
-                          Add Another {collegeName || "School"} Coach
+                      <details className="group rounded-xl border bg-white">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <UsersRound size={17} className="shrink-0 text-slate-500" />
+                            CC another {collegeName || "school"} coach
+                            {ccCoachIds.length > 0 && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-700">{ccCoachIds.length} selected</span>}
+                          </span>
+                          <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="border-t px-4 pb-4 pt-3">
+                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.</p>
+                          <div className="mt-3 space-y-2">
+                            {schoolCoaches.map((co) => (
+                              <label key={co.id} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${co.email ? "cursor-pointer hover:bg-slate-50" : "opacity-55"}`}>
+                                <input type="checkbox" className="mt-1" disabled={!co.email} checked={ccCoachIds.includes(co.id)}
+                                  onChange={(event) => setCcCoachIds((current) => event.target.checked ? [...current, co.id] : current.filter((id) => id !== co.id))} />
+                                <span className="min-w-0">
+                                  <span className="block font-bold">{[co.first_name, co.last_name].filter(Boolean).join(" ") || "Coach"}{co.title ? ` · ${co.title}` : ""}</span>
+                                  <span className="mt-0.5 block break-all text-xs text-slate-500">{co.email || "Email not available"}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
                         </div>
-                        <p className="muted text-xs mt-1">
-                          Selected coaches are added as CC recipients so
-                          everyone can see who received the message.
-                        </p>
-                        <div className="space-y-2 mt-3">
-                          {schoolCoaches.map((co) => (
-                            <label
-                              key={co.id}
-                              className={`flex items-start gap-3 rounded-lg border p-3 ${co.email ? "cursor-pointer" : "opacity-55"}`}
-                            >
-                              <input
-                                type="checkbox"
-                                className="mt-1"
-                                disabled={!co.email}
-                                checked={ccCoachIds.includes(co.id)}
-                                onChange={(e) =>
-                                  setCcCoachIds((v) =>
-                                    e.target.checked
-                                      ? [...v, co.id]
-                                      : v.filter((id) => id !== co.id),
-                                  )
-                                }
-                              />
-                              <div>
-                                <div className="font-bold">
-                                  {[co.first_name, co.last_name]
-                                    .filter(Boolean)
-                                    .join(" ") || "Coach"}
-                                  {co.title ? ` · ${co.title}` : ""}
-                                </div>
-                                <div className="muted text-xs mt-0.5">
-                                  {co.email || "Email not available"}
-                                </div>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                      </details>
                     )}
                     <div>
                       <label className="text-xs uppercase font-bold muted">
