@@ -1,5 +1,3 @@
-import { cleanDisplayNote } from "@/lib/display-notes";
-
 export type JourneyEntry = {
   type: string;
   note?: string | null;
@@ -11,14 +9,15 @@ export type JourneyEntry = {
 };
 
 const isEmail = (entry: JourneyEntry) => /^Email (Sent|Received)$/i.test(entry.type);
-const displayText = (value: string | null | undefined) => cleanDisplayNote(value).trim();
+const displayText = (value: string | null | undefined) => (value || "").trim();
+const displayNote = (value: string | null | undefined) => displayText(value).replace(/\s*\[Historical import key:[^\]]+\]/gi, "").trim();
 const shortText = (value: string, max = 190) => value.length > max ? value.slice(0, max - 1).trimEnd() + "…" : value;
 const legacySubject = (note: string) => note.match(/(?:^|\n)Subject:\s*(.*?)(?=\s+Email Type:|\n|$)/i)?.[1]?.trim() || "";
 const legacyEmailType = (note: string) => note.match(/Email Type:\s*([^\n]+)/i)?.[1]?.trim() || "";
 const readableEmailType = (value: string) => value.replace(/_/g, " ").replace(/\b\w/g, char => char.toUpperCase());
 
 function emailFields(entry: JourneyEntry) {
-  const note = displayText(entry.note);
+  const note = displayNote(entry.note);
   const subject = displayText(entry.email_subject) || displayText(entry.gmail_intelligence?.subject) || legacySubject(note);
   const emailType = displayText(entry.email_type) || legacyEmailType(note);
   const content = displayText(entry.email_content);
@@ -56,7 +55,7 @@ function debriefFields(note: string) {
 
 export function JourneyEntryPreview({ entry, expanded = false }: { entry: JourneyEntry; expanded?: boolean }) {
   if (expanded) return null;
-  const note = displayText(entry.note);
+  const note = displayNote(entry.note);
   if (isEmail(entry)) {
     const { subject, body, summary } = emailFields(entry);
     const value = subject || shortText((body || summary || note).replace(/\s+/g, " "), 175);
@@ -72,7 +71,7 @@ export function JourneyEntryPreview({ entry, expanded = false }: { entry: Journe
 }
 
 export function JourneyEntryDetails({ entry }: { entry: JourneyEntry }) {
-  const note = displayText(entry.note);
+  const note = displayNote(entry.note);
   if (isEmail(entry)) {
     const { subject, emailType, body, summary, extra } = emailFields(entry);
     return <div className="space-y-4 text-sm sm:text-[15px] text-slate-700">
