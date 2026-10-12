@@ -17,7 +17,7 @@ type Props={
   suggestions?:Suggestion[];
   schoolHref?:(id:string)=>string;
 };
-type Row={label:string;value:(school:School)=>string};
+type Row={label:string;value:(school:School)=>string;hint?:(school:School)=>string};
 const unavailable='Data unavailable';
 const clean=(v:any)=>String(v||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 function level(v:any){
@@ -109,7 +109,7 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
     const r=fitById[s.id];
     if(!r||r.percent==null)return unavailable;
     if(r.pending)return 'Calculating academic fit…';
-    return r.percent+'% Match · '+r.matched+' of '+r.evaluated+' evaluated factors match · '+r.evaluated+' of '+r.requested+' stated criteria evaluated';
+    return r.percent+'% Match · '+r.evaluated+' factor'+(r.evaluated===1?'':'s')+' checked';
   }
   function driveAndPreference(s:School){
     const d=driveLabel(s);
@@ -130,7 +130,7 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
       {label:'School type',value:s=>readable(s.school_type)},
     ]},
     {id:'fit',title:'College Fit',rows:[
-      {label:'College Fit match',value:fitSummary},
+      {label:'College Fit match',value:fitSummary,hint:s=>fitById[s.id]?.unavailable.length?'Not yet evaluated: '+fitById[s.id]!.unavailable.join(', '):'Based on the survey factors we can evaluate for this school'},
       {label:'Academic interests',value:s=>factor(s,'academics')},
       {label:'Climate preference',value:s=>factor(s,'climate')},
       {label:'Competitive level',value:s=>factor(s,'division')},
@@ -166,7 +166,7 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
 
   return <section id="compare-schools" className="mb-10 scroll-mt-24 min-w-0 w-full">
     <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-      <div><div className="rr-eyebrow">COMPARE</div><h2 className="text-xl font-black mt-1">Compare Schools Side-by-Side</h2><p className="muted text-sm mt-1">Choose up to three colleges from the full directory. Match percentages reflect the survey factors RLTNL can evaluate, weighted by your priorities. Unverified factors are excluded; this is not a prediction of recruiting interest.</p></div>
+      <div><div className="rr-eyebrow">COMPARE</div><h2 className="text-xl font-black mt-1">Compare Schools Side-by-Side</h2><p className="muted text-sm mt-1">Choose up to three schools to compare.</p></div>
       <span className="rounded-full border bg-white px-3 py-2 text-xs font-black">{selected.length} of 3 selected</span>
     </div>
     {presets.length>0&&<div className="flex flex-wrap items-center gap-2 mb-4"><span className="text-xs font-bold text-slate-600">Quick compare:</span>{presets.map(g=><button key={g.title} type="button" onClick={()=>setSelected(g.ids)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold hover:border-red-400 hover:text-red-700">{g.title} ({g.ids.length})</button>)}</div>}
@@ -199,8 +199,8 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
         </table>
       </div>
       {hideSimilar&&visibleGroups.length===0&&<p className="mt-3 rounded-xl border bg-white p-4 text-sm text-slate-600">All available details are the same for these schools. Turn off Hide similarities to review them.</p>}
-      {!loading&&!hasCostData&&<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4" role="note"><div className="text-sm font-black text-slate-900">Cost / affordability: Not yet evaluated</div><p className="mt-1 text-sm text-slate-700">Verified cost information has not been loaded for these colleges yet. RLTNL will not estimate or invent costs. {costPreferenceSet?'Your financial preferences are saved, but they are not included in these comparisons or school recommendations.':'Affordability is not included in the current fit evaluation.'}</p></div>}
-      <p className="mt-2 text-xs text-slate-500">Fit percentages are based only on evaluated survey preferences, weighted by stated priorities; the comparison shows how many criteria were checked. Academic programs reflect reported completions, not a complete current course catalog. Published cost figures, when available, are estimates rather than individual aid offers. Comparing never changes an athlete's Connections or rankings.</p>
+      {!loading&&!hasCostData&&<p className="mt-3 text-xs text-slate-500" role="note">{costPreferenceSet?'Cost preferences aren’t included yet; verified cost data is unavailable for these schools.':'Verified cost data isn’t available for these schools yet.'}</p>}
+      
     </>}
     {pickerSlot!==null&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget)setPickerSlot(null)}}>
       <div role="dialog" aria-modal="true" aria-labelledby="compare-picker-title" onKeyDown={e=>{if(e.key==='Escape')setPickerSlot(null)}} className="flex w-full max-w-xl flex-col rounded-2xl bg-white p-4 sm:p-6 shadow-xl max-h-[min(78dvh,640px)]">
@@ -214,6 +214,6 @@ export default function SchoolCompare({schools,fit,fitById={},times={},suggestio
 function FragmentRows({id,title,rows,chosen,loading,emptyMessage}:{id:string;title:string;rows:Row[];chosen:School[];loading:boolean;emptyMessage:string}){
   return <><tr id={'compare-'+id} className="scroll-mt-24 bg-slate-100"><th colSpan={chosen.length+1} className="p-3.5 text-xs font-black uppercase tracking-wide">{title}</th></tr>{rows.length===0?<tr><td colSpan={chosen.length+1} className="border-b bg-white p-4 text-sm text-slate-600">{loading?'Loading comparison details…':emptyMessage}</td></tr>:rows.map(r=><tr key={id+'-'+r.label}>
     <th scope="row" className="sticky left-0 z-10 w-[190px] min-w-[190px] border-b border-r bg-white p-4 align-top text-xs sm:text-sm font-bold">{r.label}</th>
-    {chosen.map(s=><td key={s.id} className="border-b border-r p-4 align-top text-sm leading-relaxed">{loading&&id!=='overview'&&id!=='fit'?'Loading…':r.value(s)}</td>)}
+    {chosen.map(s=><td key={s.id} title={r.hint?.(s)} className="border-b border-r p-4 align-top text-sm leading-relaxed">{loading&&id!=='overview'&&id!=='fit'?'Loading…':r.value(s)}</td>)}
   </tr>)}</>;
 }

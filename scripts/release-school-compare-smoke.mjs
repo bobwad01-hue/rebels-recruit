@@ -31,6 +31,10 @@ assert.match(compare,/\.from\('college_programs'\)/, 'Comparison uses populated 
 assert.doesNotMatch(compare,/\.from\('college_majors'\)/, 'Comparison must not rely on the empty legacy college_majors table');
 assert.match(compare,/Verified cost information has not been loaded/, 'Missing costs are explained rather than fabricated');
 assert.match(compare,/College Fit match/, 'Comparison shows percentage and coverage');
+assert.match(compare,/factor.*checked/, 'Comparison displays concise evaluated-factor count');
+assert.doesNotMatch(compare,/Fit percentages are based only on evaluated survey preferences/, 'No long methodology footer');
+assert.doesNotMatch(athlete,/Match percentages use the College Fit Survey/, 'No long methodology paragraph');
+assert.match(compare,/title={r.hint/, 'Detailed unscored criteria remain available on hover');
 assert.match(compare,/Academic interests/, 'Comparison uses academic interests');
 assert.match(compare,/Climate preference/, 'Comparison uses climate');
 assert.doesNotMatch(compare,/label:'Distance preference'/, 'No redundant distance row');
