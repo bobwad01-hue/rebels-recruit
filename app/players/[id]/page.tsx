@@ -333,9 +333,9 @@ export default function Player360() {
           : advisor
             ? `#next-moves`
             : ph("/game-plan#next-moves")
-        : label === "Upcoming Events"
+        : (label === "Upcoming Events" || label === "Tracked Events")
           ? parent
-            ? parentHref("/parent/events")
+            ? parentHref("/parent/events#tracked-events")
             : advisor
               ? "/events"
               : ph("/events")
@@ -386,8 +386,8 @@ export default function Player360() {
             ["Active Schools", intelligence.activeSchools, ""],
             ["Target Schools", intelligence.targetSchools, ""],
             ["Coach Relationships", intelligence.coachRelationships, ""],
-            ["Open Next Steps", moves.length, ""],
-            ["Upcoming Events", intelligence.upcomingEvents, ""],
+            ["Open Next Steps", parent ? reminders.filter((r: any) => ["open", "snoozed"].includes(r.status)).length + tasks.filter((t: any) => t.status !== "completed").length : moves.length, ""],
+            [parent ? "Tracked Events" : "Upcoming Events", intelligence.upcomingEvents, parent ? "Athlete-added events" : ""],
           ].map(([label, value, sub]: any) => (
             <Metric
               key={label}
