@@ -1,7 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
-import {calendarContext,canManageCalendar,canSeeCalendar,syncCalendarSubscription} from '@/lib/calendar-subscriptions';
+import {calendarContext,athleteCalendarContext,canManageCalendar,canSeeCalendar,syncCalendarSubscription} from '@/lib/calendar-subscriptions';
 import {normalizePublicGoogleIcs} from '@/lib/calendar-ics';
 import {previewCalendarContext} from '@/lib/calendar-preview';
 export const dynamic='force-dynamic';
@@ -18,19 +18,15 @@ export async function GET(req:NextRequest){
  // Parent Events must reflect the selected athlete, not every child linked to the account.
  if(parentAthlete&&!req.nextUrl.searchParams.has('previewRole')&&req.nextUrl.searchParams.get('mode')!=='manage'){
   const db=createAdminClient();
-  const {data:access}=await db.from('parent_guardian_access').select('athlete_user_id').eq('parent_user_id',signedIn.userId).eq('athlete_user_id',parentAthlete).eq('status','active').maybeSingle();
+  const {data:access,error:accessError}=await db.from('parent_guardian_access').select('athlete_user_id').eq('parent_user_id',signedIn.userId).eq('athlete_user_id',parentAthlete).eq('status','active').maybeSingle();
+  if(accessError)return fail('Parent relationship could not be verified.',500);
   if(!access)return fail('Events access for this athlete is unavailable.',403);
-  const {data:membership}=await db.from('organization_members').select('organization_id').eq('user_id',parentAthlete).eq('role','athlete').eq('status','active');
-  const memberOrgIds=[...new Set((membership||[]).map((m:any)=>String(m.organization_id)))];
-  const {data:teamMembers}=await db.from('team_members').select('team_id').eq('user_id',parentAthlete);
-  const ids=(teamMembers||[]).map((t:any)=>t.team_id);
-  const {data:teams}=ids.length?await db.from('teams').select('id,organization_id').in('id',ids):{data:[]};
-  const athleteTeams=(teams||[]).filter((t:any)=>!memberOrgIds.length||memberOrgIds.includes(t.organization_id));
-  const orgIds=[...new Set([...memberOrgIds,...athleteTeams.map((t:any)=>String(t.organization_id))])];
-  ctx={...signedIn,organizationIds:orgIds,organizationAdminIds:[],teamAdminIds:[],teamIds:athleteTeams.map((t:any)=>t.id)};
+  try{ctx={...(await athleteCalendarContext(parentAthlete)),userId:signedIn.userId};}
+  catch{return fail('Athlete team membership could not be verified.',500);}
+
  }
  const db=createAdminClient(),orgIds=ctx.organizationIds;
- if(!orgIds.length)return NextResponse.json(req.nextUrl.searchParams.get('mode')==='manage'?{subscriptions:[],organizations:[],teams:[]}:{events:[]});
+ if(!orgIds.length){if(parentAthlete)return fail('Your athlete has no active organization or team calendar membership.',409);return NextResponse.json(req.nextUrl.searchParams.get('mode')==='manage'?{subscriptions:[],organizations:[],teams:[]}:{events:[]});}
  const {data:subscriptions,error}=await db.from('calendar_subscriptions').select('*').in('organization_id',orgIds).order('created_at',{ascending:false});
  if(error)return fail('Calendar subscriptions could not be loaded.',500);
  const visible=(subscriptions||[]).filter((s:any)=>canSeeCalendar(ctx,s.organization_id,s.team_id));

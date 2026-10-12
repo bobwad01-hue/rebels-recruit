@@ -16,3 +16,21 @@ assert.doesNotMatch(subscriptions,/permissions\?\.view_events!==false/,'Calendar
 assert.match(migration,/p.status = 'active'/,'Database requires active relationship');
 assert.doesNotMatch(migration,/permission_key is null or/,'Database no longer checks section permissions');
 console.log('Parent full-access smoke checks passed');
+
+const parentHome=read('app/parent/page.tsx');
+const preview=read('lib/calendar-preview.ts');
+const rsvp=read('app/api/events/rsvp/route.ts');
+const parentEvents=read('app/parent/events/page.tsx');
+const parentConnect=read('app/parent/connect/page.tsx');
+assert.match(subscriptions,/export async function athleteCalendarContext/,'Athlete calendar scope resolves active team roles and memberships');
+assert.match(subscriptions,/activeTeamRoles\.has\(id\)/,'Revoked team roles do not grant calendar access');
+assert.match(calendar,/await athleteCalendarContext\(parentAthlete\)/,'Parent calendar feed is scoped to the approved athlete');
+assert.match(calendar,/if\(!access\)return fail/,'Unapproved parents cannot load athlete calendars');
+assert.match(preview,/athleteCalendarContext\(athleteId\)/,'Super Owner parent preview uses team membership');
+assert.match(rsvp,/await athleteCalendarContext\(parentAthlete\)/,'Attendance detail respects selected parent athlete');
+assert.match(rsvp,/athleteScope\.organizationIds\.includes\(organizationId\)/,'Only active athletes can RSVP to their organizations');
+assert.match(parentHome,/setOverview\(\{schools:schoolCount/,'Parent dashboard computes live summary metrics');
+assert.match(parentHome,/sharedEventsPromise/,'Parent Home includes shared calendar events');
+assert.match(parentEvents,/Parent \/ Guardian connection is not approved/,'No section-specific event permission language');
+assert.doesNotMatch(parentConnect,/change permissions or revoke/,'Parent onboarding describes connection-wide revocation');
+console.log('Parent event scope and dashboard smoke checks passed');

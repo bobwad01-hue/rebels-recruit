@@ -20,6 +20,33 @@ export async function calendarContext(userId:string):Promise<CalendarContext>{
  const teamAdminIds=uniq((roles.data||[]).filter((t:any)=>t.role==='admin').map((t:any)=>t.team_id));
  return{userId,organizationIds:uniq([...(orgs.data||[]).map((o:any)=>o.organization_id),...(teamRows.data||[]).map((t:any)=>t.organization_id)]),organizationAdminIds,teamIds,teamAdminIds};
 }
+// Resolve an athlete's actual calendar scope from active organization OR team
+// membership. Family-link athletes may have team roles without legacy org rows.
+export async function athleteCalendarContext(athleteId:string):Promise<CalendarContext>{
+ const db=createAdminClient();
+ const [profile,orgMemberships,teamMemberships,teamRoles]=await Promise.all([
+  db.from('profiles').select('app_role').eq('id',athleteId).maybeSingle(),
+  db.from('organization_members').select('organization_id').eq('user_id',athleteId).eq('role','athlete').eq('status','active'),
+  db.from('team_members').select('team_id').eq('user_id',athleteId),
+  db.from('team_user_roles').select('team_id').eq('user_id',athleteId).eq('role','athlete').eq('status','active')
+ ]);
+ if(profile.error||orgMemberships.error||teamMemberships.error||teamRoles.error)throw new Error('Athlete calendar membership could not be verified.');
+ if(profile.data?.app_role!=='athlete')throw new Error('An athlete account is required for this calendar.');
+ const activeTeamRoles=new Set((teamRoles.data||[]).map((r:any)=>String(r.team_id)));
+ const teamIds=uniq((teamMemberships.data||[]).map((m:any)=>String(m.team_id)).filter((id:string)=>activeTeamRoles.has(id)));
+ const {data:teams,error:teamError}=teamIds.length
+  ?await db.from('teams').select('id,organization_id').in('id',teamIds).is('archived_at',null)
+  :{data:[],error:null};
+ if(teamError)throw new Error('Athlete team memberships could not be verified.');
+ const activeTeams=teams||[];
+ return{
+  userId:athleteId,
+  organizationIds:uniq([...(orgMemberships.data||[]).map((m:any)=>String(m.organization_id)),...activeTeams.map((t:any)=>String(t.organization_id))]),
+  organizationAdminIds:[],
+  teamIds:activeTeams.map((t:any)=>String(t.id)),
+  teamAdminIds:[]
+ };
+}
 export function canManageCalendar(ctx:CalendarContext,orgId:string,teamId:string|null){
  return ctx.organizationAdminIds.includes(orgId)||Boolean(teamId&&ctx.teamAdminIds.includes(teamId));
 }

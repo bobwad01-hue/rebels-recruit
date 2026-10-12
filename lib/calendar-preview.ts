@@ -1,7 +1,7 @@
 import {NextRequest} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
-import {calendarContext,type CalendarContext} from '@/lib/calendar-subscriptions';
+import {calendarContext,athleteCalendarContext,type CalendarContext} from '@/lib/calendar-subscriptions';
 
 // Super Owner role previews use the target athlete's team memberships, never the owner's broad access.
 export type CalendarPreviewResult={ctx:CalendarContext;error?:never}|{error:string;ctx?:never};
@@ -24,10 +24,10 @@ export async function previewCalendarContext(req:NextRequest,ctx:CalendarContext
  }
  const athleteId=req.nextUrl.searchParams.get('previewAthlete')||'';
  if(!athleteId)return {error:'Choose an athlete to preview.'};
- const {data:membership}=await db.from('organization_members').select('organization_id').eq('user_id',athleteId).eq('role','athlete').eq('status','active').limit(1).maybeSingle();
- if(!membership)return {error:'Preview athlete has no active organization membership.'};
- const {data:teamRows}=await db.from('team_members').select('team_id').eq('user_id',athleteId);
- const {data:teams}=await db.from('teams').select('id,organization_id').in('id',(teamRows||[]).map((t:any)=>t.team_id).length?(teamRows||[]).map((t:any)=>t.team_id):['00000000-0000-0000-0000-000000000000']);
- const valid=(teams||[]).filter((t:any)=>t.organization_id===membership.organization_id);
- return {ctx:{...ctx,organizationIds:[membership.organization_id],organizationAdminIds:[],teamIds:valid.map((t:any)=>t.id),teamAdminIds:[]}};
+ try{
+  const athleteScope=await athleteCalendarContext(athleteId);
+  if(!athleteScope.organizationIds.length)return {error:'Preview athlete has no active team or organization membership.'};
+  return {ctx:{...athleteScope,userId:ctx.userId}};
+ }catch{return {error:'Preview athlete calendar membership could not be verified.'};}
+
 }
