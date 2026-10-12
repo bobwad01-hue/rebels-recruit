@@ -64,15 +64,26 @@ console.log('Parent restoration QA regression checks passed');
 
 assert.doesNotMatch(player360,/setPermissions\(a\.permissions/,'Player 360 ignores legacy parent section flags once the relationship is active');
 
+
 const importPage=read('app/import/page.tsx');
-const parentImportReadOnly=read('supabase/migrations/20261012180000_parent_import_read_only.sql');
-assert.ok(!parentHome.includes('href="/import"'),'Parent Home does not offer a recruiting-history import action');
-assert.ok(importPage.includes("if(accessLoading||role==='parent'||loadError)"),'Parent import UI is blocked before upload controls render');
-assert.ok(importPage.includes("if(accessLoading||role==='parent'||loadError||!me)"),'Parent import mutation handler rejects parent access');
+const parentImportRpc=read('supabase/migrations/20261012191500_parent_import_only_rpc.sql');
+assert.ok(parentHome.includes('href={ph("/import")}'),'Parent Home preserves selected athlete when linking to Import History');
+assert.match(parentHome,/Bring their recruiting history/,'Parent Home retains the recruiting-history import action');
+assert.ok(importPage.includes("if(accessLoading||loadError||(role==='parent'&&!athletes.length))"),'Parent import UI is available only after approved access loads');
+assert.ok(importPage.includes("if(accessLoading||loadError||!me||(role==='parent'&&!athletes.length))"),'Parent import handler requires approved athlete access');
+assert.ok(importPage.includes("if(!athletes.some(a=>a.id===athleteId))"),'Parent import only submits rows for linked athletes');
+assert.ok(importPage.includes("c.rpc('parent_import_recruiting_history_row'"),'Parent imports use server-side authorized RPC, not direct INSERT');
+assert.ok(importPage.includes("requestedAthlete&&ids.includes(requestedAthlete)"),'Selected Parent athlete context must be authorized');
 for(const policy of ['parents import linked college relationships','parents import linked coach relationships','parents import linked interactions']){
-  assert.ok(parentImportReadOnly.includes('DROP POLICY IF EXISTS "'+policy+'"'),'Parent import RLS exception is removed: '+policy);
+  assert.ok(parentImportRpc.includes('DROP POLICY IF EXISTS "'+policy+'"'),'Parent has no direct table INSERT exception: '+policy);
 }
-assert.match(player360,/Suggested Recruiting Follow-Ups/,'Player 360 names suggestions distinctly from assigned tasks');
-assert.match(player360,/These are not assigned Next Steps or overdue reminders/,'Parent suggestions explain their distinction');
-assert.ok(player360.includes('parentHref("/parent/goals")'),'Player 360 links parents to actual Next Steps');
-console.log('Parent read-only import and suggested follow-up regression checks passed');
+assert.match(parentImportRpc,/SECURITY DEFINER/,'Import uses server-side authorization');
+assert.match(parentImportRpc,/pga.status = 'active'/,'Only approved, active parent relationships may import');
+assert.match(parentImportRpc,/p.app_role = 'parent'/,'Import RPC requires Parent role');
+assert.match(parentImportRpc,/ON CONFLICT \(athlete_user_id, college_id\) DO NOTHING/,'Import preserves existing athlete school relationships');
+assert.match(parentImportRpc,/ON CONFLICT \(athlete_user_id, coach_id\) DO NOTHING/,'Import preserves existing coach relationships');
+assert.doesNotMatch(parentImportRpc,/\bUPDATE public\.(athlete_colleges|athlete_coaches|interactions)\b/i,'Parent import RPC never updates existing recruiting records');
+assert.doesNotMatch(parentImportRpc,/\bDELETE FROM public\.(athlete_colleges|athlete_coaches|interactions)\b/i,'Parent import RPC never deletes recruiting records');
+assert.match(parentImportRpc,/GRANT EXECUTE ON FUNCTION public.parent_import_recruiting_history_row/,'Approved Parent RPC is callable by authenticated users');
+assert.match(player360,/Suggested Recruiting Follow-Ups/,'Player 360 keeps suggestions distinct from actual Next Steps');
+console.log('Parent import-only write permissions and follow-up labeling regression checks passed');
