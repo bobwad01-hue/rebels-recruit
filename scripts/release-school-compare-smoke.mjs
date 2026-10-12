@@ -25,6 +25,16 @@ assert.match(compare,/current\.length<3/, 'Never select more than three schools'
 assert.match(compare,/Hide similarities/, 'Comparison must support hiding similarities');
 assert.match(compare,/suggestions\.map/, 'Recommended groups must be available as quick comparisons');
 assert.match(compare,/schoolHref/, 'School links must preserve role context');
+assert.match(compare,/\.from\('college_programs'\)/, 'Comparison uses populated reported academic programs');
+assert.doesNotMatch(compare,/\.from\('college_majors'\)/, 'Comparison must not rely on the empty legacy college_majors table');
+assert.match(compare,/Verified cost information has not been loaded/, 'Missing costs are explained rather than fabricated');
+assert.match(compare,/Known preference alignment/, 'College Fit has explicit preference context');
+assert.match(compare,/rltnl-compare-school/, 'School cards can send selections to the comparison');
+assert.match(athlete,/advised\.length>0\?'xl:grid/, 'Do not reserve an empty advisor sidebar and compress comparison');
+for(const [role,page] of [['athlete',athlete],['parent',parent],['advisor',advisor]]){
+  assert.match(page,/Add to Compare/,role+' school cards can add to comparison');
+}
+
 assert.doesNotMatch(compare,/\.from\('athlete_colleges'\)/, 'Comparing must never alter athlete Connections');
 assert.match(legacy,/redirect\('\/discover#compare-schools'\)/, 'Legacy compare route must use the canonical Find Schools comparison');
 console.log('Find Schools directory, comparison and recommendation regression checks passed.');
