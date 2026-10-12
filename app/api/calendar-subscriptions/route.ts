@@ -18,14 +18,16 @@ export async function GET(req:NextRequest){
  // Parent Events must reflect the selected athlete, not every child linked to the account.
  if(parentAthlete&&!req.nextUrl.searchParams.has('previewRole')&&req.nextUrl.searchParams.get('mode')!=='manage'){
   const db=createAdminClient();
-  const {data:access}=await db.from('parent_guardian_access').select('athlete_user_id,permissions').eq('parent_user_id',signedIn.userId).eq('athlete_user_id',parentAthlete).eq('status','active').maybeSingle();
-  if(!access||access.permissions?.view_events===false)return fail('Events access for this athlete is unavailable.',403);
+  const {data:access}=await db.from('parent_guardian_access').select('athlete_user_id').eq('parent_user_id',signedIn.userId).eq('athlete_user_id',parentAthlete).eq('status','active').maybeSingle();
+  if(!access)return fail('Events access for this athlete is unavailable.',403);
   const {data:membership}=await db.from('organization_members').select('organization_id').eq('user_id',parentAthlete).eq('role','athlete').eq('status','active');
-  const orgIds=[...new Set((membership||[]).map((m:any)=>String(m.organization_id)))];
+  const memberOrgIds=[...new Set((membership||[]).map((m:any)=>String(m.organization_id)))];
   const {data:teamMembers}=await db.from('team_members').select('team_id').eq('user_id',parentAthlete);
   const ids=(teamMembers||[]).map((t:any)=>t.team_id);
   const {data:teams}=ids.length?await db.from('teams').select('id,organization_id').in('id',ids):{data:[]};
-  ctx={...signedIn,organizationIds:orgIds,organizationAdminIds:[],teamAdminIds:[],teamIds:(teams||[]).filter((t:any)=>orgIds.includes(t.organization_id)).map((t:any)=>t.id)};
+  const athleteTeams=(teams||[]).filter((t:any)=>!memberOrgIds.length||memberOrgIds.includes(t.organization_id));
+  const orgIds=[...new Set([...memberOrgIds,...athleteTeams.map((t:any)=>String(t.organization_id))])];
+  ctx={...signedIn,organizationIds:orgIds,organizationAdminIds:[],teamAdminIds:[],teamIds:athleteTeams.map((t:any)=>t.id)};
  }
  const db=createAdminClient(),orgIds=ctx.organizationIds;
  if(!orgIds.length)return NextResponse.json(req.nextUrl.searchParams.get('mode')==='manage'?{subscriptions:[],organizations:[],teams:[]}:{events:[]});
