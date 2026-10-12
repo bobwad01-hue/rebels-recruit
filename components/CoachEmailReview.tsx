@@ -27,6 +27,11 @@ export default function CoachEmailReview({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    setReviewed(Boolean(email.reviewed_at));
+    setError('');
+  }, [email.id, email.reviewed_at]);
+
+  useEffect(() => {
     const onReply = (event: Event) => {
       if ((event as CustomEvent<{ emailId?: string }>).detail?.emailId === email.id) setReviewed(true);
     };

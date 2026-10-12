@@ -651,6 +651,7 @@ export default function CoachActionBar({
           >
             <div
               role="dialog"
+              data-rr-fullscreen-dialog
               aria-modal="true"
               aria-labelledby="email-dialog-title"
               className={'flex w-full flex-col overflow-hidden bg-white shadow-2xl ' + (emailStatus === 'success' ? 'max-w-md rounded-2xl' : 'h-[100dvh] max-w-4xl sm:h-[90dvh] sm:max-h-[880px] sm:rounded-2xl')}

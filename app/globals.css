@@ -42,7 +42,7 @@ img,svg{max-width:100%}button,a,input,select,textarea{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}.rr-interactive-card:hover,[data-auto-navigable="true"]:hover{transform:none}}
 /* Responsive product polish */
 .rr-break-anywhere{overflow-wrap:anywhere;word-break:break-word}
-[role="dialog"]{max-width:calc(100vw - 1rem)}
+[role="dialog"]{min-width:0}
 @media(max-width:1023px){
   html{scroll-padding-top:68px}
   [data-rr-page-header]{margin-bottom:1.25rem}
@@ -53,7 +53,7 @@ img,svg{max-width:100%}button,a,input,select,textarea{touch-action:manipulation}
   .rr-section-subtitle{font-size:.925rem;line-height:1.45}
   .rr-section-title{overflow-wrap:anywhere}
   .pill,.status-pill{max-width:100%;overflow:hidden;text-overflow:ellipsis}
-  [role="dialog"]{max-height:calc(100dvh - 1rem)}
+  [role="dialog"]:not([data-rr-fullscreen-dialog]){max-width:calc(100vw - 1rem);max-height:calc(100dvh - 1rem)}
 }
 @media(max-width:480px){
   .rr-section-title{font-size:1.6rem}
