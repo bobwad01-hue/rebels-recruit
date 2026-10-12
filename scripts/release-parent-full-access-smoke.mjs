@@ -34,3 +34,30 @@ assert.match(parentHome,/sharedEventsPromise/,'Parent Home includes shared calen
 assert.match(parentEvents,/Parent \/ Guardian connection is not approved/,'No section-specific event permission language');
 assert.doesNotMatch(parentConnect,/change permissions or revoke/,'Parent onboarding describes connection-wide revocation');
 console.log('Parent event scope and dashboard smoke checks passed');
+
+const signup = read('app/signup/page.tsx');
+const appShell = read('components/AppShell.tsx');
+const parentConnectPage = read('app/parent/connect/page.tsx');
+const accessRequestPage = read('app/access-requests/page.tsx');
+const accessRequestApi = read('app/api/access-requests/route.ts');
+const parentGoals = read('app/parent/goals/page.tsx');
+const parentConnections = read('app/parent/connections/page.tsx');
+const parentJourney = read('app/parent/journey/page.tsx');
+const player360 = read('app/players/[id]/page.tsx');
+assert.doesNotMatch(signup,/No second code is needed/,'Signup should not explain redundant codes');
+assert.match(appShell,/searchParams\.set\('athlete',parentAthlete\)/,'Parent navigation replaces existing athlete query instead of appending duplicates');
+assert.match(parentConnectPage,/Only Athlete Can Restore/,'Revoked parent connections must not appear actionable');
+assert.match(parentConnectPage,/duplicateAthleteKeys/,'Duplicate-name, duplicate-jersey test records are distinguished');
+assert.match(accessRequestApi,/athlete_jersey_number: jerseyById/,'Access history includes jersey identifiers');
+assert.match(accessRequestPage,/Roster record/,'Duplicate parent requests are distinguished');
+assert.doesNotMatch(parentHome,/\['open','overdue','snoozed'\]/,'Overdue is not a valid reminder_status enum value');
+assert.match(parentHome,/\.in\('status',\['open','snoozed'\]\)/,'Parent Home queries valid open reminder statuses');
+assert.match(parentHome,/Some parent dashboard data could not be loaded/,'Parent Home surfaces partial data failures instead of silently showing zero');
+for (const section of [parentGoals,parentConnections,parentJourney]) {
+  assert.doesNotMatch(section,/has not granted access to/,'No legacy granular parent permission denial');
+  assert.match(section,/Parent \/ Guardian connection is awaiting approval or has been revoked/,'Section access uses whole-connection language');
+}
+assert.match(player360,/parent \? "Tracked Events" : "Upcoming Events"/,'Parent Player 360 distinguishes tracked events from shared calendars');
+assert.match(player360,/parent \? reminders\.filter/,'Parent Player 360 counts actual open reminders, not suggested next moves');
+assert.match(parentEvents,/id="tracked-events"/,'Tracked events metric links to the correct section');
+console.log('Parent restoration QA regression checks passed');
