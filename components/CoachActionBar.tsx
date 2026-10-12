@@ -43,7 +43,7 @@ type Props = {
   primaryAction?: PrimaryAction;
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
-  contextualReply?: {interactionId:string;kind:string;choice?:string;subject?:string};
+  contextualReply?: {interactionId?:string;emailId?:string;kind:string;choice?:string;subject?:string};
   onEmailSent?: (detail?: any) => void | Promise<void>;
   staffMode?: boolean;
   athleteEntitlement?: "free" | "full";
@@ -413,6 +413,7 @@ export default function CoachActionBar({
           emailPurpose: starter,
           attachments,
           recruitingInteractionId: contextualReply?.interactionId || null,
+          recruitingMessageId: contextualReply?.emailId || null,
           staffMode,
         }),
       });

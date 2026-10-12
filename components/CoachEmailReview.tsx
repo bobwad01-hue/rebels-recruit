@@ -18,7 +18,7 @@ export default function CoachEmailReview({email,coachId,coachName,collegeName}:{
   <p className="text-xs text-slate-500 mt-2">RLTNL review status is separate from Gmail read status.</p>
   <div className="flex flex-wrap gap-2 mt-4">
    {email.interaction_id&&<Link href={'/activity/'+email.interaction_id} className="btn text-sm">View Email Details</Link>}
-   {email.interaction_id&&<Link href={'/coaches/'+coachId+'?action=recruiting-reply&interaction='+email.interaction_id+'&intent='+encodeURIComponent(email.recruiting_intent||'coach_response')} className="btn text-sm">Reply in Thread</Link>}
+   <Link href={'/coaches/'+coachId+'?action=recruiting-reply&replyEmail='+encodeURIComponent(email.id)+(email.interaction_id?'&interaction='+encodeURIComponent(email.interaction_id):'')+'&intent='+encodeURIComponent(email.recruiting_intent||'coach_response')} className="btn text-sm">Reply in Thread</Link>
    {!reviewed&&<button type="button" className="btn btn-red text-sm" onClick={markReviewed} disabled={busy}>{busy?'Saving…':'Mark Reviewed'}</button>}
   </div>{error&&<p role="alert" className="text-sm text-red-700 mt-2">{error}</p>}
  </section>;
