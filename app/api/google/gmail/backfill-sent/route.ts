@@ -43,7 +43,7 @@ export async function POST(){
   let accessToken:string;
   try{
     const token=await getGoogleAccessToken(user.id,'gmail');
-    if(!token.grantedScopes.split(/\s+/).some(s=>s.endsWith('/gmail.readonly')))
+    if(!token.grantedScopes.split(/\s+/).some((s:string)=>s.endsWith('/gmail.readonly')))
       return NextResponse.json({updated:0,checked:0,reason:'gmail_read_permission_missing'});
     accessToken=token.accessToken;
   }catch{
