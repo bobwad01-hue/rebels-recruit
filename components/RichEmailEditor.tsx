@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {Bold,Italic,Underline,Link as LinkIcon,List,ListOrdered,Paperclip,X} from 'lucide-react';
 export type EmailAttachment={name:string;type:string;data:string;size:number};
 type Props={value:string;onChange:(plain:string,html:string)=>void;attachments:EmailAttachment[];onAttachmentsChange:(files:EmailAttachment[])=>void;disabled?:boolean};
-function plainFrom(el:HTMLElement){return (el.innerText||'').replace(/\u00a0/g,' ').trim()}
+function plainFrom(el:HTMLElement){return (el.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n')}
 export default function RichEmailEditor({value,onChange,attachments,onAttachmentsChange,disabled}:Props){const ref=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null),lastValue=useRef(''),savedRange=useRef<Range|null>(null);const [linkOpen,setLinkOpen]=useState(false),[linkUrl,setLinkUrl]=useState('');
  useEffect(()=>{if(ref.current&&value!==lastValue.current){ref.current.innerText=value;lastValue.current=value}},[value]);
  function emit(){if(!ref.current)return;const plain=plainFrom(ref.current);lastValue.current=plain;onChange(plain,ref.current.innerHTML)}
