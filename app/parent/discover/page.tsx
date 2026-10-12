@@ -2,7 +2,7 @@
 import {Suspense,useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'next/navigation';
 import Link from 'next/link';
-import {Check,Grid2X2,List,MapPin,Search,Sparkles,ThumbsUp,X} from 'lucide-react';
+import {Check,Grid2X2,List,MapPin,Plus,Search,Sparkles,ThumbsUp,X} from 'lucide-react';
 import SchoolCompare from '@/components/SchoolCompare';
 import AppShell from '@/components/AppShell';import PageHeader from '@/components/PageHeader';import {EmptyState} from '@/components/ProductUI';import {createClient} from '@/lib/supabase-browser';import{resolveParentView,parentCan}from'@/lib/parent-context';import MajorAreaFilter from '@/components/MajorAreaFilter';import{useMajorAreaData}from'@/lib/use-major-area-data';
 const norm=(v:any)=>String(v||'').toLowerCase(),letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
