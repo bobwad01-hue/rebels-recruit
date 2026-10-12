@@ -61,3 +61,5 @@ assert.match(player360,/parent \? "Tracked Events" : "Upcoming Events"/,'Parent 
 assert.match(player360,/parent \? reminders\.filter/,'Parent Player 360 counts actual open reminders, not suggested next moves');
 assert.match(parentEvents,/id="tracked-events"/,'Tracked events metric links to the correct section');
 console.log('Parent restoration QA regression checks passed');
+
+assert.doesNotMatch(player360,/setPermissions\(a\.permissions/,'Player 360 ignores legacy parent section flags once the relationship is active');
