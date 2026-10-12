@@ -9,10 +9,10 @@ export async function calendarContext(userId:string):Promise<CalendarContext>{
   db.from('organization_members').select('organization_id,role').eq('user_id',userId).eq('status','active'),
   db.from('team_members').select('team_id').eq('user_id',userId),
   db.from('team_user_roles').select('team_id,role').eq('user_id',userId).eq('status','active'),
-  db.from('parent_guardian_access').select('athlete_user_id,permissions').eq('parent_user_id',userId).eq('status','active'),
+  db.from('parent_guardian_access').select('athlete_user_id').eq('parent_user_id',userId).eq('status','active'),
   db.from('athlete_advisor_assignments').select('athlete_user_id').eq('advisor_user_id',userId).eq('status','active')
  ]);
- const linkedAthletes=uniq([...(parents.data||[]).filter((p:any)=>p.permissions?.view_events!==false).map((p:any)=>p.athlete_user_id),...(advisors.data||[]).map((a:any)=>a.athlete_user_id)]);
+ const linkedAthletes=uniq([...(parents.data||[]).map((p:any)=>p.athlete_user_id),...(advisors.data||[]).map((a:any)=>a.athlete_user_id)]);
  const linkedTeams=linkedAthletes.length?await db.from('team_members').select('team_id').in('user_id',linkedAthletes):{data:[]};
  const teamIds=uniq([...(memberTeams.data||[]).map((t:any)=>t.team_id),...(roles.data||[]).map((t:any)=>t.team_id),...(linkedTeams.data||[]).map((t:any)=>t.team_id)]);
  const teamRows=teamIds.length?await db.from('teams').select('id,organization_id').in('id',teamIds):{data:[]};
