@@ -29,8 +29,15 @@ assert.match(compare,/\.from\('college_programs'\)/, 'Comparison uses populated 
 assert.doesNotMatch(compare,/\.from\('college_majors'\)/, 'Comparison must not rely on the empty legacy college_majors table');
 assert.match(compare,/Verified cost information has not been loaded/, 'Missing costs are explained rather than fabricated');
 assert.match(compare,/Known preference alignment/, 'College Fit has explicit preference context');
+assert.match(compare,/hasCostData/, 'Cost section only appears when verified data exists');
+assert.match(compare,/hasReviews/, 'Review section only appears when reviews exist');
+assert.match(compare,/Your financial preferences are saved/, 'Unverified affordability is explicitly excluded');
+assert.match(compare,/rows\.filter/, 'Comparison filters unavailable and duplicate rows');
+assert.doesNotMatch(athlete,/% Match/, 'No percentage implies an overall college fit score');
+assert.match(athlete,/verified factors match/, 'Partial fit signals are shown as a count');
 assert.match(compare,/rltnl-compare-school/, 'School cards can send selections to the comparison');
-assert.match(athlete,/advised\.length>0\?'xl:grid/, 'Do not reserve an empty advisor sidebar and compress comparison');
+assert.doesNotMatch(athlete,/advised\.length>0\?'xl:grid/, 'Comparison should use full available desktop width');
+assert.match(athlete,/aria-label="Support Team recommendations"/, 'Support Team recommendations remain accessible above the directory');
 for(const [role,page] of [['athlete',athlete],['parent',parent],['advisor',advisor]]){
   assert.match(page,/Add to Compare/,role+' school cards can add to comparison');
 }

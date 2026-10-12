@@ -105,19 +105,19 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
   function fitLevel(s:School){
     if(!fit)return 'No athlete selected';
     const levels=(fit.divisions||[]).filter((v:string)=>v!=='No preference');
-    if(!levels.length)return 'No division preference set';
+    if(!levels.length)return unavailable;
     return levels.some((v:string)=>level(v)===level(s.division))?'Matches: '+level(s.division):'Outside selected divisions: '+level(s.division);
   }
   function fitType(s:School){
     if(!fit)return 'No athlete selected';
     const types=(fit.school_types||[]).filter((v:string)=>v!=='No preference');
-    if(!types.length)return 'No school-type preference set';
+    if(!types.length)return unavailable;
     if(!s.school_type)return unavailable;
     return types.some((v:string)=>clean(s.school_type).includes(clean(v)))?'Matches: '+s.school_type:'Outside selected types: '+s.school_type;
   }
   function fitDistance(s:School){
     if(!fit)return 'No athlete selected';
-    if(!fit.max_drive_minutes||fit.max_drive_minutes>=99999)return 'No drive-time preference set';
+    if(!fit.max_drive_minutes||fit.max_drive_minutes>=99999)return unavailable;
     const d=drive(s);if(!d)return unavailable;
     return (d.minutes<=fit.max_drive_minutes?'Within':'Beyond')+' preferred '+Math.round(fit.max_drive_minutes)+' min · '+driveLabel(s);
   }
@@ -129,8 +129,8 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
     const types=(fit.school_types||[]).filter((v:string)=>v!=='No preference');
     if(types.length&&s.school_type)checks.push(types.some((v:string)=>clean(s.school_type).includes(clean(v))));
     if(fit.max_drive_minutes&&fit.max_drive_minutes<99999&&drive(s))checks.push(drive(s).minutes<=fit.max_drive_minutes);
-    if(!checks.length)return 'No comparable preference data';
-    return checks.filter(Boolean).length+' of '+checks.length+' known preferences matched';
+    if(!checks.length)return unavailable;
+    return checks.filter(Boolean).length+' of '+checks.length+' checked preferences match (partial evaluation)';
   }
   function review(s:School){
     if(loadError&&!reviews[s.id])return unavailable;
@@ -168,12 +168,19 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
       {label:'Athlete recruiting experiences',value:review},
     ]},
   ];
-  const visibleGroups=fit?groups:groups.filter(g=>g.id!=='fit');
+  const hasCostData=chosen.some(s=>[enrichment[s.id]?.total_cost_in_state,enrichment[s.id]?.total_cost_out_of_state,enrichment[s.id]?.room_board].some(v=>dollars(v)!==unavailable));
+  const hasReviews=chosen.some(s=>Number(reviews[s.id]?.response_count||0)>0&&Number(reviews[s.id]?.overall_experience)>0);
+  const costPreferenceSet=!!fit&&(fit.max_annual_cost!=null||!!fit.cost_importance||!!fit.athletic_aid_required||(fit.top_priorities||[]).includes('Cost'));
+  const visibleGroups=(fit?groups:groups.filter(g=>g.id!=='fit'))
+    .filter(g=>(g.id!=='cost'||hasCostData)&&(g.id!=='reviews'||hasReviews))
+    .map(g=>({...g,rows:g.rows.filter(r=>chosen.some(s=>r.value(s)!==unavailable))
+      .filter(r=>!hideSimilar||chosen.length<2||!chosen.every(s=>r.value(s)===r.value(chosen[0])))}))
+    .filter(g=>g.rows.length>0);
   const href=(id:string)=>schoolHref?schoolHref(id):'/colleges/'+id;
 
   return <section id="compare-schools" className="mb-10 scroll-mt-24 min-w-0 w-full">
     <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
-      <div><div className="rr-eyebrow">COMPARE</div><h2 className="text-xl font-black mt-1">Compare Schools Side-by-Side</h2><p className="muted text-sm mt-1">Choose up to three colleges from the full directory. You don't need to add them to Connections first.</p></div>
+      <div><div className="rr-eyebrow">COMPARE</div><h2 className="text-xl font-black mt-1">Compare Schools Side-by-Side</h2><p className="muted text-sm mt-1">Choose up to three colleges from the full directory. Only available, verified information is compared. This is not an overall college fit score.</p></div>
       <span className="rounded-full border bg-white px-3 py-2 text-xs font-black">{selected.length} of 3 selected</span>
     </div>
     {presets.length>0&&<div className="flex flex-wrap items-center gap-2 mb-4"><span className="text-xs font-bold text-slate-600">Quick compare:</span>{presets.map(g=><button key={g.title} type="button" onClick={()=>setSelected(g.ids)} className="rounded-full border bg-white px-3 py-2 text-xs font-bold hover:border-red-400 hover:text-red-700">{g.title} ({g.ids.length})</button>)}</div>}
@@ -202,20 +209,17 @@ export default function SchoolCompare({schools,fit,times={},suggestions=[],schoo
             <th scope="col" className="sticky left-0 z-20 w-[190px] min-w-[190px] border-b border-r bg-slate-50 p-4 align-top text-xs font-black">Compare</th>
             {chosen.map(s=><th scope="col" key={s.id} className="min-w-[195px] border-b border-r p-4 align-top"><div className="font-black">{s.name}</div><div className="text-xs font-normal text-slate-500 mt-1">{[s.city,s.state].filter(Boolean).join(', ')}</div><Link href={href(s.id)} className="mt-2 inline-block text-xs font-bold text-red-700 hover:underline">View school & reviews →</Link></th>)}
           </tr></thead>
-          <tbody>{visibleGroups.map(g=>{
-            const available=g.rows.filter(r=>chosen.some(s=>r.value(s)!==unavailable));
-            const visible=available.filter(r=>!hideSimilar||chosen.length<2||!chosen.every(s=>r.value(s)===r.value(chosen[0])));
-            const emptyMessage=available.length===0?(g.id==='cost'?'Verified cost information has not been loaded for these colleges yet. RLTNL will not estimate or invent costs.':g.id==='campus'?'Verified academic and campus information is not yet available for these colleges.':'No comparable data is available for this category.'): 'No differences among the available values in this category.';
-            return <FragmentRows key={g.id} id={g.id} title={g.title} rows={visible} chosen={chosen} loading={loading} emptyMessage={emptyMessage}/>;
-          })}</tbody>
+          <tbody>{visibleGroups.map(g=><FragmentRows key={g.id} id={g.id} title={g.title} rows={g.rows} chosen={chosen} loading={loading} emptyMessage="No differences among the available values in this category."/>)}</tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-slate-500">Fit comparisons use only preferences and school data RLTNL can verify. Academic programs reflect reported completions, not a complete current course catalog. Available cost figures are published estimates, not individual aid offers. Comparing never changes an athlete's Connections or rankings.</p>
+      {hideSimilar&&visibleGroups.length===0&&<p className="mt-3 rounded-xl border bg-white p-4 text-sm text-slate-600">All available details are the same for these schools. Turn off Hide similarities to review them.</p>}
+      {!loading&&!hasCostData&&<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 p-4" role="note"><div className="text-sm font-black text-slate-900">Cost / affordability: Not yet evaluated</div><p className="mt-1 text-sm text-slate-700">Verified cost information has not been loaded for these colleges yet. RLTNL will not estimate or invent costs. {costPreferenceSet?'Your financial preferences are saved, but they are not included in these comparisons or school recommendations.':'Affordability is not included in the current fit evaluation.'}</p></div>}
+      <p className="mt-2 text-xs text-slate-500">Fit comparisons are partial and check only available school data. Academic programs reflect reported completions, not a complete current course catalog. Published cost figures, when available, are estimates rather than individual aid offers. Comparing never changes an athlete's Connections or rankings.</p>
     </>}
     {pickerSlot!==null&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={e=>{if(e.target===e.currentTarget)setPickerSlot(null)}}>
       <div role="dialog" aria-modal="true" aria-labelledby="compare-picker-title" onKeyDown={e=>{if(e.key==='Escape')setPickerSlot(null)}} className="flex w-full max-w-xl flex-col rounded-2xl bg-white p-4 sm:p-6 shadow-xl max-h-[min(78dvh,640px)]">
         <div className="flex items-center justify-between gap-3"><div><h3 id="compare-picker-title" className="text-lg font-black">Choose a School</h3><p className="muted text-xs mt-1">Search any college in the RLTNL directory.</p></div><button type="button" aria-label="Close school selector" onClick={()=>setPickerSlot(null)} className="rounded-lg border p-2"><X size={18}/></button></div>
-        <label className="mt-4 flex items-center gap-2 rounded-xl border px-3"><Search size={18} className="text-slate-500"/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search school, city, division..." className="w-full min-w-0 py-3 outline-none text-base"/></label>
+        <label className="mt-4 flex items-center gap-2 rounded-xl border px-3 focus-within:ring-2 focus-within:ring-red-500"><Search size={18} className="text-slate-500"/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search school, city, division..." className="w-full min-w-0 py-3 outline-none focus-visible:outline-none text-base"/></label>
         <div className="mt-3 min-h-0 flex-1 overflow-y-auto divide-y">{options.map(s=><button key={s.id} type="button" onClick={()=>choose(s.id)} className="flex w-full items-center justify-between gap-3 px-2 py-3 text-left hover:bg-slate-50"><span><span className="block font-bold text-sm">{s.name}</span><span className="text-xs text-slate-500">{[s.city,s.state,level(s.division)].filter(Boolean).join(' · ')}</span></span><Plus size={16} className="shrink-0 text-red-700"/></button>)}{options.length===0&&<p className="p-5 text-center text-sm text-slate-500">No other schools match. Try a different search.</p>}</div>
       </div>
     </div>}
