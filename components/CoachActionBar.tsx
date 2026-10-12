@@ -643,7 +643,7 @@ export default function CoachActionBar({
       {emailOpen &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-stretch justify-center overflow-hidden bg-slate-950/40 p-0 sm:p-4"
+            className={'fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-slate-950/50 ' + (emailStatus === 'success' ? 'p-4' : 'p-0 sm:p-4')}
             onMouseDown={(e) => {
               if (e.currentTarget === e.target && !busy) setEmailOpen(false);
             }}
@@ -652,16 +652,15 @@ export default function CoachActionBar({
               role="dialog"
               aria-modal="true"
               aria-labelledby="email-dialog-title"
-              className="flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100dvh-2rem)] sm:rounded-2xl"
+              className={'flex w-full flex-col overflow-hidden bg-white shadow-2xl ' + (emailStatus === 'success' ? 'max-w-md rounded-2xl' : 'h-[100dvh] max-w-4xl sm:h-[90dvh] sm:max-h-[880px] sm:rounded-2xl')}
             >
-              <div className="shrink-0 p-5 border-b flex justify-between gap-4">
+              {emailStatus !== "success" && <div className="shrink-0 border-b p-4 sm:p-5 flex justify-between gap-4">
                 <div>
                   <h2 id="email-dialog-title" className="text-xl font-black">
                     Email {coachName}
                   </h2>
                   <p className="muted text-sm mt-1">
-                    Use a RLTNL email starter, rewrite it, or write your own. You can
-                    also include other known coaches from this school.
+                    {contextualReply ? 'Reply in the original Gmail conversation. Your message will also be logged in RLTNL.' : 'Write your own email or start with a RLTNL template. You can also CC other coaches at this school.'}
                   </p>
                   {draftNotice && (
                     <p className="mt-2 text-xs font-bold text-green-700">
@@ -677,49 +676,40 @@ export default function CoachActionBar({
                 >
                   <X size={18} />
                 </button>
-              </div>
+              </div>}
               {emailStatus === "success" ? (
-                <div className="p-8 text-center">
-                  <CheckCircle2 size={44} className="mx-auto text-red-600" />
-                  <h3 className="text-xl font-black mt-4">Email sent</h3>
-                  <p className="muted mt-2">{message}</p>
-                  <button
-                    className="btn btn-red mt-6"
-                    onClick={() => setEmailOpen(false)}
-                  >
-                    Done
-                  </button>
+                <div className="px-6 py-8 text-center sm:px-8 sm:py-9" aria-live="polite">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                    <CheckCircle2 size={30} />
+                  </div>
+                  <h3 id="email-dialog-title" className="mt-4 text-xl font-black">Email sent</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
+                  {contextualReply && <p className="mt-2 text-xs font-semibold text-slate-500">Your reply stays in the existing Gmail conversation.</p>}
+                  <button type="button" className="btn btn-red mt-6 min-w-28" onClick={() => setEmailOpen(false)}>Done</button>
                 </div>
               ) : (
                 <>
-                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 space-y-4">
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4">
                     <div>
-                      <label className="text-xs uppercase font-bold muted">
-                        What are you emailing about?
+                      <label htmlFor="coach-email-starter" className="text-xs uppercase font-bold muted">
+                        Email starting point
                       </label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {(staffMode ? templates.filter((s) => s.id === "custom") : templates).map((s) => (
-                          <button
-                            key={s.id}
-                            onClick={() => buildStarter(s.id)}
-                            className={`rounded-full border px-3 py-2 text-xs font-bold ${starter === s.id ? "bg-slate-950 text-white border-slate-950" : "bg-white hover:bg-slate-50"}`}
-                          >
-                            {s.label}
-                          </button>
+                      <select
+                        id="coach-email-starter"
+                        value={starter}
+                        disabled={busy}
+                        onChange={(event) => { void buildStarter(event.target.value as EmailStarterId); }}
+                        className="input mt-2 max-w-xl text-sm font-semibold"
+                      >
+                        {(staffMode ? templates.filter((item) => item.id === "custom") : templates).map((item) => (
+                          <option key={item.id} value={item.id}>{item.label}</option>
                         ))}
-                      </div>
-                      <div className="mt-3 rounded-xl bg-slate-50 border p-3 text-sm">
-                        <div className="font-black flex items-center gap-2">
-                          <Sparkles size={15} className="text-red-600" /> RLTNL
-                          Email Playbook
-                        </div>
-                        <div className="text-slate-600 mt-1">
-                          {current.guidance}
-                        </div>
-                        <div className="mt-2 font-semibold">
-                          {starter === "introduction"
-                            ? "Who you are → Why this school → What you want."
-                            : "Lead with why you are emailing today. You do not need to reintroduce yourself every time."}
+                      </select>
+                      <div className="mt-3 flex items-start gap-2 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm">
+                        <Sparkles size={16} className="mt-0.5 shrink-0 text-red-600" />
+                        <div>
+                          <div className="font-black">RLTNL Email Playbook</div>
+                          <p className="mt-1 text-slate-600">{current.guidance}</p>
                         </div>
                       </div>
                     </div>
@@ -838,7 +828,7 @@ export default function CoachActionBar({
                       </div>
                     </div>
                   </div>
-                  <div className="shrink-0 border-t bg-white px-5 py-4 shadow-[0_-8px_20px_rgba(15,23,42,0.08)]">
+                  <div className="shrink-0 border-t bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] sm:px-5 sm:py-4">
                     {(gmailConnected === false || emailStatus === "error") && (
                       <div
                         role="alert"

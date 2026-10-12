@@ -13,6 +13,7 @@ import {
   Clock3,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
+import CoachEmailAlerts from "@/components/CoachEmailAlerts";
 import PageHeader from "@/components/PageHeader";
 import SmartNextMoves, {
   buildSmartNextMoves,
@@ -348,6 +349,7 @@ export default async function Dashboard({
           eyebrow={null}
           action={preview.active ? undefined : <QuickAddMenu />}
         />
+        {!preview.active && <CoachEmailAlerts variant="home" />}
         {parentRequestError && !preview.active && <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Parent / Guardian requests could not be loaded. <Link href="/manage-access" className="underline">Review them in Manage Access</Link>.</div>}
         {pendingParentRequests.length > 0 && <PendingParentApprovals requests={pendingParentRequests} />}
         <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">

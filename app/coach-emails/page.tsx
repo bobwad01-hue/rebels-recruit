@@ -8,5 +8,5 @@ export default async function CoachEmailInbox(){
  const c=await createClient();
  const {data:{user}}=await c.auth.getUser();
  if(!user)redirect('/login');
- return <AppShell><div className="max-w-5xl mx-auto px-4 sm:px-6 py-6"><PageHeader title="Coach Emails" subtitle="Review incoming recruiting emails from coaches you are following. Each message stays here until you mark it reviewed."/><div className="mt-5"><CoachEmailAlerts variant="inbox"/></div></div></AppShell>;
+ return <AppShell><div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8"><PageHeader title="Coach Emails" subtitle="Your recruiting email conversations, organized around what needs your attention."/><div className="mt-5"><CoachEmailAlerts variant="inbox"/></div></div></AppShell>;
 }
