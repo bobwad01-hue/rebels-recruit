@@ -70,15 +70,18 @@ export default function CoachActionBar({
 }: Props) {
   const c = createClient(),
     params = useSearchParams(),
-    opened = useRef(false),
+    openedKey = useRef(""),
     draftReady = useRef(false),
-    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}`,
+    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}${contextualReply ? `:reply:${contextualReply.emailId || contextualReply.interactionId || "message"}` : ""}`,
     requested = params.get("emailStarter") as EmailStarterId | null,
     requestedValid = EMAIL_STARTERS.some((s) => s.id === requested),
     effectiveStarter = staffMode
       ? "custom"
       : requestedValid && requested ? requested : initialEmailStarter,
-    shouldAutoOpen = autoOpenEmail || !!requestedValid || !!contextualReply;
+    shouldAutoOpen = (autoOpenEmail && !!params.get("action")) || !!requestedValid,
+    autoOpenKey = shouldAutoOpen
+      ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("emailStarter") || ""].join(":")
+      : "";
   const [emailOpen, setEmailOpen] = useState(false),
     [templates, setTemplates] = useState(() => mergeEmailStarters([])),
     [subject, setSubject] = useState(""),
@@ -284,6 +287,7 @@ export default function CoachActionBar({
       setActionPrompt("connect-gmail");
       return;
     }
+    draftReady.current = false;
     setMessage("");
     setDraftNotice("");
     setEmailStatus("idle");
@@ -292,7 +296,6 @@ export default function CoachActionBar({
     setEmailOpen(true);
     let recovered = false;
     try {
-      if (contextualReply) throw new Error('contextual reply takes precedence');
       const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
       if (saved?.subject && saved?.body) {
         setSubject(String(saved.subject));
@@ -305,20 +308,13 @@ export default function CoachActionBar({
         );
         setOpeningIndex(Number(saved.openingIndex || 0));
         setCcCoachIds(Array.isArray(saved.ccCoachIds) ? saved.ccCoachIds : []);
-        setDraftNotice("Your saved draft was recovered.");
+        setDraftNotice(contextualReply ? "Your saved reply draft was restored." : "Your saved draft was recovered.");
         recovered = true;
       }
     } catch {}
-    if (contextualReply) {
-      try {
-        const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
-        if (saved?.subject && saved?.body) setDraftNotice("A previous saved draft is available. This recruiting reply uses the current coach message context.");
-      } catch {}
-    }
-    draftReady.current = true;
     if (!recovered) {
       if (contextualReply) {
-        (async()=>{const p=profile || (await loadProfile());const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);const kind=contextualReply.kind,choice=contextualReply.choice||"";const drafts:Record<string,{subject:string;body:string}>={
+        {const p=profile || (await loadProfile());const lastName=coachName.trim().split(/\s+/).slice(-1)[0]||coachName;const sig=signature(p);const kind=contextualReply.kind,choice=contextualReply.choice||"";const drafts:Record<string,{subject:string;body:string}>={
           camp_invitation:{subject:"Re: Camp Invitation",body:choice==="cannot_attend"?"Thank you for thinking of me and for the invitation. Unfortunately, I won't be able to attend, but I really appreciate you reaching out.": "Thank you for sending me the camp information. I'm definitely interested and will take a look at the details. I really appreciate you reaching out!"},
           call_request:{subject:"Re: Call",body:choice==="need_time"?"Thank you for reaching out. I'd really like to talk. The suggested time doesn't work for me, but I'd be happy to find another time that works for both of us.":"Thank you for reaching out. I'd be happy to set up a call and look forward to talking with you."},
           visit_invitation:{subject:"Re: Visit",body:choice==="cannot_attend"?"Thank you very much for the invitation. Unfortunately, I won't be able to make that date, but I really appreciate you thinking of me.":"Thank you for the invitation. I'm very interested in visiting and would love to work out the details."},
@@ -328,18 +324,28 @@ export default function CoachActionBar({
           questionnaire:{subject:"Re: Recruiting Questionnaire",body:"Thank you for sending the recruiting questionnaire. I've completed it and wanted to let you know. I appreciate you staying in touch."},
           offer_related:{subject:"Re: Recruiting Conversation",body:"Thank you for reaching out. I appreciate the opportunity and would like to set up a time to talk through the details and next steps."},
           follow_up:{subject:"Re: Checking In",body:"Thank you for checking in. I really appreciate you staying in touch. I wanted to send you a quick update."}
-        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");})();
-      } else buildStarter(id);
+        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");}
+      } else await buildStarter(id);
     }
-    loadSchoolCoaches();
-    checkGmailConnection();
+    draftReady.current = true;
+    void loadSchoolCoaches();
+    void checkGmailConnection();
   }
   useEffect(() => {
-    if (shouldAutoOpen && email && !opened.current) {
-      opened.current = true;
-      openEmail(effectiveStarter);
+    if (!shouldAutoOpen || !email || !autoOpenKey || openedKey.current === autoOpenKey) return;
+    openedKey.current = autoOpenKey;
+    void openEmail(effectiveStarter);
+  }, [shouldAutoOpen, email, effectiveStarter, autoOpenKey]);
+
+  function closeEmail() {
+    if (busy) return;
+    setEmailOpen(false);
+    if (params.get("action") === "recruiting-reply" || params.get("action") === "camp-reply" || params.has("emailStarter")) {
+      const url = new URL(window.location.href);
+      for (const key of ["action", "replyEmail", "interaction", "intent", "choice", "emailStarter"]) url.searchParams.delete(key);
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
-  }, [shouldAutoOpen, email, effectiveStarter]);
+  }
   useEffect(() => {
     if (!emailOpen || !draftReady.current || (!subject && !body)) return;
     try {
@@ -646,7 +652,7 @@ export default function CoachActionBar({
           <div
             className={'fixed inset-0 z-[80] flex items-center justify-center overflow-hidden bg-slate-950/50 ' + (emailStatus === 'success' ? 'p-4' : 'p-0 sm:p-4')}
             onMouseDown={(e) => {
-              if (e.currentTarget === e.target && !busy) setEmailOpen(false);
+              if (e.currentTarget === e.target && !busy) closeEmail();
             }}
           >
             <div
@@ -659,10 +665,10 @@ export default function CoachActionBar({
               {emailStatus !== "success" && <div className="shrink-0 border-b p-4 sm:p-5 flex justify-between gap-4">
                 <div>
                   <h2 id="email-dialog-title" className="text-xl font-black">
-                    Email {coachName}
+                    {contextualReply ? "Reply to" : "Email"} {coachName}
                   </h2>
                   <p className="muted text-sm mt-1">
-                    {contextualReply ? 'Reply in the original Gmail conversation. Your message will also be logged in RLTNL.' : 'Write your own email or start with a RLTNL template. You can also CC other coaches at this school.'}
+                    {contextualReply ? 'Your reply stays in the Gmail conversation and is logged in RLTNL.' : 'Write your own email or start with a RLTNL template. You can also CC other coaches at this school.'}
                   </p>
                   {draftNotice && (
                     <p className="mt-2 text-xs font-bold text-green-700">
@@ -674,7 +680,7 @@ export default function CoachActionBar({
                   type="button"
                   className="p-2 rounded-lg hover:bg-slate-100"
                   disabled={busy}
-                  onClick={() => setEmailOpen(false)}
+                  onClick={closeEmail}
                 >
                   <X size={18} />
                 </button>
@@ -687,11 +693,13 @@ export default function CoachActionBar({
                   <h3 id="email-dialog-title" className="mt-4 text-xl font-black">Email sent</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
                   {contextualReply && <p className="mt-2 text-xs font-semibold text-slate-500">Your reply stays in the existing Gmail conversation.</p>}
-                  <button type="button" className="btn btn-red mt-6 min-w-28" onClick={() => setEmailOpen(false)}>Done</button>
+                  <button type="button" className="btn btn-red mt-6 min-w-28" onClick={closeEmail}>Done</button>
                 </div>
               ) : (
                 <>
-                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-4">
+                  <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-5">
+                    {!contextualReply && (
+                      <div className="space-y-4">
                     <div>
                       <label htmlFor="coach-email-starter" className="text-xs uppercase font-bold muted">
                         Email starting point
@@ -737,6 +745,9 @@ export default function CoachActionBar({
                         </p>
                       </div>
                     )}
+                      </div>
+                    )}
+                    <div className={contextualReply ? "grid gap-3 sm:grid-cols-2" : "space-y-4"}>
                     <div>
                       <label className="text-xs uppercase font-bold muted">
                         To
@@ -744,6 +755,19 @@ export default function CoachActionBar({
                       <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">
                         {email}
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-xs uppercase font-bold muted">
+                        Subject
+                      </label>
+                      <input
+                        className="input mt-1"
+                        value={subject}
+                        readOnly={!!contextualReply?.subject}
+                        maxLength={200}
+                        onChange={(e) => setSubject(e.target.value)}
+                      />
+                    </div>
                     </div>
                     {schoolCoaches.length > 0 && (
                       <details className="group rounded-xl border bg-white">
@@ -773,18 +797,6 @@ export default function CoachActionBar({
                       </details>
                     )}
                     <div>
-                      <label className="text-xs uppercase font-bold muted">
-                        Subject
-                      </label>
-                      <input
-                        className="input mt-1"
-                        value={subject}
-                        readOnly={!!contextualReply?.subject}
-                        maxLength={200}
-                        onChange={(e) => setSubject(e.target.value)}
-                      />
-                    </div>
-                    <div>
                       <div className="flex items-center justify-between gap-3 mb-1">
                         <label className="text-xs uppercase font-bold muted">
                           Message
@@ -811,6 +823,45 @@ export default function CoachActionBar({
                         directly from My Videos.
                       </div>
                     </div>
+                    {contextualReply && (
+                      <details className="group rounded-xl border bg-slate-50">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100 [&::-webkit-details-marker]:hidden">
+                          <span className="flex items-center gap-2"><Sparkles size={16} className="text-red-600" /> Writing help &amp; email templates (optional)</span>
+                          <ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="space-y-3 border-t bg-white p-3">
+                          <p className="text-xs text-slate-600">Your reply is already drafted. Selecting a template will replace the current message, but keep the original Gmail conversation.</p>
+                          <div>
+                            <label htmlFor="coach-reply-starter" className="text-xs font-bold uppercase text-slate-500">Email starting point</label>
+                            <select
+                              id="coach-reply-starter"
+                              value={starter}
+                              disabled={busy}
+                              onChange={(event) => { void buildStarter(event.target.value as EmailStarterId); }}
+                              className="input mt-1 text-sm font-semibold"
+                            >
+                              {(staffMode ? templates.filter((item) => item.id === "custom") : templates).map((item) => (
+                                <option key={item.id} value={item.id}>{item.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <p className="text-sm text-slate-600">{current.guidance}</p>
+                          {current.openings.length > 1 && (
+                            <div>
+                              <div className="text-xs font-bold uppercase text-slate-500">Choose a starting point</div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {current.openings.map((opening, index) => (
+                                  <button type="button" key={opening.label} onClick={() => chooseOpening(index)}
+                                    className={`rounded-lg border px-3 py-2 text-xs font-bold ${openingIndex === index ? "border-slate-950 bg-slate-100" : "bg-white hover:bg-slate-50"}`}>
+                                    {opening.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
                   </div>
                   <div className="shrink-0 border-t bg-white px-4 py-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_20px_rgba(15,23,42,0.06)] sm:px-5 sm:py-4">
                     {(gmailConnected === false || emailStatus === "error") && (
@@ -842,7 +893,7 @@ export default function CoachActionBar({
                       <button
                         className="btn"
                         disabled={busy}
-                        onClick={() => setEmailOpen(false)}
+                        onClick={closeEmail}
                       >
                         Cancel
                       </button>
