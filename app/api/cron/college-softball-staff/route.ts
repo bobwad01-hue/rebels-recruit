@@ -427,6 +427,11 @@ export async function POST(req:NextRequest){
  }
  if(!cronOk && !manualOk && !ownerOk) return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({}));
+ // Targeted rechecks are only available to the signed-in Super Owner.
+ // Scheduled workers keep their normal bounded queue behavior.
+ const targetedId=body.bootstrap===true&&typeof body.college_id==="string"?body.college_id:null;
+ if(targetedId&&(!ownerOk||!/^[-0-9a-f]{36}$/i.test(targetedId)))
+   return NextResponse.json({error:"Targeted source recheck requires Super Owner access"},{status:403});
  const approvedPilotIds=new Set(["1ad3f717-06f1-42ba-8846-d25af5dfe5e0","76ec4683-6660-4f28-9202-8ad95b7fa51d","7807b761-19c4-4985-a037-e0d101b406dd","5f6b8905-b694-4f86-8dd0-13589844610c","780e372c-dcc4-41ea-9984-962e78c27cdf","08cb7422-5392-44c7-9e0e-ecb0dc3ecf01","4fcfa4d1-aee8-4439-a85d-dbc76ca39675","aa8d21bc-9693-4d24-b28f-50aa805cadd3","d0736a10-3714-40ff-9a15-e878a66bde6e","e369965b-0e9a-42c7-afbb-506359ba4c30"]);
  const approvedExpansionIds=new Set(["aa9f860e-1cf3-4259-9af2-b29d2893fb62","3f70500b-0847-4398-8cb3-0e9c93a77cbd","644b79c9-6b52-400d-93d4-f62f03369c9e","6d8b983f-9209-4cdc-9c8d-363d7ea7d112","14adc832-92ce-4771-9ae9-6d06320c7e40","5f863060-16e1-4b29-b67f-e4dcd6dc407d","1d142cd0-9aa7-4354-94bf-ff12c852be4d","699e0f6e-e751-48b1-ab3e-68fddb6ecfbb","30b625a4-cd95-4cd4-a001-cac303ccbc13","818c9f94-30fd-4b0e-a495-ec6858e69c43"]);
  if(!cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true && body.diagnose_quality!==true){
@@ -590,6 +595,7 @@ export async function POST(req:NextRequest){
      scopedIds=(scoped||[]).map((x:any)=>x.id);
    }
    let queueQuery=supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").eq("status","pending").order("updated_at");
+   if(targetedId)queueQuery=queueQuery.eq("college_id",targetedId);
    if(scopedIds) queueQuery=queueQuery.in("college_id",scopedIds.length?scopedIds:["00000000-0000-0000-0000-000000000000"]);
    const {data:queued,error:qErr}=await queueQuery.limit(limit);
    if(qErr) throw qErr;
@@ -615,9 +621,24 @@ export async function POST(req:NextRequest){
  }
  const queuedAttempt=(id:string)=>queuedAttempts.get(id)||0;
  const results:any[]=[];
+ const markRecheck=async(verification:any,collegeId:string,status:string,message:string)=>{
+   if(verification?.outcome!=="verified"||verification?.recheck_status!=="pending")return;
+   const {error}=await supabase.from("college_staff_source_verifications")
+     .update({recheck_status:status,recheck_message:message,rechecked_at:new Date().toISOString(),updated_at:new Date().toISOString()})
+     .eq("college_id",collegeId).eq("outcome","verified").eq("recheck_status","pending")
+     .eq("verified_at",verification.verified_at);
+   if(error)console.error("Staff source recheck status update failed",error);
+ };
  for(const college of colleges||[]){
   const collegeStartedAt=Date.now();
+  let verification:any=null;
   try{
+   if(bootstrap){
+     const {data:review,error:reviewErr}=await supabase.from("college_staff_source_verifications")
+       .select("outcome,head_coach_name,source_url,recheck_status,verified_at").eq("college_id",college.id).maybeSingle();
+     if(reviewErr)throw reviewErr;
+     verification=review;
+   }
    const {data:knownSource}=await supabase.from("college_softball_sources").select("athletics_url,softball_url,staff_url,status").eq("college_id",college.id).maybeSingle();
    let d:any;
    let page:any;
@@ -690,12 +711,17 @@ export async function POST(req:NextRequest){
    }
    const headCount=coaches.filter((x:any)=>x.role_category==="head_coach").length;
    const invalidNames=coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`));
-   const suspicious=coaches.length===0||coaches.length>8||invalidNames||headCount===0;
-   const gateReason=coaches.length===0?"no coach rows":coaches.length>8?"more than eight coach rows":invalidNames?"invalid coach name":"no head coach identified";
+   const expectedHead=verification?.outcome==="verified"?String(verification.head_coach_name||"").trim():"";
+   const keyName=(value:string)=>normalizeCoachName(value).normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
+   const headMismatch=Boolean(expectedHead&&!coaches.some((x:any)=>
+     x.role_category==="head_coach"&&keyName(x.first_name+" "+x.last_name)===keyName(expectedHead)));
+   const suspicious=coaches.length===0||coaches.length>8||invalidNames||headCount===0||headMismatch;
+   const gateReason=coaches.length===0?"no coach rows":coaches.length>8?"more than eight coach rows":invalidNames?"invalid coach name":headCount===0?"no head coach identified":"head coach does not match human-verified name";
    const gateMessage=`Bootstrap quality gate: ${gateReason} (${coaches.length} candidates, ${headCount} head coach candidates)`;
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
      await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:gateMessage,updated_at:now}).eq("college_id",college.id);
+     await markRecheck(verification,college.id,"needs_review",gateMessage);
      results.push({college:college.name,status:"review",staff_url:page.url,coaches:coaches.length,error:gateMessage}); continue;
    }
    // Optional contact enrichment cannot rescue a failed identity/role quality gate.
@@ -778,11 +804,17 @@ export async function POST(req:NextRequest){
     if(saveErr) throw saveErr;
     await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:c.official_bio_url||page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:c.profile_source_hash||hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v3-profile-enrichment",staff_source_url:page.url,profile_enriched:Boolean(c.official_bio_url)}});
    }
-   if(bootstrap) await supabase.from("college_staff_bootstrap_queue").update({status:"imported",attempts:((queuedAttempt(college.id))+1),last_error:null,updated_at:now}).eq("college_id",college.id);
+   if(bootstrap){
+     const {error:importErr}=await supabase.from("college_staff_bootstrap_queue").update({status:"imported",attempts:((queuedAttempt(college.id))+1),last_error:null,updated_at:now}).eq("college_id",college.id);
+     if(importErr)throw importErr;
+     await markRecheck(verification,college.id,"passed","Official source passed coaching identity and head-coach quality gates; staff imported");
+   }
    results.push({college:college.name,status:"ok",staff_url:page.url,coaches:coaches.length,extracted:coaches.map(c=>({name:`${c.first_name} ${c.last_name}`,title:c.title,email:c.email,phone:c.phone,x_url:c.x_url,bio:c.official_bio_url}))});
   }catch(e:any){
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,last_checked_at:new Date().toISOString(),status:"review",updated_at:new Date().toISOString()});
-   if(bootstrap){const msg=e?.message||String(e);await supabase.from("college_staff_bootstrap_queue").update({status:/403|robots/i.test(msg)?"blocked":"review",attempts:((queuedAttempt(college.id))+1),last_error:msg,updated_at:new Date().toISOString()}).eq("college_id",college.id);}
+   if(bootstrap){const msg=e?.message||String(e);await supabase.from("college_staff_bootstrap_queue").update({status:/403|robots/i.test(msg)?"blocked":"review",attempts:((queuedAttempt(college.id))+1),last_error:msg,updated_at:new Date().toISOString()}).eq("college_id",college.id);
+     await markRecheck(verification,college.id,/403|robots/i.test(msg)?"blocked":"needs_review",msg);
+   }
    results.push({college:college.name,status:"review",error:e?.message||String(e)});
   }
  }
