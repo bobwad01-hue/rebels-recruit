@@ -16,17 +16,41 @@ export async function GET(){
  const {c,user}=await owner();
  if(!user)return NextResponse.json({error:'Super Owner access required'},{status:403});
  const {data,error}=await c.from('support_cases')
-  .select('id,reporter_user_id,feedback_type,description,diagnostic_snapshot,status,created_at,updated_at,resolved_at,resolution_note')
+  .select('id,reporter_user_id,feedback_type,description,diagnostic_snapshot,status,created_at,updated_at,resolved_at,resolution_note,resolved_by_user_id')
   .not('feedback_type','is',null).order('created_at',{ascending:false}).limit(200);
  if(error)return NextResponse.json({error:'Feedback could not be loaded.'},{status:500});
- const ids=[...new Set((data||[]).map((row:any)=>row.reporter_user_id).filter(Boolean))];
+
+ const caseIds=(data||[]).map((row:any)=>row.id);
+ const historyResult=caseIds.length
+  ?await c.from('feedback_case_events')
+    .select('id,case_id,actor_user_id,event_type,previous_status,new_status,note,occurred_at')
+    .in('case_id',caseIds).order('occurred_at',{ascending:false}).limit(5000)
+  :{data:[],error:null};
+ if(historyResult.error)return NextResponse.json({error:'Feedback history could not be loaded.'},{status:500});
+
+ const history=new Map<string,any[]>();
+ for(const event of historyResult.data||[]){
+  const events=history.get(event.case_id)||[];
+  events.push(event);history.set(event.case_id,events);
+ }
+ const ids=[...new Set([
+  ...(data||[]).flatMap((row:any)=>[row.reporter_user_id,row.resolved_by_user_id]),
+  ...(historyResult.data||[]).map((event:any)=>event.actor_user_id)
+ ].filter(Boolean))] as string[];
  let names=new Map<string,{full_name:string|null,email:string|null}>();
  if(ids.length){
   const {data:people,error:peopleError}=await c.from('profiles').select('id,full_name,email').in('id',ids);
-  if(peopleError)return NextResponse.json({error:'Feedback submitter details could not be loaded.'},{status:500});
+  if(peopleError)return NextResponse.json({error:'Feedback participant details could not be loaded.'},{status:500});
   names=new Map((people||[]).map((person:any)=>[person.id,{full_name:person.full_name,email:person.email}]));
  }
- const feedback=(data||[]).map((row:any)=>({...row,reporter:names.get(row.reporter_user_id)||null}));
+ const feedback=(data||[]).map((row:any)=>({
+  ...row,
+  reporter:names.get(row.reporter_user_id)||null,
+  resolved_by:row.resolved_by_user_id?names.get(row.resolved_by_user_id)||null:null,
+  history:(history.get(row.id)||[]).map((event:any)=>({
+   ...event,actor:event.actor_user_id?names.get(event.actor_user_id)||null:null
+  }))
+ }));
  return NextResponse.json({feedback},{headers:{'Cache-Control':'private, no-store'}});
 }
 
@@ -51,8 +75,8 @@ export async function POST(req:Request){
   resolved_at:status==='resolved'?now:null,
   resolved_by_user_id:status==='resolved'?user.id:null
  };
- if(note)patch.resolution_note=note;
- else if(status==='open')patch.resolution_note=null;
+ if(status==='open')patch.resolution_note=null;
+ else if(note)patch.resolution_note=note;
  const {data,error}=await c.from('support_cases').update(patch).eq('id',id)
   .not('feedback_type','is',null).select('id,status').maybeSingle();
  if(error)return NextResponse.json({error:error.message},{status:500});
