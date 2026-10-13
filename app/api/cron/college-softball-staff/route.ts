@@ -657,16 +657,6 @@ export async function POST(req:NextRequest){
      for(const a of adapted) if(!coaches.some((x:any)=>(x.first_name+" "+x.last_name).toLowerCase()===(a.first_name+" "+a.last_name).toLowerCase())) coaches.push(a);
    }
    const now=new Date().toISOString();
-   // Some modern Sidearm pages render the coaching table in JSON/flattened text rather than
-   // stable row markup. Recover only from a dedicated softball page and only explicit coaching titles.
-   if(coaches.length===0 && /\/sports\/softball\/(?:coaches|roster)/i.test(new URL(page.url).pathname)){
-     const flat=clean(page.html), recovered:any[]=[];
-     for(const m of flat.matchAll(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+(Head Coach|Associate Head Coach|Assistant Coach(?:\s*-\s*Recruiting Coordinator)?)/g)){
-       if(!plausibleName(m[1])) continue; const rr=role(m[2]);
-       recovered.push({first_name:m[1].split(/\s+/)[0],last_name:m[1].split(/\s+/).slice(1).join(" "),title:m[2],email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
-     }
-     coaches.push(...[...new Map(recovered.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()]);
-   }
    // An accessible page is not necessarily a softball coaching-staff source.
    // In particular, generic directories, splash pages and player rosters may
    // be fetched successfully but contain no actual softball head coach.
@@ -696,11 +686,15 @@ export async function POST(req:NextRequest){
        }catch{ /* Try the next official candidate; never bypass robots or 403. */ }
      }
    }
-   const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
+   const headCount=coaches.filter((x:any)=>x.role_category==="head_coach").length;
+   const invalidNames=coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`));
+   const suspicious=coaches.length===0||coaches.length>8||invalidNames||headCount===0;
+   const gateReason=coaches.length===0?"no coach rows":coaches.length>8?"more than eight coach rows":invalidNames?"invalid coach name":"no head coach identified";
+   const gateMessage=`Bootstrap quality gate: ${gateReason} (${coaches.length} candidates, ${headCount} head coach candidates)`;
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
-     await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:"Bootstrap quality gate",updated_at:now}).eq("college_id",college.id);
-     results.push({college:college.name,status:"review",staff_url:page.url,coaches:coaches.length,error:"Bootstrap quality gate"}); continue;
+     await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:gateMessage,updated_at:now}).eq("college_id",college.id);
+     results.push({college:college.name,status:"review",staff_url:page.url,coaches:coaches.length,error:gateMessage}); continue;
    }
    // Optional contact enrichment cannot rescue a failed identity/role quality gate.
    // Bound enrichment so it cannot exhaust the serverless worker budget.
