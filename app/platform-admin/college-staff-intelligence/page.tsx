@@ -16,7 +16,7 @@ type Exception={college_id:string;name:string;status:string;reason:string;last_e
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
 const errorLabel=(r:string)=>({
-  quality:'Quality gate',timeout:'Timeout',staff_discovery:'Staff discovery',
+  quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_discovery:'Staff discovery',
   softball_discovery:'Softball discovery',not_found:'Broken link',blocked:'Access blocked',other:'Other'
 } as Record<string,string>)[r]||r;
 
@@ -97,6 +97,7 @@ export default function Page(){
   const shown=expanded?exceptions:exceptions.slice(0,25);
   const reviewCount=cleanup?.summary.review||0;
   const pendingCount=cleanup?.summary.pending||0;
+  const importedPercent=d?.total?Math.round(d.imported/d.total*100):0;
   return <AppShell><main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8">
     <PageHeader eyebrow="PLATFORM ADMIN" title="College Staff Intelligence"
       subtitle="Official-source ingestion, coaching staff coverage and cleanup across college softball."/>
@@ -112,11 +113,12 @@ export default function Page(){
       <section className="card mt-4 p-5 sm:p-6">
         <div className="flex justify-between gap-4"><div>
           <div className="rr-eyebrow">PIPELINE · {opts.find(x=>x[0]===division)?.[1]}</div>
-          <div className="mt-1 text-3xl font-black">{d.complete} / {d.total}</div>
-          <div className="muted text-sm">{d.percent}% processed · {d.coaches} active coaches</div>
+          <div className="mt-1 text-3xl font-black">{d.imported} / {d.total}</div>
+          <div className="muted text-sm">{importedPercent}% imported · {d.coaches} active coaches</div>
+          <div className="mt-1 text-xs text-slate-500">{d.complete} of {d.total} programs assessed · {d.review} review · {d.blocked} blocked</div>
         </div><div className={'font-black uppercase '+(d.state==='stalled'?'text-red-600':d.state==='complete'?'text-green-700':'text-slate-900')}>{d.state}</div></div>
         <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full bg-slate-950" style={{width:d.percent+'%'}}/>
+          <div className="h-full bg-slate-950" style={{width:importedPercent+'%'}}/>
         </div>
       </section>
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -194,10 +196,15 @@ export default function Page(){
               <div className="mt-1 max-w-64 break-words text-xs text-slate-500">{x.last_error||'—'}</div></td>
             <td className="px-3 py-3 tabular-nums">{x.attempts}</td>
             <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">{date(x.updated_at)}</td>
-            <td className="px-5 py-3">{x.staff_url?.startsWith('https://')?
-              <a className="inline-flex items-center gap-1 font-semibold text-slate-700 underline hover:text-red-700"
-                href={x.staff_url} target="_blank" rel="noopener noreferrer">Official source <ExternalLink size={13}/></a>:
-              <span className="text-xs text-slate-400">Not discovered</span>}</td>
+            <td className="px-5 py-3"><div className="flex flex-col items-start gap-2">
+              {x.staff_url?.startsWith('https://')?
+                <a className="inline-flex items-center gap-1 font-semibold text-slate-700 underline hover:text-red-700"
+                  href={x.staff_url} target="_blank" rel="noopener noreferrer">Official source <ExternalLink size={13}/></a>:
+                <span className="text-xs text-slate-400">Not discovered</span>}
+              <a className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 underline hover:text-blue-900"
+                href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
+                target="_blank" rel="noopener noreferrer">Search Google <ExternalLink size={12}/></a>
+            </div></td>
           </tr>)}</tbody>
         </table>
         {!exceptions.length&&<p className="p-6 text-sm text-slate-500">No schools in this status.</p>}
