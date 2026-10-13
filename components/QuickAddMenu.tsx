@@ -17,7 +17,81 @@ export default function QuickAddMenu(){
  function close(){if(busy)return;setOpen(false);setMode('menu');setError('')}function chooseCollege(s:any){setSelectedCollege(s);setCollegeSearch(s.name);setCollegeForm(f=>({...f,city:s.city||'',state:s.state||'',division:s.division||'',conference:s.conference||''}));setCollegeMatches([])}function chooseCoach(k:any){const col=one(k.colleges);setExistingCoachId(k.id);setCoachForm({college_id:k.college_id||col?.id||'',first:k.first_name||'',last:k.last_name||'',title:k.title||'',email:k.email||'',phone:k.phone||'',instagram:k.instagram_url||''});setCoachSearch(`${k.first_name||''} ${k.last_name||''}`.trim());setCoachSuggestions([])}function resetCoach(){setExistingCoachId('');setCoachForm({college_id:'',first:'',last:'',title:'',email:'',phone:'',instagram:''})}function finishSave(message:string,entity:string,id?:string,action:DataChangedDetail['action']='created',payload?:unknown){announceDataChanged({entity,action,id,payload});announceSuccess(message);setOpen(false);setMode('menu');setError('')}
  async function saveInteraction(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');if(!userId||!interaction.college_id){setError(!userId?'Your session has expired. Sign in again to continue.':'Choose a school.');setBusy(false);return}const payload={athlete_user_id:userId,actor_user_id:userId,college_id:interaction.college_id,coach_id:interaction.coach_id||null,type:interaction.type,initiated_by:interaction.initiated_by,date:interaction.date,note:interaction.note};const {data,error:insertError}=await c.from('interactions').insert(payload).select('id,college_id,coach_id,type,initiated_by,date,note,created_at').single();if(insertError||!data){setError(insertError?.message||'Could not save interaction.');setBusy(false);return}if(interaction.follow_days){const due=new Date(`${interaction.date}T12:00:00`);due.setDate(due.getDate()+Number(interaction.follow_days));const {data:follow}=await c.from('reminders').insert({owner_user_id:userId,athlete_user_id:userId,college_id:interaction.college_id,coach_id:interaction.coach_id||null,interaction_id:data.id,title:`Follow up after ${interaction.type.toLowerCase()}`,due_date:due.toISOString().slice(0,10),status:'open'}).select('id,title,due_date,status,college_id,coach_id').single();if(follow)announceDataChanged({entity:'reminder',action:'created',id:follow.id,payload:follow})}setBusy(false);finishSave('Interaction saved.','interaction',data.id,'created',data)}
  async function saveCollege(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');if(!userId){setError('Your session has expired. Sign in again to continue.');setBusy(false);return}let school=selectedCollege;let err:any=null;if(!school){const found=await c.from('colleges').select('id,name,city,state,division,conference').ilike('name',collegeSearch.trim()).maybeSingle();school=found.data;err=found.error}if(!school&&!err){const r=await c.from('colleges').insert({name:collegeSearch.trim(),city:collegeForm.city||null,state:collegeForm.state||null,division:collegeForm.division||null,conference:collegeForm.conference||null}).select('id,name,city,state,division,conference').single();school=r.data;err=r.error}if(err||!school){setError(err?.message||'Unable to save school.');setBusy(false);return}const {error:relError}=await c.from('athlete_colleges').upsert({athlete_user_id:userId,college_id:school.id,status:collegeForm.status,archived_at:null,archived_reason:null},{onConflict:'athlete_user_id,college_id'});if(relError){setError(relError.message);setBusy(false);return}setColleges(prev=>prev.some(x=>x.id===school.id)?prev:[...prev,school]);setBusy(false);finishSave('School added to Connections.','connection',school.id,'created',{college_id:school.id,status:collegeForm.status,colleges:school})}
- async function saveCoach(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');if(!userId||!coachForm.college_id){setError(!userId?'Your session has expired. Sign in again to continue.':'Choose a school.');setBusy(false);return}let coachId=existingCoachId;const coachPayload={college_id:coachForm.college_id,first_name:coachForm.first.trim(),last_name:coachForm.last.trim(),title:coachForm.title||null,email:coachForm.email||null,phone:coachForm.phone||null,instagram_url:coachForm.instagram||null};if(coachId){const {error}=await c.from('college_coaches').update({...coachPayload,updated_by_user_id:userId,source_note:'Community-updated in RLTNL Recruiting'}).eq('id',coachId);if(error){setError(error.message);setBusy(false);return}}else{const {data,error}=await c.from('college_coaches').insert({...coachPayload,updated_by_user_id:userId,source_note:'Added by RLTNL Recruiting community'}).select('id').single();if(error||!data){setError(error?.message||'Could not add coach.');setBusy(false);return}coachId=data.id}const schoolRel=await c.from('athlete_colleges').upsert({athlete_user_id:userId,college_id:coachForm.college_id,status:'Researching',archived_at:null,archived_reason:null},{onConflict:'athlete_user_id,college_id'});if(schoolRel.error){setError(schoolRel.error.message);setBusy(false);return}const {data:existing}=await c.from('athlete_coaches').select('id').eq('athlete_user_id',userId).eq('coach_id',coachId).maybeSingle();const relation=existing?await c.from('athlete_coaches').update({college_id:coachForm.college_id,archived_at:null,archived_reason:null}).eq('id',existing.id):await c.from('athlete_coaches').insert({athlete_user_id:userId,college_id:coachForm.college_id,coach_id:coachId,archived_at:null,archived_reason:null});if(relation.error){setError(relation.error.message);setBusy(false);return}const nextCoach={id:coachId,...coachPayload};setCoaches(prev=>prev.some(x=>x.id===coachId)?prev.map(x=>x.id===coachId?{...x,...nextCoach}:x):prev.concat(nextCoach));setBusy(false);finishSave(existingCoachId?'Coach updated and connected.':'Coach added to Connections.','coach',coachId,existingCoachId?'updated':'created',nextCoach)}
+ async function saveCoach(e:React.FormEvent){
+  e.preventDefault();if(busy)return;setBusy(true);setError('');
+  const fail=(message:string)=>{setError(message);setBusy(false)};
+  if(!userId||!coachForm.college_id||!coachForm.first.trim()||!coachForm.last.trim()){
+   fail(!userId?'Your session has expired. Sign in again to continue.':'Choose a school and enter the coach name.');return;
+  }
+  const coachPayload={college_id:coachForm.college_id,first_name:coachForm.first.trim(),last_name:coachForm.last.trim(),title:coachForm.title||null,email:coachForm.email||null,phone:coachForm.phone||null,instagram_url:coachForm.instagram||null};
+  try{
+   // Resolve the active shared identity at save time; never create another
+   // active copy or overwrite community contact data without verification.
+   const match=await c.from('college_coaches').select('id,college_id,first_name,last_name,title,email,phone,instagram_url')
+    .eq('college_id',coachForm.college_id).eq('lifecycle_status','active')
+    .ilike('first_name',coachForm.first.trim()).ilike('last_name',coachForm.last.trim()).limit(2);
+   if(match.error)throw match.error;
+   let record:any=(match.data||[])[0]||null;
+   if(existingCoachId){
+    const selected=await c.from('college_coaches').select('id,college_id,first_name,last_name,title,email,phone,instagram_url').eq('id',existingCoachId).maybeSingle();
+    if(selected.error)throw selected.error;
+    if(selected.data){
+     if(selected.data.college_id!==coachForm.college_id){
+      fail('Changing an existing coach\'s school requires a reviewed coach update.');return;
+     }
+     record=selected.data;
+    }
+   }
+   let created=false;
+   if(!record){
+    const inserted=await c.from('college_coaches').insert({...coachPayload,updated_by_user_id:userId,source_note:'Added by RLTNL Recruiting community'}).select('id').single();
+    if(inserted.error){
+     if(inserted.error.code!=='23505')throw inserted.error;
+     const retry=await c.from('college_coaches').select('id,college_id,first_name,last_name,title,email,phone,instagram_url')
+      .eq('college_id',coachForm.college_id).eq('lifecycle_status','active')
+      .ilike('first_name',coachForm.first.trim()).ilike('last_name',coachForm.last.trim()).maybeSingle();
+     if(retry.error||!retry.data)throw inserted.error;
+     record=retry.data;
+    }else{record={id:inserted.data.id,...coachPayload};created=true;}
+   }
+   const coachId=record.id;
+   const differs=(a:string,b:string)=>Boolean(a.trim())&&a.trim().toLowerCase()!==String(b||'').trim().toLowerCase();
+   const changes:any={};
+   if(!created){
+    if(differs(coachForm.first,record.first_name))changes.proposed_first_name=coachForm.first.trim();
+    if(differs(coachForm.last,record.last_name))changes.proposed_last_name=coachForm.last.trim();
+    if(differs(coachForm.title,record.title))changes.proposed_title=coachForm.title.trim();
+    if(differs(coachForm.email,record.email))changes.proposed_email=coachForm.email.trim();
+    if(differs(coachForm.phone,record.phone))changes.proposed_phone=coachForm.phone.trim();
+    if(Object.keys(changes).length||differs(coachForm.instagram,record.instagram_url)){
+     const suggestion=await c.from('college_coach_update_suggestions').insert({
+      coach_id:coachId,submitted_by_user_id:userId,
+      suggestion_type:changes.proposed_first_name||changes.proposed_last_name||changes.proposed_title?'incorrect_info':'contact_update',
+      details:'Submitted from Quick Add; shared contact information requires RLTNL verification.'
+       +(differs(coachForm.instagram,record.instagram_url)?' Suggested Instagram: '+coachForm.instagram.trim():''),
+      ...changes
+     });
+     if(suggestion.error)throw new Error('The coach was found, but the proposed changes could not be submitted for review: '+suggestion.error.message);
+    }
+   }
+   const schoolRel=await c.from('athlete_colleges').upsert({
+    athlete_user_id:userId,college_id:coachForm.college_id,status:'Researching',archived_at:null,archived_reason:null
+   },{onConflict:'athlete_user_id,college_id'});
+   if(schoolRel.error)throw schoolRel.error;
+   const {data:existing,error:existingError}=await c.from('athlete_coaches').select('id')
+    .eq('athlete_user_id',userId).eq('coach_id',coachId).maybeSingle();
+   if(existingError)throw existingError;
+   const relation=existing
+    ?await c.from('athlete_coaches').update({college_id:coachForm.college_id,archived_at:null,archived_reason:null}).eq('id',existing.id)
+    :await c.from('athlete_coaches').insert({athlete_user_id:userId,college_id:coachForm.college_id,coach_id:coachId,archived_at:null,archived_reason:null});
+   if(relation.error)throw relation.error;
+   const nextCoach={...record,id:coachId};
+   setCoaches(prev=>prev.some(x=>x.id===coachId)?prev.map(x=>x.id===coachId?{...x,...nextCoach}:x):prev.concat(nextCoach));
+   setBusy(false);
+   finishSave(created?'Coach added to Connections.':'Existing coach connected. Any suggested updates are pending verification.','coach',coachId,created?'created':'updated',nextCoach);
+  }catch(error:any){fail(error?.message||'Could not add coach. Please try again.')}
+ }
+
  async function saveReminder(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');if(!userId){setError('Your session has expired. Sign in again to continue.');setBusy(false);return}const {data,error:insertError}=await c.from('reminders').insert({owner_user_id:userId,athlete_user_id:userId,title:reminder.title.trim(),note:reminder.note.trim()||null,color:reminder.color,due_date:reminder.due_date||null,college_id:reminder.college_id||null,coach_id:reminder.coach_id||null,status:'open',reminder_kind:'manual'}).select('id,title,due_date,status,college_id,coach_id,created_at').single();if(insertError||!data){setError(insertError?.message||'Could not add reminder.');setBusy(false);return}try{await fetch('/api/google/calendar/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entityType:'reminder',entityId:data.id})})}catch{}setBusy(false);finishSave('Reminder added.','reminder',data.id,'created',data)}
  async function saveEvent(e:React.FormEvent){e.preventDefault();if(busy)return;setBusy(true);setError('');if(!userId){setError('Your session has expired. Sign in again to continue.');setBusy(false);return}const payload={name:event.name.trim(),type:event.type,date:event.date,location:event.location.trim()||null,college_id:event.college_id||null,registration_url:event.registration_url.trim()||null};const {data,error:insertError}=await c.from('events').insert(payload).select('id,name,type,date,location,college_id,registration_url').single();if(insertError||!data){setError(insertError?.message||'Could not add event.');setBusy(false);return}try{await fetch('/api/google/calendar/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({entityType:'event',entityId:data.id})})}catch{}setBusy(false);finishSave('Event added.','event',data.id,'created',data)}
  const titles:Record<Mode,string>={menu:'Quick Add',interaction:'Log Interaction',college:'Add School',coach:'Add Coach',reminder:'Add Reminder',event:'Add Event'};
