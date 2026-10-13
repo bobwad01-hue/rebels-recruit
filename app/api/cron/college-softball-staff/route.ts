@@ -33,14 +33,15 @@ function role(title:string){
  const t=title.toLowerCase();
  const recruiting=/recruit(ing|ment) coordinator/.test(t);
  let category="other_coaching_staff", order=90;
- if((/head.*coach|head softball|director of softball/.test(t))&&!/associate|assistant/.test(t)){category="head_coach";order=10}
+ if(/\b(?:head\s+softball\s+coach|softball\s+head\s+coach|head\s+coach|director\s+of\s+softball)\b/.test(t)
+   && !/\b(?:associate|assistant)\s+head\s+(?:softball\s+)?coach\b/.test(t)){category="head_coach";order=10}
  else if(/associate.*head/.test(t)){category="associate_head_coach";order=20}
  else if(recruiting){category="recruiting_coordinator";order=30}
  else if(/pitching.*coach/.test(t)){category="pitching_coach";order=40}
  else if(/hitting.*coach/.test(t)){category="hitting_coach";order=45}
  else if(/graduate.*assistant/.test(t)){category="graduate_assistant";order=60}
- else if(/assistant.*coach|assistant softball/.test(t)){category="assistant_coach";order=50}
  else if(/volunteer.*assistant/.test(t)){category="volunteer_assistant";order=70}
+ else if(/assistant.*coach|assistant softball|softball\s+assistant/.test(t)){category="assistant_coach";order=50}
  return {category,order,recruiting};
 }
 
@@ -164,16 +165,14 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  if(!softball) throw new Error("Official softball page not discovered");
  const s=await get(softball); const staffLinks=links(s.html,s.url);
  const origin=new URL(s.url).origin;
- // Prefer the official athletics staff directory because it is the school's canonical
- // source for current direct email/phone. Fall back to the softball coaches page.
+ // Prefer softball-only coaching pages to mixed athletics staff directories.
+ // Directory templates may include coaches from unrelated sports.
  const directoryCandidates=[...staffLinks,...sl]
    .filter(x=>sameHost(x.url,s.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))
    .sort((a,b)=>(/softball/i.test(b.text+" "+b.url)?1:0)-(/softball/i.test(a.text+" "+a.url)?1:0));
- let staff=directoryCandidates.find(x=>/softball/i.test(x.text+" "+x.url))?.url||null;
- if(!staff){
-   const coachSpecific=staffLinks.filter(x=>/\/sports\/(?:softball|sball)\/(?:coaches|roster)/i.test(x.url));
-   staff=bestLink(coachSpecific,"staff",s.url);
- }
+ const coachSpecific=staffLinks.filter(x=>/\/sports\/(?:softball|sball)\/(?:coaches|roster)/i.test(x.url));
+ let staff=bestLink(coachSpecific,"staff",s.url)||null;
+ if(!staff) staff=directoryCandidates.find(x=>/softball/i.test(x.text+" "+x.url))?.url||null;
  if(!staff) staff=bestLink(staffLinks,"staff",s.url);
  if(!staff){
    const directory=await tryGet([origin+"/staff-directory/department/softball",origin+"/staff-directory/softball-department"]);
