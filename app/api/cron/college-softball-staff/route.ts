@@ -732,7 +732,7 @@ export async function POST(req:NextRequest){
       let newConflicts=0;
       for(const field of contactFields){
         const previous=String(existing[field]||"").trim();
-        const incoming=String(c[field]||"").trim();
+        const incoming=String((c as any)[field]||"").trim();
         if(!previous||!incoming)continue;
         const normalized=(value:string)=>field==="phone"?value.replace(/[^0-9]/g,""):value.toLowerCase();
         if(normalized(previous)===normalized(incoming))continue;
