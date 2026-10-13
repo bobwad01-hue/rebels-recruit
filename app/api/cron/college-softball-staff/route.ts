@@ -33,7 +33,7 @@ function role(title:string){
  const t=title.toLowerCase();
  const recruiting=/recruit(ing|ment) coordinator/.test(t);
  let category="other_coaching_staff", order=90;
- if(/\b(?:head\s+softball(?:\/[a-z]+)?\s+coach|softball\s+head\s+coach|head\s+coach|director\s+of\s+softball)\b/.test(t)
+ if(/\b(?:head\s+softball(?:\/[a-z]+)?\s+coach|softball\s+head\s+coach|head\s+coach)\b/.test(t)
    && !/\b(?:associate|assistant)\s+head\s+(?:softball\s+)?coach\b/.test(t)){category="head_coach";order=10}
  else if(/associate.*head/.test(t)){category="associate_head_coach";order=20}
  else if(recruiting){category="recruiting_coordinator";order=30}
@@ -385,6 +385,8 @@ function parseOfficialStaff(html:string,url:string,collegeName:string){
    const specific=sourceSpecificExtract(html,url,collegeName);
    if(specific.length>0&&specific.length<=8&&specific.some((x:any)=>x.role_category==="head_coach"))
      return specific;
+   // A university-wide directory cannot fall back to unscoped generic parsing.
+   if(collegeName==="Tusculum University")return [];
  }
  return regular;
 }
