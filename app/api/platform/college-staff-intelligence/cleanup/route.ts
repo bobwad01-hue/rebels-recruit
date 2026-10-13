@@ -5,6 +5,7 @@ import {createAdminClient} from "@/lib/supabase-admin";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"private, no-store"};
 const DIVISIONS=["NCAA D1","NCAA D2","NCAA D3","NAIA","JC"];
+const MAX_RETRY_BATCH=10;
 const reason=(s:string|null)=>{
   const x=(s||"").toLowerCase();
   if(x.includes("quality gate")) return "quality";
@@ -77,7 +78,12 @@ export async function POST(req:NextRequest){
   if(!groups.includes(group)) return NextResponse.json({error:"Invalid error group"},{status:400,headers});
   try{
     const rows=await load(admin,division);
-    const ids=rows.filter(r=>r.status==="review"&&(group==="all"||r.reason===group)).map(r=>r.college_id);
+    // Bounded batches protect the live app and prevent a single click from
+    // dispatching dozens of costly external fetches.
+    // Prefer least-attempted schools so persistent failures do not starve the queue.
+    const candidates=rows.filter(r=>r.status==="review"&&(group==="all"||r.reason===group))
+      .sort((a,b)=>(a.attempts||0)-(b.attempts||0)||a.updated_at.localeCompare(b.updated_at));
+    const ids=candidates.slice(0,MAX_RETRY_BATCH).map(r=>r.college_id);
     if(!ids.length) return NextResponse.json({requeued:0,division,group},{headers});
     const {data,error}=await admin.from("college_staff_bootstrap_queue")
       .update({status:"pending",updated_at:new Date().toISOString()})
