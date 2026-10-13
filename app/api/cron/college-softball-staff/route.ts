@@ -316,6 +316,53 @@ function extract(html:string,url:string){
 }
 
 
+
+// Sidearm softball rosters render coaching cards as "Title Name Full Bio".
+// Only read the explicitly labelled softball coaching section; never scrape
+// generic site-wide cards or athletes as coaching staff.
+function rosterSectionCoaches(html:string,url:string){
+ const path=new URL(url).pathname;
+ if(!/\/sports\/(?:softball|sball)\/(?:roster|coaches)/i.test(path)) return [];
+ const flat=clean(html),out:any[]=[];
+ const title=String.raw`(?:Assistant AD for Internal Affairs\s*\/\s*Head Softball Coach(?:,\s*\d+(?:st|nd|rd|th) Year)?|Associate Head Softball Coach|Associate Head Coach|Head Softball Coach(?:,\s*\d+(?:st|nd|rd|th) Year)?(?:\s*\/\s*Asst AD for Internal Affairs\s*\/)?(?:\/Assistant Volleyball Coach)?|Head Coach(?:\/Community Connections Designee|\s*-\s*Softball)?|Softball Head Coach|Softball Assistant Coach|Softball Graduate Coaching Assistant|Assistant Softball Coach|Assistant Coach(?:\s*\/\s*Compliance Coordinator)?|Volunteer Assistant Coach|Graduate Assistant Coach|Graduate Assistant)`;
+ const name=String.raw`([A-Z][\p{L}.'’-]+(?:\s+\([^)]+\))?(?:\s+[A-Z][\p{L}.'’-]+){1,3})`;
+ const re=new RegExp("("+title+")\\s+"+name+"(?:\\s+['’]\\d{2})?\\s+(?:Full Bio|View Full Bio)\\b","gu");
+ for(const mark of flat.matchAll(/Softball Coaching Staff/gi)){
+   const section=flat.slice((mark.index||0)+mark[0].length,(mark.index||0)+mark[0].length+2200)
+     .split(/Softball Support Staff|There is no additional information|No\.\s+Name|(?:20\d{2}\s+)?Softball Coaching Staff/i)[0];
+   for(const m of section.matchAll(re)){
+     const full=m[2].replace(/\s+\([^)]+\)/g,"").trim();
+     if(!plausibleName(full))continue;
+     const parts=full.split(/\s+/),rr=role(m[1]);
+     out.push({first_name:parts.shift()!,last_name:parts.join(" "),title:m[1],
+       email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,
+       role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+   }
+ }
+ return [...new Map(out.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()];
+}
+
+function parseOfficialStaff(html:string,url:string,collegeName:string){
+ const regular=extract(html,url);
+ const scoped=rosterSectionCoaches(html,url);
+ if(scoped.length>0&&scoped.length<=8&&scoped.some((x:any)=>x.role_category==="head_coach")){
+   // Keep direct email/bio evidence only when it belongs to the exact same
+   // person. Do not include any extra names from contaminated parent elements.
+   return scoped.map((x:any)=>{
+     const matched=regular.find((y:any)=>y.first_name.toLowerCase()===x.first_name.toLowerCase()
+       && y.last_name.toLowerCase()===x.last_name.toLowerCase());
+     return matched?{...x,email:matched.email,phone:matched.phone,x_url:matched.x_url,
+       x_handle:matched.x_handle,official_bio_url:matched.official_bio_url}:x;
+   });
+ }
+ if(collegeName==="Mars Hill University"||collegeName==="University of Tampa"||collegeName==="Tusculum University"){
+   const specific=sourceSpecificExtract(html,url,collegeName);
+   if(specific.length>0&&specific.length<=8&&specific.some((x:any)=>x.role_category==="head_coach"))
+     return specific;
+ }
+ return regular;
+}
+
 function profileContact(html:string,url:string,firstName:string,lastName:string){
  const email=(html.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
  const text=clean(html);
@@ -393,7 +440,7 @@ export async function POST(req:NextRequest){
      if(!url) return {...school,source_url:null,status:"missing_source",issue:"No official coaching-staff source saved",coaches:[],head_count:0};
      try{
        const page=await get(url,8000);
-       let coaches=extract(page.html,page.url);
+       let coaches=parseOfficialStaff(page.html,page.url,school.name);
        if(school.name==="Mars Hill University"||school.name==="University of Tampa"){
          const specific=sourceSpecificExtract(page.html,page.url,school.name);
          if(specific.length>0) coaches=specific;
@@ -559,7 +606,7 @@ export async function POST(req:NextRequest){
    }else{
     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
-   let coaches=extract(page.html,page.url);
+   let coaches=parseOfficialStaff(page.html,page.url,college.name);
    if(college.name==="Mars Hill University"||college.name==="University of Tampa"){
      const directoryCoaches=sourceSpecificExtract(page.html,page.url,college.name);
      if(directoryCoaches.length>0 && directoryCoaches.length<=8 && directoryCoaches.some((x:any)=>x.role_category==="head_coach")){
@@ -616,7 +663,7 @@ export async function POST(req:NextRequest){
        try{
          const alternative=await get(alt);
          if(badOfficialUrl(alternative.url)) continue;
-         const extracted=extract(alternative.html,alternative.url);
+         const extracted=parseOfficialStaff(alternative.html,alternative.url,college.name);
          if(extracted.length>=1 && extracted.length<=8 && extracted.some((x:any)=>x.role_category==="head_coach")){
            page=alternative; d.staff_url=alternative.url; coaches=extracted; break;
          }
