@@ -493,7 +493,7 @@ export async function POST(req:NextRequest){
     // Rediscover only when the canonical URL itself cannot be fetched.
     try{
      page=await get(knownSource.staff_url);
-     d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||knownSource.staff_url,staff_url:page.url};
+     d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||(/\/sports\/(?:softball|sball)/i.test(new URL(page.url).pathname)?page.url:null),staff_url:page.url};
     }catch{
      d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
     }
