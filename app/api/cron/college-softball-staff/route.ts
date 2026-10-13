@@ -649,7 +649,10 @@ export async function POST(req:NextRequest){
     try{
      page=await get(knownSource.staff_url);
      d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||(/\/sports\/(?:softball|sball)/i.test(new URL(page.url).pathname)?page.url:null),staff_url:page.url};
-    }catch{
+    }catch(fetchError){
+     // Human-verified sources must not silently redirect to a newly discovered
+     // page if the reviewed URL is unavailable.
+     if(verification?.outcome==="verified")throw fetchError;
      d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
     }
    }else{
@@ -685,7 +688,7 @@ export async function POST(req:NextRequest){
    // be fetched successfully but contain no actual softball head coach.
    // Before failing the quality gate, try a bounded set of canonical official
    // coaching routes on the same previously discovered athletics host.
-   if(bootstrap && (coaches.length===0 || coaches.length>8 || !coaches.some((x:any)=>x.role_category==="head_coach"))){
+   if(bootstrap && verification?.outcome!=="verified" && (coaches.length===0 || coaches.length>8 || !coaches.some((x:any)=>x.role_category==="head_coach"))){
      const origins=[...new Set([page.url,d.staff_url,d.softball_url,d.athletics_url]
        .filter(Boolean).map((u:string)=>{try{return new URL(u).origin}catch{return ""}}).filter(Boolean))];
      const routes=[
