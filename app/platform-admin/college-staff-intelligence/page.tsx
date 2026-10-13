@@ -3,7 +3,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
-import {AlertCircle,CheckCircle2,ChevronDown,ExternalLink,Play,RefreshCw,Square} from 'lucide-react';
+import {AlertCircle,CheckCircle2,ChevronDown,ExternalLink,Play,RefreshCw,Square,ShieldCheck,X} from 'lucide-react';
 
 const opts=[['all','All Divisions'],['NCAA D1','D1'],['NCAA D2','D2'],['NCAA D3','D3'],['NAIA','NAIA'],['JC','JUCO']];
 const groups=[
@@ -11,15 +11,19 @@ const groups=[
   ['staff_discovery','Staff page discovery'],['quality','Quality gate'],
   ['timeout','Timeouts'],['not_found','Broken links / 404'],['other','Other reviews']
 ];
+type Verification={outcome:'verified'|'incorrect_source'|'unable_to_verify'|'inactive_program';
+  source_url:string|null;head_coach_name:string|null;notes:string|null;verified_by_user_id:string;
+  verified_at:string;recheck_status:string;recheck_message:string|null;rechecked_at:string|null};
 type Exception={college_id:string;name:string;status:string;reason:string;last_error:string|null;
-  attempts:number;updated_at:string;staff_url:string|null;softball_url:string|null};
+  attempts:number;updated_at:string;staff_url:string|null;softball_url:string|null;verification:Verification|null};
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
 type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
   head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
 const errorLabel=(r:string)=>({
   quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_conflict:'Staff sources conflict',source_access:'Source access review',staff_discovery:'Staff discovery',
-  softball_discovery:'Softball discovery',not_found:'Broken link',blocked:'Access blocked',other:'Other'
+  softball_discovery:'Softball discovery',not_found:'Broken link',blocked:'Access blocked',
+  manual_verification:'Manual verification',other:'Other'
 } as Record<string,string>)[r]||r;
 
 export default function Page(){
@@ -40,6 +44,16 @@ export default function Page(){
   const [diagnostics,setDiagnostics]=useState<QualityDiagnostic[]>([]);
   const [diagnosticTotal,setDiagnosticTotal]=useState(0);
   const [diagnosticError,setDiagnosticError]=useState('');
+  const [verifySchool,setVerifySchool]=useState<Exception|null>(null);
+  const [verifyUrl,setVerifyUrl]=useState('');
+  const [verifyOutcome,setVerifyOutcome]=useState('verified');
+  const [verifyHead,setVerifyHead]=useState('');
+  const [verifyNotes,setVerifyNotes]=useState('');
+  const [verifyConfirmed,setVerifyConfirmed]=useState(false);
+  const [verifySaving,setVerifySaving]=useState(false);
+  const [verifyError,setVerifyError]=useState('');
+  const [verifyResult,setVerifyResult]=useState('');
+  const [verifyResultKind,setVerifyResultKind]=useState<'success'|'review'|'queued'>('queued');
 
   const load=useCallback(async()=>{
     try{
@@ -54,6 +68,70 @@ export default function Page(){
     }catch(e){setError(e instanceof Error?e.message:'Could not load status');}
   },[division]);
   useEffect(()=>{void load();const timer=window.setInterval(()=>{void load()},15000);return()=>window.clearInterval(timer)},[load]);
+
+  useEffect(()=>{
+    if(!verifySchool)return;
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!verifySaving)setVerifySchool(null);};
+    document.addEventListener('keydown',escape);
+    const previous=document.body.style.overflow;document.body.style.overflow='hidden';
+    return()=>{document.removeEventListener('keydown',escape);document.body.style.overflow=previous;};
+  },[verifySchool,verifySaving]);
+
+  function openVerify(school:Exception){
+    setVerifySchool(school);
+    setVerifyUrl(school.verification?.source_url||school.staff_url||school.softball_url||'');
+    setVerifyOutcome(school.verification?.outcome||'verified');
+    setVerifyHead(school.verification?.head_coach_name||'');
+    setVerifyNotes(school.verification?.notes||'');
+    setVerifyConfirmed(false);setVerifyError('');setVerifyResult('');
+    setVerifyResultKind('queued');
+  }
+  async function saveVerification(event:React.FormEvent<HTMLFormElement>){
+    event.preventDefault();
+    if(!verifySchool||verifySaving||running||busy||diagnosing)return;
+    setVerifySaving(true);setVerifyError('');setVerifyResult('');
+    try{
+      const response=await fetch('/api/platform/college-staff-intelligence/verify',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({college_id:verifySchool.college_id,outcome:verifyOutcome,
+          source_url:verifyUrl,head_coach_name:verifyOutcome==='verified'?verifyHead:'',
+          notes:verifyNotes,confirmed_official:verifyConfirmed}),cache:'no-store'
+      });
+      const saved=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(saved.error||'Could not save source verification');
+      setVerifyResult(saved.message||'Verification saved.');
+      setVerifyResultKind(saved.recheck_status==='host_review'?'review':'queued');
+      await load();
+      if(saved.should_recheck){
+        // Process exactly the verified school; never run the entire pending queue.
+        try{
+          const check=await fetch('/api/cron/college-softball-staff',{
+            method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({bootstrap:true,division,college_id:verifySchool.college_id,limit:1}),cache:'no-store'
+          });
+          const checked=await check.json().catch(()=>({}));
+          if(!check.ok)throw new Error(checked.error||'Automatic check could not finish');
+          const result=(checked.results||[])[0];
+          if(result?.status==='ok'){
+            setVerifyResult('Source passed the coaching quality gates. '+result.coaches+' coach candidates processed; the school is now imported.');
+            setVerifyResultKind('success');
+          }else if(result){
+            setVerifyResult('Source saved, but automated import was stopped for review: '+(result.error||'Quality gate not passed'));
+            setVerifyResultKind('review');
+          }else{
+            setVerifyResult('Source saved. Recheck is still pending; use Process Queued if it does not finish.');
+            setVerifyResultKind('queued');
+          }
+        }catch(e){
+          setVerifyResult('Source saved and queued, but the automatic check did not finish: '+
+            (e instanceof Error?e.message:'Unknown error')+'. You can process the pending school from this page.');
+          setVerifyResultKind('review');
+        }
+        await load();
+      }
+    }catch(e){setVerifyError(e instanceof Error?e.message:'Could not save verification');}
+    finally{setVerifySaving(false);}
+  }
 
   async function runQueue(){
     setRunning(true);stop.current=false;setError('');setMessage('Processing queued schools, one at a time. Keep this page open.');
@@ -135,7 +213,7 @@ export default function Page(){
       subtitle="Official-source ingestion, coaching staff coverage and cleanup across college softball."/>
     <div className="mt-6 flex items-center gap-3">
       <label htmlFor="division" className="text-xs font-black uppercase text-slate-500">Division</label>
-      <select id="division" className="input w-full max-w-52" value={division} disabled={running||busy||diagnosing}
+      <select id="division" className="input w-full max-w-52" value={division} disabled={running||busy||diagnosing||verifySaving}
         onChange={e=>{diagnoseStop.current=true;setDiagnostics([]);setDiagnosticTotal(0);setDiagnosticError('');setDivision(e.target.value);setD(null);setCleanup(null);setExpanded(false);setMessage('');setError('');}}>
         {opts.map(([v,l])=><option value={v} key={v}>{l}</option>)}
       </select>
@@ -190,14 +268,14 @@ export default function Page(){
         <div className="mt-5 flex flex-wrap items-end gap-3">
           <div className="min-w-[190px] flex-1 sm:max-w-72">
             <label htmlFor="failure-group" className="mb-1 block text-xs font-bold text-slate-600">Retry group</label>
-            <select id="failure-group" className="input w-full" value={group} onChange={e=>setGroup(e.target.value)} disabled={running||busy}>
+            <select id="failure-group" className="input w-full" value={group} onChange={e=>setGroup(e.target.value)} disabled={running||busy||diagnosing||verifySaving}>
               {groups.map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </div>
-          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||!reviewCount} onClick={()=>void requeue()}>
+          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||!reviewCount} onClick={()=>void requeue()}>
             <Play size={16}/>{busy?'Queuing…':'Retry & process reviews'}
           </button>
-          <button type="button" className="btn" disabled={running||busy||diagnosing||!pendingCount} onClick={()=>void runQueue()}>
+          <button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||!pendingCount} onClick={()=>void runQueue()}>
             <Play size={16}/>Process {pendingCount} queued
           </button>
           {running&&<button type="button" className="btn" onClick={()=>{stop.current=true;setMessage('Stopping after the current school…')}}>
@@ -251,7 +329,9 @@ export default function Page(){
         </table></div>
       </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
-        <h3 className="font-black">Schools requiring attention</h3>
+        <div><h3 className="font-black">Schools requiring attention</h3>
+          <p className="mt-1 text-xs text-slate-500">Verify the official source beside each school. Source confirmation never approves coach contact details.</p>
+        </div>
         <select aria-label="Filter exception status" className="input w-44" value={filter} onChange={e=>{setFilter(e.target.value);setExpanded(false)}}>
           <option value="review">Review</option><option value="blocked">Blocked</option>
           <option value="pending">Pending</option><option value="processing">Processing</option><option value="all">All exceptions</option>
@@ -264,7 +344,32 @@ export default function Page(){
               <th className="px-3 py-3">Attempts</th><th className="px-3 py-3">Updated</th><th className="px-5 py-3">Source</th></tr>
           </thead>
           <tbody className="divide-y">{shown.map(x=><tr key={x.college_id} className="hover:bg-slate-50/80">
-            <td className="px-5 py-3 font-bold">{x.name}<div className="mt-1 text-xs font-normal text-slate-500">{x.status}</div></td>
+            <td className="px-5 py-3">
+              <div className="font-bold">{x.name}</div>
+              <div className="mt-1 text-xs text-slate-500">{x.status}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" disabled={running||busy||diagnosing||verifySaving}
+                  onClick={()=>openVerify(x)}
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 hover:border-red-300 hover:text-red-700 disabled:opacity-50">
+                  <ShieldCheck size={14}/>{x.verification?'Edit verification':'Verify'}
+                </button>
+                {x.verification&&<span className={'rounded-md px-2 py-1 text-[11px] font-semibold '+
+                  (x.verification.recheck_status==='passed'?'bg-green-50 text-green-800':
+                    x.verification.outcome==='inactive_program'?'bg-slate-100 text-slate-700':
+                    'bg-amber-50 text-amber-800')}>
+                  {x.verification.outcome==='inactive_program'?'Reported inactive':
+                    x.verification.outcome==='incorrect_source'?'Incorrect source':
+                    x.verification.outcome==='unable_to_verify'?'Unable to verify':
+                    x.verification.recheck_status==='passed'?'Source checked · imported':
+                    x.verification.recheck_status==='pending'?'Source verified · queued':
+                    x.verification.recheck_status==='host_review'?'New host review':
+                    'Source verified · needs review'}
+                </span>}
+              </div>
+              {x.verification&&<div className="mt-1 text-[11px] font-normal text-slate-500">
+                Last checked by Super Owner · {date(x.verification.verified_at)}
+              </div>}
+            </td>
             <td className="px-3 py-3"><div className="font-semibold">{errorLabel(x.reason)}</div>
               <div className="mt-1 max-w-64 break-words text-xs text-slate-500">{x.last_error||'—'}</div></td>
             <td className="px-3 py-3 tabular-nums">{x.attempts}</td>
@@ -288,5 +393,84 @@ export default function Page(){
         </button>
       </div>}
     </section>}
-  </main></AppShell>;
+  </main>    {verifySchool&&<div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6"
+      onMouseDown={e=>{if(e.target===e.currentTarget&&!verifySaving)setVerifySchool(null);}}>
+      <section role="dialog" aria-modal="true" aria-labelledby="verify-title"
+        className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
+          <div><div className="rr-eyebrow">OFFICIAL SOURCE VERIFICATION</div>
+            <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
+            <p className="mt-1 text-xs text-slate-500">Confirm the school source, not every coach or contact field.</p>
+          </div>
+          <button type="button" disabled={verifySaving} aria-label="Close verification"
+            onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
+            <X size={20}/></button>
+        </div>
+        <form onSubmit={e=>void saveVerification(e)} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+          <div>
+            <label htmlFor="verify-url" className="mb-1 block text-sm font-bold">Official softball coaching page URL</label>
+            <input id="verify-url" type="url" autoFocus required={verifyOutcome==='verified'} value={verifyUrl}
+              onChange={e=>{setVerifyUrl(e.target.value);setVerifyResult('');}}
+              placeholder="https://schoolathletics.edu/sports/softball/coaches" className="input w-full" disabled={verifySaving}/>
+            <div className="mt-2 flex flex-wrap gap-4 text-xs">
+              {verifyUrl.startsWith('https://')&&<a href={verifyUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-blue-700 underline">Open entered URL <ExternalLink size={12}/></a>}
+              <a href={'https://www.google.com/search?q='+encodeURIComponent(verifySchool.name+' softball coaches official athletics')}
+                target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700 underline">
+                Find official page <ExternalLink size={12}/></a>
+            </div>
+          </div>
+          <fieldset className="space-y-2">
+            <legend className="mb-1 text-sm font-bold">What did you find?</legend>
+            {[
+              ['verified','Correct official coaching page'],
+              ['incorrect_source','Incorrect or outdated source'],
+              ['unable_to_verify','Cannot access or verify'],
+              ['inactive_program','Softball program inactive']
+            ].map(([value,label])=><label key={value} className={'flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 text-sm '+(verifyOutcome===value?'border-slate-900 bg-slate-50':'border-slate-200')}>
+              <input type="radio" name="verification-result" value={value} checked={verifyOutcome===value}
+                onChange={()=>{setVerifyOutcome(value);setVerifyConfirmed(false);setVerifyResult('');}} disabled={verifySaving}/>
+              <span className="font-medium">{label}</span>
+            </label>)}
+          </fieldset>
+          {verifyOutcome==='verified'&&<div>
+            <label htmlFor="verify-head" className="mb-1 block text-sm font-bold">Current head coach <span className="font-normal text-slate-500">(optional)</span></label>
+            <input id="verify-head" className="input w-full" value={verifyHead} maxLength={120}
+              onChange={e=>setVerifyHead(e.target.value)} placeholder="First and last name" disabled={verifySaving}/>
+            <p className="mt-1 text-xs text-slate-500">If entered, the importer must find this head coach on the official page or stop for review.</p>
+          </div>}
+          <div>
+            <label htmlFor="verify-notes" className="mb-1 block text-sm font-bold">Verification notes <span className="font-normal text-slate-500">(optional)</span></label>
+            <textarea id="verify-notes" rows={2} maxLength={1000} value={verifyNotes} disabled={verifySaving}
+              onChange={e=>setVerifyNotes(e.target.value)} placeholder="For example: Head coach shown in the 2026 staff listing" className="input w-full resize-y"/>
+          </div>
+          {(verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&<label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-sm">
+            <input type="checkbox" checked={verifyConfirmed} onChange={e=>setVerifyConfirmed(e.target.checked)}
+              disabled={verifySaving} className="mt-1"/>
+            <span>{verifyOutcome==='verified'
+              ?'I checked this school’s official athletics or university source and confirm this URL is for its softball coaching staff.'
+              :'I checked an official school source indicating this softball program is inactive.'}</span>
+          </label>}
+          {verifyOutcome==='verified'&&<p className="text-xs text-slate-500">
+            Saving a recognized official host starts a targeted recheck. Coach imports still require the existing quality gates; unfamiliar domains are held for review.
+          </p>}
+          {verifyError&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{verifyError}</div>}
+          {verifyResult&&<div role="status" className={'rounded-xl border p-3 text-sm '+
+            (verifyResultKind==='success'?'border-green-200 bg-green-50 text-green-900':
+              verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-900':
+              'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
+          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+            <button type="button" className="btn" disabled={verifySaving} onClick={()=>setVerifySchool(null)}>
+              {verifyResult?'Close':'Cancel'}
+            </button>
+            <button type="submit" className="btn btn-red" disabled={verifySaving||running||busy||diagnosing||
+              (verifyOutcome==='verified'&&!verifyUrl.trim())||
+              ((verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&!verifyConfirmed)}>
+              <ShieldCheck size={16}/>{verifySaving?'Saving / rechecking…':'Save verification'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>}
+</AppShell>;
 }
