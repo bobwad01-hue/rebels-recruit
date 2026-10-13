@@ -62,7 +62,7 @@ export async function GET() {
     const activeDaysSum = eligible.reduce((sum: number, p: any) => sum + activeDays(p.id, start30), 0);
     const dailySeries = Array.from({ length: 30 }, (_, i) => {
       const date = daysAgo(29 - i);
-      return { date, active: dailyUsers.get(date)?.size || 0 };
+      return { date, active: date < '2026-10-13' ? null : (dailyUsers.get(date)?.size || 0) };
     });
 
     const roleNames: Record<string, string> = {
