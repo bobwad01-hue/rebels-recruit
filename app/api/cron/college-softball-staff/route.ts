@@ -76,6 +76,29 @@ function links(html:string,base:string){
   .map(m=>({url:abs(m[1],base),text:clean(m[2])})).filter(x=>x.url);
 }
 function sameHost(a:string,b:string){try{return new URL(a).hostname.replace(/^www\./,"")===new URL(b).hostname.replace(/^www\./,"")}catch{return false}}
+// A coach's social account must identify that individual. Team, sport, university,
+// and unrelated athletics accounts belong elsewhere, never on a coach contact record.
+function personalXLink(items:{url:string;text:string}[],firstName:string,lastName:string){
+ const first=firstName.toLowerCase().replace(/[^a-z0-9]/g,"");
+ const last=lastName.toLowerCase().replace(/[^a-z0-9]/g,"");
+ if(!first||last.length<4) return null;
+ for(const item of items){
+  try{
+   const u=new URL(item.url);
+   if(!/^(?:www\.)?(?:x\.com|twitter\.com)$/i.test(u.hostname)) continue;
+   const parts=u.pathname.split("/").filter(Boolean);
+   if(parts.length!==1) continue;
+   const handle=parts[0].replace(/^@/,"");
+   if(!/^[a-zA-Z0-9_]{3,15}$/.test(handle)) continue;
+   const key=handle.toLowerCase().replace(/_/g,"");
+   if(key.includes("coach"+last)||key.includes(first+last)||key.includes(last+first)||
+     (first.length>1&&key.includes(first[0]+last)&&!/(athletics|sports|softball|baseball|basketball|mbb|wbb|bsb|hoops)/i.test(key))){
+    return {url:"https://x.com/"+handle,handle:"@"+handle};
+   }
+  }catch{}
+ }
+ return null;
+}
 function badOfficialUrl(url:string){
  try{
   const u=new URL(url), h=u.hostname.toLowerCase(), p=u.pathname.toLowerCase();
@@ -100,7 +123,7 @@ function scoreLink(x:{url:string,text:string},kind:"softball"|"staff"){
  return n;
 }
 function bestLink(xs:{url:string,text:string}[],kind:"softball"|"staff",base:string){
- return xs.filter(x=>sameHost(x.url,base)).map(x=>({x,n:scoreLink(x,kind)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n)[0]?.x.url;
+ return xs.filter(x=>sameHost(x.url,base)&&!badOfficialUrl(x.url)).map(x=>({x,n:scoreLink(x,kind)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n)[0]?.x.url;
 }
 async function tryGet(urls:string[]){
  for(const url of [...new Set(urls.filter(Boolean))]){try{return await get(url)}catch{}}
@@ -113,7 +136,7 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  const seededStart=[seeded?.softball_url,seeded?.staff_url,seeded?.athletics_url].find(x=>x&&!badOfficialUrl(x))||"";
  if(!start && !seededStart) throw new Error("School website missing");
  const home=await get(seededStart||start); const ls=links(home.html,home.url);
- const athleticCandidates=ls.filter(x=>(/athletics?|sports/i.test(x.text+" "+x.url))&&!/facebook|instagram|twitter|x\.com/i.test(x.url)).sort((x,y)=>(/athletics/i.test(y.text+" "+y.url)?2:0)-(/athletics/i.test(x.text+" "+x.url)?2:0));
+ const athleticCandidates=ls.filter(x=>(/athletics?|sports/i.test(x.text+" "+x.url))&&!badOfficialUrl(x.url)).sort((x,y)=>(/athletics/i.test(y.text+" "+y.url)?2:0)-(/athletics/i.test(x.text+" "+x.url)?2:0));
  const a=athleticCandidates.length?await tryGet(athleticCandidates.slice(0,5).map(x=>x.url)):home;
  const athletics=a||home; const sl=links(athletics.html,athletics.url);
  // A seeded softball/staff URL already proves the official sports host. Do not leave that
@@ -255,23 +278,20 @@ function extract(html:string,url:string){
   if(!name||(!dedicated&&!departmentScoped&&!email&&!profile)) continue;
   const parts=name.split(/\s+/); const first_name=parts.shift()!, last_name=parts.join(" ").replace(/\s+-\s+/g,"-");
   const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
-  const x=blockLinks.find(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
+  const x=personalXLink(blockLinks,first_name,last_name);
   const rr=role(title);
-  out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?("@"+new URL(x.url).pathname.split("/").filter(Boolean)[0]):null,official_bio_url:profile?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+  out.push({first_name,last_name,title,email,phone,x_url:x?.url||null,x_handle:x?.handle||null,official_bio_url:profile?.url||null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
  }
  return [...new Map(out.map(x=>[x.email||(`${x.first_name} ${x.last_name}`).toLowerCase(),x])).values()]
    .filter(x=>x.role_category!=="other_coaching_staff" || /pitching|hitting coordinator|graduate assistant/i.test(x.title));
 }
 
 
-function profileContact(html:string,url:string){
+function profileContact(html:string,url:string,firstName:string,lastName:string){
  const email=(html.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
  const text=clean(html);
  const phone=text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
- const xs=links(html,url).filter(a=>/^(https?:\/\/)?(?:www\.)?(?:x\.com|twitter\.com)\//i.test(a.url));
- const parsed=xs.map(a=>{ try { const part=new URL(a.url).pathname.split("/").filter(Boolean)[0]?.replace(/^@+/,""); return part?{...a,handle:"@"+part}:null; } catch { return null; } }).filter(Boolean) as Array<{url:string;text:string;handle:string}>;
- const wrong=/(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|hockey|track|crosscountry|_mbb|_bsb|mbb_|bsb_)/i;
- const x=parsed.find(a=>/coach/i.test(a.handle)) || parsed.find(a=>!wrong.test(a.handle)) || null;
+ const x=personalXLink(links(html,url),firstName,lastName);
  return {email,phone,x_url:x?.url||null,x_handle:x?.handle||null};
 }
 async function enrichCoachProfile(c:any,staffUrl:string){
@@ -279,7 +299,7 @@ async function enrichCoachProfile(c:any,staffUrl:string){
  try{
    const p=await get(c.official_bio_url,5000);
    if(!sameHost(p.url,staffUrl)) return c;
-   const contact=profileContact(p.html,p.url);
+   const contact=profileContact(p.html,p.url,c.first_name,c.last_name);
    return {...c,email:c.email||contact.email,phone:c.phone||contact.phone,x_url:c.x_url||contact.x_url,x_handle:c.x_handle||contact.x_handle,official_bio_url:p.url,profile_source_hash:hash(p.html)};
  }catch{return c}
 }
@@ -329,7 +349,7 @@ export async function POST(req:NextRequest){
      try{
        if(!coach.official_bio_url) throw new Error("Official bio URL missing");
        const p=await get(coach.official_bio_url);
-       let contact=profileContact(p.html,p.url);
+       let contact=profileContact(p.html,p.url,coach.first_name,coach.last_name);
        let contactSource=p.url, contactHash=hash(p.html);
        // If the individual bio does not publish email, make a controlled second-source
        // pass against canonical official athletics staff-directory routes on the same host.
