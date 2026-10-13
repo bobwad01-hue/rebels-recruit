@@ -8,8 +8,40 @@ async function owner(){
 }
 export async function GET(){const {c,user}=await owner();if(!user)return NextResponse.json({error:'Forbidden'},{status:403});
  const {data,error}=await c.from('college_coach_update_suggestions').select('id,coach_id,submitted_by_user_id,suggestion_type,details,proposed_first_name,proposed_last_name,proposed_email,proposed_phone,proposed_title,proposed_x_url,proposed_college_id,status,created_at,college_coaches(id,first_name,last_name,title,email,phone,x_url,college_id,lifecycle_status,colleges!college_coaches_college_id_fkey(name))').eq('status','pending').order('created_at',{ascending:true});
- return NextResponse.json(error?{error:error.message}:{suggestions:data||[]},{status:error?500:200})}
-export async function POST(req:Request){const {c,user}=await owner();if(!user)return NextResponse.json({error:'Forbidden'},{status:403});const b=await req.json();const {data:s}=await c.from('college_coach_update_suggestions').select('*').eq('id',b.id).eq('status','pending').maybeSingle();if(!s)return NextResponse.json({error:'Suggestion not found'},{status:404});
+ if(error)return NextResponse.json({error:error.message},{status:500});
+ const {data:conflicts,error:conflictError}=await c.from('college_coach_contact_reviews')
+  .select('id,coach_id,field_name,observed_values,status,created_at,college_coaches(id,first_name,last_name,title,email,phone,x_url,instagram_url,colleges!college_coaches_college_id_fkey(name))')
+  .eq('status','pending').order('created_at',{ascending:true});
+ return NextResponse.json(conflictError?{error:conflictError.message}:{suggestions:data||[],contactConflicts:conflicts||[]},{status:conflictError?500:200})}
+export async function POST(req:Request){const {c,user}=await owner();if(!user)return NextResponse.json({error:'Forbidden'},{status:403});const b=await req.json();
+ if(b.type==='resolve_contact'){
+  const id=Number(b.id),value=String(b.verifiedValue||'').trim(),evidence=String(b.evidence||'').trim();
+  if(!Number.isSafeInteger(id)||id<=0||!value||evidence.length<10)
+   return NextResponse.json({error:'Select a verified contact value and describe your independent verification source (at least 10 characters).'},{status:400});
+  const {data:review,error:readError}=await c.from('college_coach_contact_reviews').select('id,coach_id,field_name,status')
+    .eq('id',id).eq('status','pending').maybeSingle();
+  if(readError||!review)return NextResponse.json({error:'Pending conflict not found.'},{status:404});
+  if(!['email','phone','x_url','instagram_url'].includes(review.field_name))
+   return NextResponse.json({error:'Unsupported contact field.'},{status:400});
+  if(review.field_name==='email'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+   return NextResponse.json({error:'Enter a valid verified email address.'},{status:400});
+  const {data:existing}=await c.from('college_coaches').select('source_note').eq('id',review.coach_id).maybeSingle();
+  const patch:any={updated_by_user_id:user.id,last_verified_at:new Date().toISOString(),
+   source_note:[existing?.source_note,'Contact verified by Super Owner ('+review.field_name+'): '+evidence].filter(Boolean).join('\n').slice(-4000)};
+  patch[review.field_name]=value;
+  const {data:updated,error:updateError}=await c.from('college_coaches').update(patch).eq('id',review.coach_id).select('id').maybeSingle();
+  if(updateError||!updated)return NextResponse.json({error:updateError?.message||'Could not update canonical coach contact.'},{status:500});
+  const {error:reviewError}=await c.from('college_coach_contact_reviews').update({
+   status:'verified',resolved_at:new Date().toISOString(),resolved_by:user.id,
+   resolution_note:'Verified value: '+value+'. Evidence: '+evidence
+  }).eq('id',review.id).eq('status','pending');
+  if(reviewError)return NextResponse.json({error:'Coach contact was updated, but the review flag could not be cleared. Please retry.'},{status:500});
+  const {count,error:countError}=await c.from('college_coach_contact_reviews').select('id',{count:'exact',head:true})
+    .eq('coach_id',review.coach_id).eq('status','pending');
+  if(!countError&&count===0)await c.from('college_coaches').update({contact_verification_needed:false}).eq('id',review.coach_id);
+  return NextResponse.json({ok:true});
+ }
+ const {data:s}=await c.from('college_coach_update_suggestions').select('*').eq('id',b.id).eq('status','pending').maybeSingle();if(!s)return NextResponse.json({error:'Suggestion not found'},{status:404});
  if(b.decision==='reject'){const {error}=await c.from('college_coach_update_suggestions').update({status:'rejected',reviewed_at:new Date().toISOString(),reviewed_by_user_id:user.id}).eq('id',s.id);return NextResponse.json(error?{error:error.message}:{ok:true},{status:error?500:200})}
  if(b.decision!=='accept')return NextResponse.json({error:'Invalid decision'},{status:400});
  const patch:any={updated_by_user_id:user.id,updated_at:new Date().toISOString(),source_note:'Verified community update approved by RLTNL'};
