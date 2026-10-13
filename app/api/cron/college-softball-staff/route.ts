@@ -65,9 +65,11 @@ async function allowedByRobots(url:string){
  }catch{return false}
 }
 async function get(url:string,timeoutMs=FETCH_TIMEOUT_MS){
+ if(badOfficialUrl(url)) throw new Error("Non-athletics source URL rejected");
  if(!(await allowedByRobots(url))) throw new Error("Blocked by robots.txt");
  const r=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)","accept":"text/html,application/xhtml+xml"}});
  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+ if(badOfficialUrl(r.url)) throw new Error("Redirected to a non-athletics source URL");
  return {html:await r.text(),url:r.url,status:r.status};
 }
 
