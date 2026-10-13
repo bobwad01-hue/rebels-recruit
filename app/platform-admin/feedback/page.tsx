@@ -6,16 +6,33 @@ import {CheckCircle2,Inbox,MessageSquareText,RotateCcw,Clock3} from 'lucide-reac
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 
+type Participant={full_name:string|null;email:string|null};
+type FeedbackEvent={
+ id:string;case_id:string;actor_user_id:string|null;
+ event_type:'submitted'|'status_changed'|'note_updated'|'resolution_imported';
+ previous_status:string|null;new_status:string|null;note:string|null;
+ occurred_at:string;actor:Participant|null;
+};
 type Feedback={
  id:string;reporter_user_id:string;feedback_type:string;description:string;
  diagnostic_snapshot:any;status:string;created_at:string;updated_at:string;
- resolved_at:string|null;resolution_note:string|null;
- reporter:{full_name:string|null;email:string|null}|null;
+ resolved_at:string|null;resolution_note:string|null;resolved_by_user_id:string|null;
+ reporter:Participant|null;resolved_by:Participant|null;history:FeedbackEvent[];
 };
 const categories:Record<string,string>={broken:'Something isn’t working',confusing:'Something is confusing',idea:'I have an idea',other:'Other'};
 const active=(row:Feedback)=>['open','investigating','waiting_on_user'].includes(row.status);
 const message=(row:Feedback)=>String(row.description||'').split(/\n\nPage: /)[0].replace(/^\[[^\]]+\]\s*/,'');
 const when=(value:string)=>new Date(value).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+const personName=(person:Participant|null)=>person?.full_name||person?.email||'Unknown user';
+const eventLabel=(event:FeedbackEvent)=>{
+ if(event.event_type==='submitted')return 'Feedback submitted';
+ if(event.event_type==='resolution_imported')return 'Earlier resolution recorded';
+ if(event.event_type==='note_updated')return 'Internal note updated';
+ if(event.new_status==='resolved')return 'Feedback resolved';
+ if(event.new_status==='open'&&event.previous_status==='resolved')return 'Feedback reopened';
+ if(event.new_status==='investigating')return 'Marked in progress';
+ return 'Status changed to '+String(event.new_status||'unknown').replaceAll('_',' ');
+};
 
 export default function PlatformFeedback(){
  const [loading,setLoading]=useState(true),[denied,setDenied]=useState(false),[rows,setRows]=useState<Feedback[]>([]);
@@ -44,7 +61,7 @@ export default function PlatformFeedback(){
   }
  },[loading,rows]);
  async function update(row:Feedback,status:'open'|'investigating'|'resolved'){
-  const note=String(drafts[row.id]??row.resolution_note??'').trim();
+  const note=status==='open'?'':String(drafts[row.id]??(active(row)?row.resolution_note:'')??'').trim();
   if(status==='resolved'&&note.length<5){setError('Add a resolution note of at least five characters before resolving.');return}
   setBusy(row.id);setError('');
   try{
@@ -54,6 +71,7 @@ export default function PlatformFeedback(){
    });
    const data=await response.json();
    if(!response.ok)throw new Error(data.error||'Could not update feedback.');
+   setDrafts(prev=>{const next={...prev};delete next[row.id];return next});
    await load();
    window.dispatchEvent(new Event('rltnl:owner-attention-updated'));
   }catch(e:any){setError(e?.message||'Could not update feedback.')}
@@ -87,7 +105,7 @@ export default function PlatformFeedback(){
        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700"><MessageSquareText size={20}/></div>
        <div><div className="text-xs font-black uppercase tracking-wider text-red-700">{categories[row.feedback_type]||'Feedback'}</div>
         <h2 className="mt-1 font-black">{row.reporter?.full_name||row.reporter?.email||'RLTNL user'}</h2>
-        <div className="mt-1 text-xs text-slate-500">{when(row.created_at)} · {row.diagnostic_snapshot?.role||'User'} · {row.diagnostic_snapshot?.page||'Unknown page'}</div>
+        <div className="mt-1 text-xs text-slate-500">{when(row.created_at)} · {row.diagnostic_snapshot?.role||'User'}{row.diagnostic_snapshot?.account_role&&row.diagnostic_snapshot.account_role!==row.diagnostic_snapshot.role?' ('+row.diagnostic_snapshot.account_role+' account)':''} · {row.diagnostic_snapshot?.page||'Unknown page'}</div>
        </div>
       </div>
       <span className={`rounded-full px-3 py-1 text-xs font-black ${active(row)?'bg-red-50 text-red-700':'bg-emerald-50 text-emerald-700'}`}>{row.status.replaceAll('_',' ')}</span>
@@ -107,10 +125,25 @@ export default function PlatformFeedback(){
      </>:<div className="mt-5 rounded-xl border bg-slate-50 p-4">
        <div className="text-xs font-black uppercase tracking-wider text-slate-600">Resolution notes</div>
        <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{row.resolution_note||'No resolution note recorded.'}</p>
-       <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><span className="text-xs text-slate-500">{row.resolved_at?'Resolved '+when(row.resolved_at):'Closed'}</span>
+       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-xs text-slate-600">
+         <div className="font-bold">{row.resolved_at?'Resolved '+when(row.resolved_at):'Closed'}</div>
+         <div className="mt-1">By {row.resolved_by?personName(row.resolved_by):'an unrecorded reviewer'}</div>
+        </div>
         <button type="button" className="btn text-sm" disabled={busy===row.id} onClick={()=>void update(row,'open')}><RotateCcw size={15}/> Reopen</button>
        </div>
       </div>}
+     {row.history?.length>0&&<details className="mt-5 border-t border-slate-200 pt-4">
+      <summary className="cursor-pointer select-none text-sm font-bold text-slate-700 hover:text-slate-950">Activity history ({row.history.length})</summary>
+      <ol className="mt-4 space-y-3 border-l-2 border-slate-200 pl-4">
+       {row.history.map(event=><li key={event.id} className="relative">
+        <span className="absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-slate-500"/>
+        <div className="text-sm font-bold text-slate-800">{eventLabel(event)}</div>
+        <div className="mt-0.5 text-xs text-slate-500">{when(event.occurred_at)} · {event.actor?personName(event.actor):'Reviewer not recorded'}</div>
+        {event.note&&<p className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-2 text-sm text-slate-700">{event.note}</p>}
+       </li>)}
+      </ol>
+     </details>}
     </article>)}
    </div>
   </>}
