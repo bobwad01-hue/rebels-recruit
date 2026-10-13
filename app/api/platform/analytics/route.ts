@@ -33,7 +33,7 @@ export async function GET() {
     const start7 = daysAgo(6);
     const today = dayUTC(new Date());
     const [profiles, activity, daily, orgs, orgMembers, teamMembers, teams, parentLinks] = await Promise.all([
-      allRows(() => admin.from('profiles').select('id,app_role,created_at,account_status').order('id')),
+      allRows(() => admin.from('profiles').select('id,app_role,created_at,account_status,registration_status').order('id')),
       allRows(() => admin.from('platform_user_activity').select('user_id,last_seen_at').order('user_id')),
       allRows(() => admin.from('platform_user_activity_daily').select('user_id,activity_date').gte('activity_date', start30).order('activity_date').order('user_id')),
       allRows(() => admin.from('organizations').select('id,name,branch_name').order('id')),
@@ -43,7 +43,7 @@ export async function GET() {
       allRows(() => admin.from('parent_guardian_access').select('parent_user_id,athlete_user_id').eq('status', 'active').order('parent_user_id')),
     ]);
 
-    const eligible = profiles.filter((p: any) => p.account_status === 'active');
+    const eligible = profiles.filter((p: any) => p.account_status === 'active' && p.registration_status === 'active');
     const eligibleIds = new Set(eligible.map((p: any) => p.id));
     const lastSeen = new Map(activity.map((a: any) => [a.user_id, a.last_seen_at]));
     const userDays = new Map<string, Set<string>>();
