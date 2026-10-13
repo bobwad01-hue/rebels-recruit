@@ -11,7 +11,7 @@ function normalizeHost(value:string|null|undefined){
   if(!value)return null;
   try{
     const u=new URL(value);
-    if(u.protocol!=='https:'||u.username||u.password||u.port)return null;
+    if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.port)return null;
     return u.hostname.toLowerCase().replace(/^www\./,'');
   }catch{return null}
 }
