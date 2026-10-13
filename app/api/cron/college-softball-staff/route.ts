@@ -712,7 +712,7 @@ export async function POST(req:NextRequest){
     // Prefer school + name identity over email: addresses can change.
     // Never replace verified contact fields with weaker or empty bootstrap values.
     const {data:matches,error:matchErr}=await supabase.from("college_coaches")
-      .select("id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,source_urls,verification_status,verification_confidence,last_verified_at,lifecycle_status,role_category,staff_sort_order,is_recruiting_coordinator")
+      .select("id,first_name,last_name,title,email,phone,x_url,x_handle,instagram_url,official_bio_url,source_urls,verification_status,verification_confidence,last_verified_at,lifecycle_status,role_category,staff_sort_order,is_recruiting_coordinator")
       .eq("college_id",college.id).ilike("first_name",c.first_name).ilike("last_name",c.last_name).limit(10);
     if(matchErr) throw matchErr;
     const existing=(matches||[]).filter((x:any)=>x.lifecycle_status==="active")
@@ -723,6 +723,33 @@ export async function POST(req:NextRequest){
       if(emailErr) throw emailErr;
       if((emailMatches||[]).some((x:any)=>x.first_name.toLowerCase()!==c.first_name.toLowerCase()||x.last_name.toLowerCase()!==c.last_name.toLowerCase())){
         throw new Error("Conflicting coach identity for an existing email; manual review required");
+      }
+    }
+    // Never silently overwrite a shared contact with conflicting official data.
+    // Record conflicting candidates for Super Owner verification instead.
+    if(existing){
+      const contactFields=["email","phone","x_url","instagram_url"] as const;
+      let newConflicts=0;
+      for(const field of contactFields){
+        const previous=String(existing[field]||"").trim();
+        const incoming=String(c[field]||"").trim();
+        if(!previous||!incoming)continue;
+        const normalized=(value:string)=>field==="phone"?value.replace(/[^0-9]/g,""):value.toLowerCase();
+        if(normalized(previous)===normalized(incoming))continue;
+        const {data:prior,error:priorError}=await supabase.from("college_coach_contact_reviews")
+          .select("id,status,observed_values").eq("coach_id",existing.id).eq("field_name",field).maybeSingle();
+        if(priorError)throw priorError;
+        if(prior?.status==="verified"&&(prior.observed_values||[]).some((v:string)=>normalized(v)===normalized(incoming)))continue;
+        const {error:reviewError}=await supabase.from("college_coach_contact_reviews").upsert({
+          coach_id:existing.id,field_name:field,observed_values:[previous,incoming],status:"pending"
+        },{onConflict:"coach_id,field_name"});
+        if(reviewError)throw reviewError;
+        newConflicts++;
+      }
+      if(newConflicts){
+        const {error:flagError}=await supabase.from("college_coaches")
+          .update({contact_verification_needed:true}).eq("id",existing.id);
+        if(flagError)throw flagError;
       }
     }
     const sources=[...new Set([page.url,c.official_bio_url].filter(Boolean))];
