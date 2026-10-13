@@ -38,8 +38,8 @@ function role(title:string){
  else if(recruiting){category="recruiting_coordinator";order=30}
  else if(/pitching.*coach/.test(t)){category="pitching_coach";order=40}
  else if(/hitting.*coach/.test(t)){category="hitting_coach";order=45}
- else if(/assistant.*coach|assistant softball/.test(t)){category="assistant_coach";order=50}
  else if(/graduate.*assistant/.test(t)){category="graduate_assistant";order=60}
+ else if(/assistant.*coach|assistant softball/.test(t)){category="assistant_coach";order=50}
  else if(/volunteer.*assistant/.test(t)){category="volunteer_assistant";order=70}
  return {category,order,recruiting};
 }
