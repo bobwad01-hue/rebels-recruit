@@ -21,7 +21,7 @@ export default function CoachContactConflictReview({review,onResolved}:{review:a
     body:JSON.stringify({type:'resolve_contact',id:review.id,verifiedValue:selected,evidence:evidence.trim()})
    });
    const result=await response.json();
-   if(!response.ok)throw new Error(result.error||'Could not save verification.');
+   if(!response.ok)throw {message:result.error||'Could not save verification.'};
    await onResolved();
   }catch(e:any){setError(e.message||'Could not save verification.')}finally{setBusy(false)}
  }
