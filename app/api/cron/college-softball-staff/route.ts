@@ -33,7 +33,7 @@ function role(title:string){
  const t=title.toLowerCase();
  const recruiting=/recruit(ing|ment) coordinator/.test(t);
  let category="other_coaching_staff", order=90;
- if(/\b(?:head\s+softball\s+coach|softball\s+head\s+coach|head\s+coach|director\s+of\s+softball)\b/.test(t)
+ if(/\b(?:head\s+softball(?:\/[a-z]+)?\s+coach|softball\s+head\s+coach|head\s+coach|director\s+of\s+softball)\b/.test(t)
    && !/\b(?:associate|assistant)\s+head\s+(?:softball\s+)?coach\b/.test(t)){category="head_coach";order=10}
  else if(/associate.*head/.test(t)){category="associate_head_coach";order=20}
  else if(recruiting){category="recruiting_coordinator";order=30}
@@ -192,9 +192,13 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  return {athletics_url:athletics.url,softball_url:s.url,staff_url:staff};
 }
 
+function normalizeCoachName(name:string){
+ return name.trim().replace(/\s+\([^)]+\)/g,"")
+   .replace(/\s+['’]\d{2}(?:\s+M['’]\d{2})?$/,"").replace(/\s+-\s+/g,"-");
+}
 function plausibleName(name:string){
- const n=name.trim().replace(/\s+-\s+/g,"-");
- if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
+ const n=normalizeCoachName(name);
+ if(!/^\p{Lu}[\p{L}\p{M}.'’-]+(?:\s+\p{Lu}[\p{L}\p{M}.'’-]+){1,3}$/u.test(n)) return false;
  if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book|Classic|Tournament|Invitational|Championship|Showcase|Festival|Season|Series|Roundup|Recap|Preview)\b/i.test(n)) return false;
  if(/^The\s/i.test(n)) return false; // News/event headings are not person names.
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
@@ -294,12 +298,12 @@ function extract(html:string,url:string){
   const email=(block.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
   const profile=blockLinks.find(a=>sameHost(a.url,url)&&/(?:\/coaches?\/|\/staff-directory\/|\/staff\/)/i.test(a.url)&&plausibleName(a.text));
   if(!dedicated&&!departmentScoped && profile && !/softball/i.test(text.slice(Math.max(0,text.indexOf(profile.text)-120),text.indexOf(profile.text)+220))) continue;
-  const profileName=profile?.text?.trim()||"";
+  const profileName=normalizeCoachName(profile?.text||"");
   const before=text.split(title)[0].trim();
-  const fallback=before.match(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s*$/)?.[1]||"";
+  const fallback=normalizeCoachName(before.match(/(\p{Lu}[\p{L}\p{M}.'’-]+(?:\s+\p{Lu}[\p{L}\p{M}.'’-]+){1,3})(?:\s+['’]\d{2})?\s*$/u)?.[0]||"");
   let name=plausibleName(profileName)?profileName:(plausibleName(fallback)?fallback:"");
   if(!name){
-    const names=blockLinks.map(a=>a.text.trim()).filter(plausibleName);
+    const names=blockLinks.map(a=>normalizeCoachName(a.text)).filter(plausibleName);
     name=names[0]||"";
   }
   // On a dedicated softball roster/coaches page, the page context itself is authoritative.
@@ -331,7 +335,7 @@ function rosterSectionCoaches(html:string,url:string){
    const section=flat.slice((mark.index||0)+mark[0].length,(mark.index||0)+mark[0].length+2200)
      .split(/Softball Support Staff|There is no additional information|No\.\s+Name|(?:20\d{2}\s+)?Softball Coaching Staff/i)[0];
    for(const m of section.matchAll(re)){
-     const full=m[2].replace(/\s+\([^)]+\)/g,"").trim();
+     const full=normalizeCoachName(m[2]);
      if(!plausibleName(full))continue;
      const parts=full.split(/\s+/),rr=role(m[1]);
      out.push({first_name:parts.shift()!,last_name:parts.join(" "),title:m[1],
