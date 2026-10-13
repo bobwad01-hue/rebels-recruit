@@ -241,7 +241,7 @@ export default async function Dashboard({
   ];
   const { data: advisorProfiles, error: advisorProfilesError } =
     advisorIds.length
-      ? await supabase
+      ? await admin
           .from("profiles")
           .select("id,full_name,email")
           .in("id", advisorIds)
