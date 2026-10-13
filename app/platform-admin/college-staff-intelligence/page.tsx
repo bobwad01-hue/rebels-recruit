@@ -127,11 +127,12 @@ export default function Page(){
         </div>)}
       </div>
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {[['Email',d.email],['Phone',d.phone],['X / Twitter',d.twitter]].map(([label,n]:any)=><div className="card p-4" key={label}>
+        {[['Email',d.email],['Phone',d.phone],['Coach X',d.twitter]].map(([label,n]:any)=><div className="card p-4" key={label}>
           <div className="text-2xl font-black">{n} <span className="text-sm text-slate-400">/ {d.coaches}</span></div>
           <div className="text-xs font-bold uppercase text-slate-500">{label} coverage · {d.coaches?Math.round(n/d.coaches*100):0}%</div>
         </div>)}
       </div>
+      <p className="mt-2 text-xs text-slate-500">X coverage counts profiles stored on coach records. Shared athletics and unrelated sports accounts are excluded when identified; remaining profiles may still need verification.</p>
       {division==='all'&&<div className="card mt-4 overflow-x-auto"><table className="w-full min-w-[700px] text-sm">
         <thead><tr className="border-b text-left"><th className="p-3">Division</th><th>Programs</th><th>Processed</th><th>Coaches</th><th>Email</th><th>Phone</th><th>X</th><th>State</th></tr></thead>
         <tbody>{d.divisions?.map((x:any)=><tr className="border-b" key={x.division}>
