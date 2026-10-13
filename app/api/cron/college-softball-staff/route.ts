@@ -51,7 +51,7 @@ async function allowedByRobots(url:string){
   const u=new URL(url); const origin=u.origin;
   let txt=robotsCache.get(origin);
   if(txt===undefined){
-   const r=await fetch(origin+"/robots.txt",{redirect:"follow",headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)"}});
+   const r=await fetch(origin+"/robots.txt",{redirect:"follow",signal:AbortSignal.timeout(4000),headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)"}});
    txt=r.ok?await r.text():""; robotsCache.set(origin,txt);
   }
   let applies=false; const rules:string[]=[];
@@ -351,10 +351,66 @@ export async function POST(req:NextRequest){
  const body=await req.json().catch(()=>({}));
  const approvedPilotIds=new Set(["1ad3f717-06f1-42ba-8846-d25af5dfe5e0","76ec4683-6660-4f28-9202-8ad95b7fa51d","7807b761-19c4-4985-a037-e0d101b406dd","5f6b8905-b694-4f86-8dd0-13589844610c","780e372c-dcc4-41ea-9984-962e78c27cdf","08cb7422-5392-44c7-9e0e-ecb0dc3ecf01","4fcfa4d1-aee8-4439-a85d-dbc76ca39675","aa8d21bc-9693-4d24-b28f-50aa805cadd3","d0736a10-3714-40ff-9a15-e878a66bde6e","e369965b-0e9a-42c7-afbb-506359ba4c30"]);
  const approvedExpansionIds=new Set(["aa9f860e-1cf3-4259-9af2-b29d2893fb62","3f70500b-0847-4398-8cb3-0e9c93a77cbd","644b79c9-6b52-400d-93d4-f62f03369c9e","6d8b983f-9209-4cdc-9c8d-363d7ea7d112","14adc832-92ce-4771-9ae9-6d06320c7e40","5f863060-16e1-4b29-b67f-e4dcd6dc407d","1d142cd0-9aa7-4354-94bf-ff12c852be4d","699e0f6e-e751-48b1-ab3e-68fddb6ecfbb","30b625a4-cd95-4cd4-a001-cac303ccbc13","818c9f94-30fd-4b0e-a495-ec6858e69c43"]);
- if(!cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true){
+ if(!cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true && body.diagnose_quality!==true){
    const ids=Array.isArray(body.college_ids)?body.college_ids:[];
    const allowed=body.expansion_write===true?approvedExpansionIds:approvedPilotIds;
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
+ }
+
+ // Read-only diagnosis of quality-gate exceptions. Never claim, requeue,
+ // insert, or update coach records from this branch.
+ if(body.diagnose_quality===true){
+   const division=typeof body.division==="string"?body.division:"NCAA D2";
+   if(!["NCAA D1","NCAA D2","NCAA D3","NAIA","JC"].includes(division))
+     return NextResponse.json({error:"Invalid division"},{status:400});
+   const offset=Math.max(0,Math.floor(Number(body.offset)||0));
+   const limit=Math.min(3,Math.max(1,Math.floor(Number(body.limit)||3)));
+   const {data:schools,error:schoolErr}=await supabase.from("colleges")
+     .select("id,name").eq("division",division);
+   if(schoolErr) throw schoolErr;
+   const ids=(schools||[]).map((s:any)=>s.id);
+   if(!ids.length) return NextResponse.json({total:0,offset,processed:0,results:[],next_offset:null});
+   const {data:queue,error:queueErr}=await supabase.from("college_staff_bootstrap_queue")
+     .select("college_id,last_error").in("college_id",ids).eq("status","review")
+     .ilike("last_error","%quality gate%");
+   if(queueErr) throw queueErr;
+   const names=new Map((schools||[]).map((s:any)=>[s.id,s.name]));
+   const ordered=(queue||[]).map((q:any)=>({college_id:q.college_id,name:String(names.get(q.college_id)||"Unknown college")}))
+     .sort((a:any,b:any)=>a.name.localeCompare(b.name));
+   const chosen=ordered.slice(offset,offset+limit);
+   const chosenIds=chosen.map((x:any)=>x.college_id);
+   const {data:sources,error:sourceErr}=chosenIds.length
+     ?await supabase.from("college_softball_sources").select("college_id,staff_url,softball_url").in("college_id",chosenIds)
+     :{data:[],error:null};
+   if(sourceErr) throw sourceErr;
+   const bySource=new Map((sources||[]).map((s:any)=>[s.college_id,s]));
+   const results=await Promise.all(chosen.map(async (school:any)=>{
+     const source:any=bySource.get(school.college_id);
+     const url=source?.staff_url||null;
+     if(!url) return {...school,source_url:null,status:"missing_source",issue:"No official coaching-staff source saved",coaches:[],head_count:0};
+     try{
+       const page=await get(url,8000);
+       let coaches=extract(page.html,page.url);
+       if(school.name==="Mars Hill University"||school.name==="University of Tampa"){
+         const specific=sourceSpecificExtract(page.html,page.url,school.name);
+         if(specific.length>0) coaches=specific;
+       }
+       const headCount=coaches.filter((x:any)=>x.role_category==="head_coach").length;
+       const invalid=coaches.some((x:any)=>!plausibleName(x.first_name+" "+x.last_name));
+       const issue=coaches.length===0?"No coaching staff identified on saved page"
+         :coaches.length>8?"More than eight coaching rows; potential page contamination"
+         :invalid?"Unreliable name detected"
+         :headCount===0?"Head coach not identified on saved page"
+         :"Saved page now passes the primary-source quality gate";
+       return {...school,source_url:page.url,status:headCount>0&&coaches.length<=8&&!invalid?"candidate":"review",
+         issue,head_count:headCount,coaches:coaches.slice(0,12).map((x:any)=>({name:x.first_name+" "+x.last_name,title:x.title,role:x.role_category,has_email:Boolean(x.email),has_bio:Boolean(x.official_bio_url)}))};
+     }catch(e:any){
+       return {...school,source_url:url,status:"fetch_error",issue:e?.message||String(e),coaches:[],head_count:0};
+     }
+   }));
+   return NextResponse.json({division,total:ordered.length,offset,processed:results.length,
+     next_offset:offset+chosen.length<ordered.length?offset+chosen.length:null,results},
+     {headers:{"Cache-Control":"private, no-store"}});
  }
  const profileEnrichment=body.profile_enrichment===true;
  if(profileEnrichment){
