@@ -6,7 +6,7 @@ async function sendFeedback(){
  if(feedbackText.trim().length<3){setFeedbackMsg('Tell us a little more first.');return}
  setFeedbackSending(true);setFeedbackMsg('');
  const {error}=await supabase.rpc('submit_platform_feedback',{
-  p_feedback_type:feedbackType,p_message:feedbackText.trim(),p_page:path,p_role:effectiveRole
+  p_feedback_type:feedbackType,p_message:feedbackText.trim(),p_page:path,p_role:roleLabel
  });
  setFeedbackSending(false);
  if(error){setFeedbackMsg(error.message||'Could not send feedback.');return}
