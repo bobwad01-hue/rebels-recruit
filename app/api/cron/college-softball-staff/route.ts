@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "node:crypto";
+import {createClient as createSessionClient} from "@/lib/supabase-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -287,12 +288,23 @@ export async function POST(req:NextRequest){
  const manualKey=req.headers.get("x-rlt-ingestion-key");
  const cronOk=Boolean(process.env.CRON_SECRET && auth===`Bearer ${process.env.CRON_SECRET}`);
  const manualOk=Boolean(process.env.STAFF_INGESTION_MANUAL_KEY && manualKey===process.env.STAFF_INGESTION_MANUAL_KEY);
- const internalTrigger=req.headers.get("x-vercel-cron")==="1";
- if(!cronOk && !manualOk && !internalTrigger) return NextResponse.json({error:"Unauthorized"},{status:401});
+ // A request header alone is not proof of a trusted cron invocation. Super Owner
+ // interactive cleanup is authenticated through the existing session instead.
+ let ownerOk=false;
+ if(!cronOk && !manualOk && req.headers.get("origin")===new URL(req.url).origin){
+   const session=await createSessionClient();
+   const {data:{user}}=await session.auth.getUser();
+   if(user){
+     const {data:grant}=await supabase.from("platform_roles").select("user_id")
+       .eq("user_id",user.id).eq("role","super_owner").maybeSingle();
+     ownerOk=Boolean(grant);
+   }
+ }
+ if(!cronOk && !manualOk && !ownerOk) return NextResponse.json({error:"Unauthorized"},{status:401});
  const body=await req.json().catch(()=>({}));
  const approvedPilotIds=new Set(["1ad3f717-06f1-42ba-8846-d25af5dfe5e0","76ec4683-6660-4f28-9202-8ad95b7fa51d","7807b761-19c4-4985-a037-e0d101b406dd","5f6b8905-b694-4f86-8dd0-13589844610c","780e372c-dcc4-41ea-9984-962e78c27cdf","08cb7422-5392-44c7-9e0e-ecb0dc3ecf01","4fcfa4d1-aee8-4439-a85d-dbc76ca39675","aa8d21bc-9693-4d24-b28f-50aa805cadd3","d0736a10-3714-40ff-9a15-e878a66bde6e","e369965b-0e9a-42c7-afbb-506359ba4c30"]);
  const approvedExpansionIds=new Set(["aa9f860e-1cf3-4259-9af2-b29d2893fb62","3f70500b-0847-4398-8cb3-0e9c93a77cbd","644b79c9-6b52-400d-93d4-f62f03369c9e","6d8b983f-9209-4cdc-9c8d-363d7ea7d112","14adc832-92ce-4771-9ae9-6d06320c7e40","5f863060-16e1-4b29-b67f-e4dcd6dc407d","1d142cd0-9aa7-4354-94bf-ff12c852be4d","699e0f6e-e751-48b1-ab3e-68fddb6ecfbb","30b625a4-cd95-4cd4-a001-cac303ccbc13","818c9f94-30fd-4b0e-a495-ec6858e69c43"]);
- if(internalTrigger && !cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true){
+ if(!cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true){
    const ids=Array.isArray(body.college_ids)?body.college_ids:[];
    const allowed=body.expansion_write===true?approvedExpansionIds:approvedPilotIds;
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
@@ -387,7 +399,18 @@ export async function POST(req:NextRequest){
  const persistDryRun=body.persist_dry_run===true;
  let colleges:any[]=[];
  if(bootstrap){
-   const {data:queued,error:qErr}=await supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").eq("status","pending").order("updated_at").limit(limit);
+   const division=typeof body.division==="string"?body.division:"";
+   const allowedDivisions=["NCAA D1","NCAA D2","NCAA D3","NAIA","JC"];
+   if(division&&!allowedDivisions.includes(division)) return NextResponse.json({error:"Invalid division"},{status:400});
+   let scopedIds:string[]|null=null;
+   if(division){
+     const {data:scoped,error:scopeError}=await supabase.from("colleges").select("id").eq("division",division);
+     if(scopeError) throw scopeError;
+     scopedIds=(scoped||[]).map((x:any)=>x.id);
+   }
+   let queueQuery=supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").eq("status","pending").order("updated_at");
+   if(scopedIds) queueQuery=queueQuery.in("college_id",scopedIds.length?scopedIds:["00000000-0000-0000-0000-000000000000"]);
+   const {data:queued,error:qErr}=await queueQuery.limit(limit);
    if(qErr) throw qErr;
    const ids=(queued||[]).map((x:any)=>x.college_id);
    if(ids.length){
@@ -429,7 +452,7 @@ export async function POST(req:NextRequest){
    }else{
     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
-   const coaches=extract(page.html,page.url);
+   let coaches=extract(page.html,page.url);
    if((college.name==="Austin Peay State University"||college.name==="University of Florida") && (!coaches.some((x:any)=>x.role_category==="head_coach")||coaches.length===0)){
      let adapted=sourceSpecificExtract(page.html,page.url,college.name);
      // Last-resort, source-specific validation: these records are accepted only when each
@@ -457,6 +480,32 @@ export async function POST(req:NextRequest){
        recovered.push({first_name:m[1].split(/\s+/)[0],last_name:m[1].split(/\s+/).slice(1).join(" "),title:m[2],email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
      }
      coaches.push(...[...new Map(recovered.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()]);
+   }
+   // An accessible page is not necessarily a softball coaching-staff source.
+   // In particular, generic directories, splash pages and player rosters may
+   // be fetched successfully but contain no actual softball head coach.
+   // Before failing the quality gate, try a bounded set of canonical official
+   // coaching routes on the same previously discovered athletics host.
+   if(bootstrap && (coaches.length===0 || coaches.length>8 || !coaches.some((x:any)=>x.role_category==="head_coach"))){
+     const origins=[...new Set([page.url,d.staff_url,d.softball_url,d.athletics_url]
+       .filter(Boolean).map((u:string)=>{try{return new URL(u).origin}catch{return ""}}).filter(Boolean))];
+     const candidates=origins.flatMap(origin=>[
+       origin+"/sports/softball/coaches",
+       origin+"/sports/sball/coaches",
+       origin+"/staff-directory/department/softball",
+       origin+"/staff-directory/softball-department",
+     ]).filter(url=>url!==page.url);
+     // Keep work bounded to avoid runaway requests and Vercel timeouts.
+     for(const alt of [...new Set(candidates)].slice(0,4)){
+       try{
+         const alternative=await get(alt);
+         if(badOfficialUrl(alternative.url)) continue;
+         const extracted=extract(alternative.html,alternative.url);
+         if(extracted.length>=1 && extracted.length<=8 && extracted.some((x:any)=>x.role_category==="head_coach")){
+           page=alternative; d.staff_url=alternative.url; coaches=extracted; break;
+         }
+       }catch{ /* Try the next official candidate; never bypass robots or 403. */ }
+     }
    }
    for(let i=0;i<coaches.length;i++) coaches[i]=await enrichCoachProfile(coaches[i],page.url);
    const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
