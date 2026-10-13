@@ -15,7 +15,7 @@ type TeamAccess = { id: string; name: string; organization_id: string; organizat
 type PendingRequest = { id: string; role: string; status: string; organization_id: string | null; team_ids: string[]; requested_at: string };
 type Account = {
   id: string; full_name: string | null; email: string | null; app_role: string;
-  created_at: string | null; profile_completed_at: string | null;
+  created_at: string | null; profile_completed_at: string | null; last_active_at: string | null;
   account_status: "active" | "suspended"; suspended_at: string | null; suspension_reason: string | null;
   advisor_account_type: string | null; commercial_status: string | null;
   organizations: OrgAccess[]; teams: TeamAccess[]; platform_roles: string[];
@@ -68,6 +68,7 @@ export default function PlatformAccountsPage() {
   const [teamFilter, setTeamFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
+  const [activityFilter, setActivityFilter] = useState("all");
   const [commercialFilter, setCommercialFilter] = useState("all");
   const [sort, setSort] = useState("name_asc");
   const [page, setPage] = useState(1);
@@ -149,6 +150,11 @@ export default function PlatformAccountsPage() {
       if (statusFilter === "incomplete" && a.profile_completed_at) return false;
       if (statusFilter === "pending" && !a.pending_requests.length) return false;
       if (accountFilter !== "all" && a.account_status !== accountFilter) return false;
+      const activityAge = a.last_active_at ? Date.now() - new Date(a.last_active_at).getTime() : null;
+      if (activityFilter === "week" && (activityAge === null || activityAge >= 7 * 86400000)) return false;
+      if (activityFilter === "month" && (activityAge === null || activityAge >= 30 * 86400000)) return false;
+      if (activityFilter === "older" && (activityAge === null || activityAge < 30 * 86400000)) return false;
+      if (activityFilter === "untracked" && activityAge !== null) return false;
       if (commercialFilter !== "all" && (a.commercial_status || "none") !== commercialFilter) return false;
       return true;
     });
@@ -162,6 +168,8 @@ export default function PlatformAccountsPage() {
         case "access_role_asc": return compare(accessRole(a), accessRole(b)) || alpha(a, b);
         case "organization_asc": return compare(a.organizations[0]?.name || "\uffff", b.organizations[0]?.name || "\uffff") || alpha(a, b);
         case "team_asc": return compare(a.teams[0]?.name || "\uffff", b.teams[0]?.name || "\uffff") || alpha(a, b);
+        case "activity_newest": return (a.last_active_at && b.last_active_at ? compare(b.last_active_at, a.last_active_at) : a.last_active_at ? -1 : b.last_active_at ? 1 : 0) || alpha(a, b);
+        case "activity_oldest": return (a.last_active_at && b.last_active_at ? compare(a.last_active_at, b.last_active_at) : a.last_active_at ? -1 : b.last_active_at ? 1 : 0) || alpha(a, b);
         case "newest": return compare(b.created_at || "", a.created_at || "") || alpha(a, b);
         case "oldest": return compare(a.created_at || "", b.created_at || "") || alpha(a, b);
         case "incomplete_first": return Number(Boolean(a.profile_completed_at)) - Number(Boolean(b.profile_completed_at)) || alpha(a, b);
@@ -169,18 +177,18 @@ export default function PlatformAccountsPage() {
       }
     });
     return rows;
-  }, [accounts, search, role, orgFilter, teamFilter, statusFilter, accountFilter, commercialFilter, sort]);
+  }, [accounts, search, role, orgFilter, teamFilter, statusFilter, accountFilter, activityFilter, commercialFilter, sort]);
 
-  useEffect(() => { setPage(1); }, [search, role, orgFilter, teamFilter, statusFilter, accountFilter, commercialFilter, sort]);
+  useEffect(() => { setPage(1); }, [search, role, orgFilter, teamFilter, statusFilter, accountFilter, activityFilter, commercialFilter, sort]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const visible = filtered.slice((Math.min(page, totalPages) - 1) * pageSize, Math.min(page, totalPages) * pageSize);
-  const isFiltered = Boolean(search || role !== "all" || orgFilter !== "all" || teamFilter !== "all" || statusFilter !== "all" || accountFilter !== "all" || commercialFilter !== "all");
+  const isFiltered = Boolean(search || role !== "all" || orgFilter !== "all" || teamFilter !== "all" || statusFilter !== "all" || accountFilter !== "all" || activityFilter !== "all" || commercialFilter !== "all");
   const independentCount = accounts.filter(a => !a.organizations.length).length;
   const pendingCount = accounts.filter(a => a.pending_requests.length).length;
 
   function resetFilters() {
     setSearch(""); setRole("all"); setOrgFilter("all"); setTeamFilter("all");
-    setStatusFilter("all"); setAccountFilter("all"); setCommercialFilter("all"); setSort("name_asc");
+    setStatusFilter("all"); setAccountFilter("all"); setActivityFilter("all"); setCommercialFilter("all"); setSort("name_asc");
   }
   function chooseOrg(id: string, account: Account | null = selected) {
     setChosenOrgId(id);
@@ -316,7 +324,7 @@ export default function PlatformAccountsPage() {
         eyebrow="PLATFORM ADMIN"
         title="Account Directory"
         subtitle="Find and manage RLTNL accounts across every organization, team and independent user."
-        action={<Link href="/platform-admin" className="btn"><ArrowLeft size={16}/>Platform Admin</Link>}
+        action={<div className="flex flex-wrap gap-2"><Link href="/platform-admin/analytics" className="btn btn-red">Usage Analytics</Link><Link href="/platform-admin" className="btn"><ArrowLeft size={16}/>Platform Admin</Link></div>}
       />
       {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
       {notice && <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm font-semibold text-green-800">{notice}</div>}
@@ -374,6 +382,13 @@ export default function PlatformAccountsPage() {
               <option value="suspended">Suspended</option>
             </select>
           </Field>
+          <Field label="Last activity">
+            <select className="input w-full" value={activityFilter} onChange={e => setActivityFilter(e.target.value)}>
+              <option value="all">Any activity</option><option value="week">Active in last 7 days</option>
+              <option value="month">Active in last 30 days</option><option value="older">Inactive 30+ days</option>
+              <option value="untracked">No activity recorded yet</option>
+            </select>
+          </Field>
           <Field label="Commercial status">
             <select className="input w-full" value={commercialFilter} onChange={e => setCommercialFilter(e.target.value)}>
               <option value="all">All commercial statuses</option>
@@ -390,6 +405,7 @@ export default function PlatformAccountsPage() {
                 <option value="email_asc">Email A–Z</option><option value="role_asc">Account type A–Z</option><option value="access_role_asc">Access role A–Z</option>
                 <option value="organization_asc">Organization A–Z</option><option value="team_asc">Team A–Z</option>
                 <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+                <option value="activity_newest">Most recently active</option><option value="activity_oldest">Least recently active</option>
                 <option value="incomplete_first">Incomplete profiles first</option>
               </select>
             </div>
@@ -405,9 +421,9 @@ export default function PlatformAccountsPage() {
         {loading ? <div className="p-8 text-center text-sm text-slate-500">Loading accounts…</div> :
           !filtered.length ? <div className="p-10 text-center"><div className="font-bold">No accounts match these filters.</div><button className="btn mt-4" onClick={resetFilters}>Reset filters</button></div> :
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[940px] text-left text-sm">
+            <table className="w-full min-w-[1120px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr><th className="px-5 py-3">Account</th><th className="px-4 py-3">Account type / roles</th><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Team</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3 text-right">Details</th></tr>
+                <tr><th className="px-5 py-3">Account</th><th className="px-4 py-3">Account type / roles</th><th className="px-4 py-3">Organization</th><th className="px-4 py-3">Team</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3">Last Activity</th><th className="px-4 py-3 text-right">Details</th></tr>
               </thead>
               <tbody className="divide-y">
                 {visible.map(a => <tr key={a.id} className="hover:bg-slate-50/80">
@@ -417,6 +433,7 @@ export default function PlatformAccountsPage() {
                   <td className="px-4 py-4"><div className="max-w-48">{firstTeam(a)}</div>{a.teams.length > 1 && <div className="text-xs text-slate-500">+{a.teams.length - 1} more</div>}</td>
                   <td className="px-4 py-4"><Badge tone={a.account_status === "suspended" ? "amber" : "green"}>{a.account_status === "suspended" ? "Suspended" : "Active"}</Badge></td>
                    <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{dateLabel(a.created_at)}</td>
+                  <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-600" title="Last observed authenticated app usage; not necessarily a recruiting action. Tracking began Oct 13, 2026.">{a.last_active_at ? dateLabel(a.last_active_at) : "Not yet recorded"}</td>
                   <td className="px-4 py-4 text-right"><button className="btn whitespace-nowrap text-xs" onClick={() => openAccount(a)}>View account</button></td>
                 </tr>)}
               </tbody>
@@ -430,7 +447,7 @@ export default function PlatformAccountsPage() {
           </div>
         </div>}
       </section>
-      <p className="text-xs text-slate-500">Independent means no active organization or direct team assignment. Profile completion is not a measure of recent account activity. Legacy global role flags are displayed in account details, not treated as proof of current scoped access.</p>
+      <p className="text-xs text-slate-500">Independent means no active organization or direct team assignment. Last Activity is the latest observed authenticated app usage, not a completed recruiting action. Tracking began Oct 13, 2026, so older usage is not available. Profile completion is not a measure of recent account activity. Legacy global role flags are displayed in account details, not treated as proof of current scoped access.</p>
     </main>
 
     {selected && <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/55" onMouseDown={e => { if (e.target === e.currentTarget && !saving) setSelectedId(""); }}>
@@ -447,6 +464,7 @@ export default function PlatformAccountsPage() {
             <Detail label="Account status"><Badge tone={selected.account_status === "suspended" ? "amber" : "green"}>{selected.account_status === "suspended" ? "Suspended" : "Active"}</Badge></Detail>
             <Detail label="Profile"><Badge tone={selected.profile_completed_at ? "green" : "amber"}>{selected.profile_completed_at ? "Complete" : "Incomplete"}</Badge></Detail>
             <Detail label="Joined">{dateLabel(selected.created_at)}</Detail>
+            <Detail label="Last Activity">{selected.last_active_at ? dateLabel(selected.last_active_at) : "Not yet recorded"}</Detail>
             <Detail label="Last sign-in">{authDetails?.last_sign_in_at ? dateLabel(authDetails.last_sign_in_at) : "Unknown"}</Detail>
             {authDetails?.email && authDetails.email.toLowerCase() !== (selected.email || "").toLowerCase() &&
               <Detail label="Authentication email">{authDetails.email}</Detail>}
