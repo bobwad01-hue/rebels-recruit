@@ -16,7 +16,7 @@ type Exception={college_id:string;name:string;status:string;reason:string;last_e
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
 const errorLabel=(r:string)=>({
-  quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_discovery:'Staff discovery',
+  quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_conflict:'Staff sources conflict',staff_discovery:'Staff discovery',
   softball_discovery:'Softball discovery',not_found:'Broken link',blocked:'Access blocked',other:'Other'
 } as Record<string,string>)[r]||r;
 
