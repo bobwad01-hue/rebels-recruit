@@ -192,7 +192,7 @@ begin
         insert into public.college_coach_contact_reviews
           (coach_id,field_name,observed_values,source_duplicate_coach_ids)
         values (dest.id,field_name,array[preferred_value,original_value],array[src.id])
-        on conflict(coach_id,field_name) do update
+        on conflict on constraint college_coach_contact_reviews_coach_id_field_name_key do update
           set observed_values=excluded.observed_values,
               source_duplicate_coach_ids=excluded.source_duplicate_coach_ids,
               status='pending';
