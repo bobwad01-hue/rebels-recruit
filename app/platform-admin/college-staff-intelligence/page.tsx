@@ -14,6 +14,8 @@ const groups=[
 type Exception={college_id:string;name:string;status:string;reason:string;last_error:string|null;
   attempts:number;updated_at:string;staff_url:string|null;softball_url:string|null};
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
+type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
+  head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
 const errorLabel=(r:string)=>({
   quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_conflict:'Staff sources conflict',source_access:'Source access review',staff_discovery:'Staff discovery',
@@ -33,6 +35,11 @@ export default function Page(){
   const [error,setError]=useState('');
   const [runStats,setRunStats]=useState({processed:0,imported:0,review:0,blocked:0});
   const stop=useRef(false);
+  const diagnoseStop=useRef(false);
+  const [diagnosing,setDiagnosing]=useState(false);
+  const [diagnostics,setDiagnostics]=useState<QualityDiagnostic[]>([]);
+  const [diagnosticTotal,setDiagnosticTotal]=useState(0);
+  const [diagnosticError,setDiagnosticError]=useState('');
 
   const load=useCallback(async()=>{
     try{
@@ -76,8 +83,32 @@ export default function Page(){
     finally{setRunning(false);await load();}
   }
 
+
+  async function diagnoseQuality(){
+    if(division==='all'||running||busy||diagnosing)return;
+    diagnoseStop.current=false;
+    setDiagnosing(true);setDiagnosticError('');setDiagnostics([]);setDiagnosticTotal(0);
+    let offset=0;
+    try{
+      for(let i=0;i<100&&!diagnoseStop.current;i++){
+        const response=await fetch('/api/cron/college-softball-staff',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({diagnose_quality:true,division,offset,limit:3}),cache:'no-store'
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Quality gate inspection failed');
+        if(diagnoseStop.current)break;
+        setDiagnosticTotal(data.total||0);
+        setDiagnostics(prev=>[...prev,...(data.results||[])]);
+        if(data.next_offset===null||data.next_offset===undefined)break;
+        if(data.next_offset<=offset)throw new Error('Inspection did not advance');
+        offset=data.next_offset;
+      }
+    }catch(e){setDiagnosticError(e instanceof Error?e.message:'Could not inspect quality gate sources');}
+    finally{setDiagnosing(false);}
+  }
   async function requeue(){
-    if(division==='all'||running||busy)return;
+    if(division==='all'||running||busy||diagnosing)return;
     setBusy(true);setError('');setMessage('');
     try{
       const response=await fetch('/api/platform/college-staff-intelligence/cleanup',{
@@ -96,6 +127,7 @@ export default function Page(){
   const exceptions=(cleanup?.exceptions||[]).filter(x=>filter==='all'||x.status===filter);
   const shown=expanded?exceptions:exceptions.slice(0,25);
   const reviewCount=cleanup?.summary.review||0;
+  const qualityCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'&&x.reason==='quality').length;
   const pendingCount=cleanup?.summary.pending||0;
   const importedPercent=d?.total?Math.round(d.imported/d.total*100):0;
   return <AppShell><main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8">
@@ -103,8 +135,8 @@ export default function Page(){
       subtitle="Official-source ingestion, coaching staff coverage and cleanup across college softball."/>
     <div className="mt-6 flex items-center gap-3">
       <label htmlFor="division" className="text-xs font-black uppercase text-slate-500">Division</label>
-      <select id="division" className="input w-full max-w-52" value={division} disabled={running||busy}
-        onChange={e=>{setDivision(e.target.value);setD(null);setCleanup(null);setExpanded(false);setMessage('');setError('');}}>
+      <select id="division" className="input w-full max-w-52" value={division} disabled={running||busy||diagnosing}
+        onChange={e=>{diagnoseStop.current=true;setDiagnostics([]);setDiagnosticTotal(0);setDiagnosticError('');setDivision(e.target.value);setD(null);setCleanup(null);setExpanded(false);setMessage('');setError('');}}>
         {opts.map(([v,l])=><option value={v} key={v}>{l}</option>)}
       </select>
       <button type="button" className="btn ml-auto" onClick={()=>void load()} aria-label="Refresh status"><RefreshCw size={16}/>Refresh</button>
@@ -162,22 +194,62 @@ export default function Page(){
               {groups.map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </div>
-          <button type="button" className="btn btn-red" disabled={running||busy||!reviewCount} onClick={()=>void requeue()}>
+          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||!reviewCount} onClick={()=>void requeue()}>
             <Play size={16}/>{busy?'Queuing…':'Retry & process reviews'}
           </button>
-          <button type="button" className="btn" disabled={running||busy||!pendingCount} onClick={()=>void runQueue()}>
+          <button type="button" className="btn" disabled={running||busy||diagnosing||!pendingCount} onClick={()=>void runQueue()}>
             <Play size={16}/>Process {pendingCount} queued
           </button>
           {running&&<button type="button" className="btn" onClick={()=>{stop.current=true;setMessage('Stopping after the current school…')}}>
             <Square size={15}/>Stop after current
           </button>}
         </div>
+        {qualityCount>0&&<div className="mt-4 border-t pt-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="btn" disabled={running||busy||diagnosing} onClick={()=>void diagnoseQuality()}>
+              <RefreshCw size={15}/>{diagnosing?'Inspecting official pages…':'Inspect '+qualityCount+' quality gate cases'}
+            </button>
+            <span className="text-xs text-slate-500">Read-only: checks official pages without importing, changing, or requeuing coach records.</span>
+            {diagnosing&&<button type="button" className="btn" onClick={()=>{diagnoseStop.current=true;}}>Stop inspection</button>}
+          </div>
+          {(diagnosing||diagnostics.length>0)&&<p className="mt-2 text-xs font-semibold text-slate-600">
+            {diagnosing?'Inspecting':'Inspected'} {diagnostics.length} of {diagnosticTotal||qualityCount} schools.
+            {diagnostics.length>0&&' '+diagnostics.filter(x=>x.status==='candidate').length+' currently pass primary-source parsing.'}
+          </p>}
+          {diagnosticError&&<p className="mt-2 text-sm text-red-700" role="alert">{diagnosticError}</p>}
+        </div>}
         {running&&<div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold" role="status">
           <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-600"/> Running cleanup: {runStats.processed} processed, {runStats.imported} imported, {runStats.review} review, {runStats.blocked} blocked.
         </div>}
         {message&&!running&&<div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm" role="status"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/>{message}</div>}
         {error&&<div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert"><AlertCircle size={16} className="mt-0.5 shrink-0"/>{error}</div>}
       </div>
+      {diagnostics.length>0&&<div className="border-b p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h3 className="font-black">Quality gate inspection report</h3>
+            <p className="mt-1 text-xs text-slate-500">Unverified parser preview from the saved official source. A passing preview is not an imported coach.</p>
+          </div>
+          <button type="button" className="btn" onClick={()=>void navigator.clipboard.writeText(
+            diagnostics.map(x=>[x.name,x.status,x.issue,x.source_url||'',x.coaches.map(c=>c.name+' ('+c.title+')').join('; ')].join(' | ')).join('\\n')
+          )}>Copy report</button>
+        </div>
+        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
+          <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>
+            <th className="px-3 py-2">School</th><th className="px-3 py-2">Diagnostic</th>
+            <th className="px-3 py-2">Coach candidates (not imported)</th><th className="px-3 py-2">Source</th>
+          </tr></thead>
+          <tbody className="divide-y">{diagnostics.map(x=><tr key={x.college_id}>
+            <td className="px-3 py-3 font-semibold">{x.name}</td>
+            <td className="px-3 py-3"><div>{x.issue}</div><div className="mt-1 text-xs text-slate-500">{x.head_count} head coach candidates</div></td>
+            <td className="px-3 py-3 text-xs">{x.coaches.length?x.coaches.map(c=>c.name+' ('+c.title+')').join('; '):'None identified'}</td>
+            <td className="px-3 py-3 text-xs">{x.source_url?.startsWith('https://')?
+              <a href={x.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Official source ↗</a>:'No source'}
+              <div className="mt-1"><a href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
+                target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Search Google ↗</a></div>
+            </td>
+          </tr>)}</tbody>
+        </table></div>
+      </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
         <h3 className="font-black">Schools requiring attention</h3>
         <select aria-label="Filter exception status" className="input w-44" value={filter} onChange={e=>{setFilter(e.target.value);setExpanded(false)}}>
