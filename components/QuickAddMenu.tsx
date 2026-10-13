@@ -71,7 +71,7 @@ export default function QuickAddMenu(){
        +(differs(coachForm.instagram,record.instagram_url)?' Suggested Instagram: '+coachForm.instagram.trim():''),
       ...changes
      });
-     if(suggestion.error)throw new Error('The coach was found, but the proposed changes could not be submitted for review: '+suggestion.error.message);
+     if(suggestion.error)throw {message:'The coach was found, but the proposed changes could not be submitted for review: '+suggestion.error.message};
     }
    }
    const schoolRel=await c.from('athlete_colleges').upsert({
