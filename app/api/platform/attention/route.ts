@@ -12,7 +12,7 @@ export async function GET(){
  if(roleError||!role)return NextResponse.json({error:'Super Owner access required'},{status:403});
 
  const pendingFeedback=['open','investigating','waiting_on_user'];
- const [sc,cc,fc,s,c,f]=await Promise.all([
+ const [sc,cc,fc,s,conflictsRecent,f]=await Promise.all([
   c.from('college_coach_update_suggestions').select('id',{count:'exact',head:true}).eq('status','pending'),
   c.from('college_coach_contact_reviews').select('id',{count:'exact',head:true}).eq('status','pending'),
   c.from('support_cases').select('id',{count:'exact',head:true}).not('feedback_type','is',null).in('status',pendingFeedback),
@@ -24,7 +24,7 @@ export async function GET(){
    .not('feedback_type','is',null).in('status',pendingFeedback)
    .order('created_at',{ascending:false}).limit(5)
  ]);
- const errors=[sc.error,cc.error,fc.error,s.error,c.error,f.error].filter(Boolean);
+ const errors=[sc.error,cc.error,fc.error,s.error,conflictsRecent.error,f.error].filter(Boolean);
  if(errors.length)return NextResponse.json({error:'Could not load the platform review queues.'},{status:500});
  const one=(v:any)=>Array.isArray(v)?v[0]:v;
  const coachName=(row:any)=>{
@@ -37,7 +37,7 @@ export async function GET(){
    detail:String(row.suggestion_type||'New coach update').replaceAll('_',' '),
    createdAt:row.created_at,url:'/platform-admin/coach-data-review'
   })),
-  ...(c.data||[]).map((row:any)=>({
+  ...(conflictsRecent.data||[]).map((row:any)=>({
    kind:'contact_conflict',id:String(row.id),title:'Verify contact: '+coachName(row),
    detail:'Conflicting '+String(row.field_name||'contact').replaceAll('_',' '),
    createdAt:row.created_at,url:'/platform-admin/coach-data-review'
