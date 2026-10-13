@@ -44,8 +44,8 @@ BEGIN
   VALUES (v_user, v_now, v_now)
   ON CONFLICT (user_id) DO UPDATE
     SET last_seen_at = EXCLUDED.last_seen_at
-    WHERE public.platform_user_activity.last_seen_at <= v_now - interval '5 minutes'
-       OR (public.platform_user_activity.last_seen_at AT TIME ZONE 'UTC')::date <> v_day
+    WHERE platform_user_activity.last_seen_at <= v_now - interval '5 minutes'
+       OR (platform_user_activity.last_seen_at AT TIME ZONE 'UTC')::date <> v_day
   RETURNING user_id INTO v_recorded;
 
   IF v_recorded IS NULL THEN RETURN; END IF;
