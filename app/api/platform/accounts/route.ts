@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
   try {
     const [
       profiles, organizations, teams, orgMembers, orgRoles, teamRoles,
-      teamMembers, platformRoles, globalRoles, pendingRequests, parentLinks,
+      teamMembers, platformRoles, globalRoles, pendingRequests, parentLinks, activity,
     ] = await Promise.all([
       allRows(() => admin.from("profiles").select("id,full_name,email,app_role,created_at,profile_completed_at,advisor_account_type,commercial_status,account_status,suspended_at,suspension_reason").order("id")),
       allRows(() => admin.from("organizations").select("id,name,branch_name").order("id")),
@@ -78,10 +78,12 @@ export async function GET(req: NextRequest) {
       allRows(() => admin.from("user_roles").select("user_id,role").order("user_id").order("role")),
       allRows(() => admin.from("access_requests").select("id,user_id,role,status,organization_id,team_ids,requested_at").eq("status", "pending").order("id")),
       allRows(() => admin.from("parent_guardian_access").select("parent_user_id,athlete_user_id,status").eq("status", "active").order("parent_user_id").order("athlete_user_id")),
+      allRows(() => admin.from("platform_user_activity").select("user_id,last_seen_at").order("user_id")),
     ]);
 
     const orgById = new Map(organizations.map((o: any) => [o.id, o]));
     const teamById = new Map(teams.map((t: any) => [t.id, t]));
+    const activityById = new Map(activity.map((a: any) => [a.user_id, a.last_seen_at]));
     const accountById = new Map<string, any>();
     const organizationMaps = new Map<string, Map<string, OrganizationAccess>>();
     const teamMaps = new Map<string, Map<string, TeamAccess>>();
@@ -89,7 +91,8 @@ export async function GET(req: NextRequest) {
 
     for (const p of profiles) {
       accountById.set(p.id, {
-        ...p, organizations: [] as OrganizationAccess[], teams: [] as TeamAccess[],
+        ...p, last_active_at: activityById.get(p.id) || null,
+        organizations: [] as OrganizationAccess[], teams: [] as TeamAccess[],
         platform_roles: [] as string[], global_roles: [] as string[],
         pending_requests: [] as any[], linked_athletes: [] as any[],
       });
