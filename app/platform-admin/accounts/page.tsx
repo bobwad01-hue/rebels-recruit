@@ -15,7 +15,7 @@ type TeamAccess = { id: string; name: string; organization_id: string; organizat
 type PendingRequest = { id: string; role: string; status: string; organization_id: string | null; team_ids: string[]; requested_at: string };
 type Account = {
   id: string; full_name: string | null; email: string | null; app_role: string;
-  created_at: string | null; profile_completed_at: string | null; last_active_at: string | null;
+  created_at: string | null; profile_completed_at: string | null; last_active_at: string | null; active_days_7d: number; active_days_30d: number;
   account_status: "active" | "suspended"; suspended_at: string | null; suspension_reason: string | null;
   advisor_account_type: string | null; commercial_status: string | null;
   organizations: OrgAccess[]; teams: TeamAccess[]; platform_roles: string[];
@@ -433,7 +433,7 @@ export default function PlatformAccountsPage() {
                   <td className="px-4 py-4"><div className="max-w-48">{firstTeam(a)}</div>{a.teams.length > 1 && <div className="text-xs text-slate-500">+{a.teams.length - 1} more</div>}</td>
                   <td className="px-4 py-4"><Badge tone={a.account_status === "suspended" ? "amber" : "green"}>{a.account_status === "suspended" ? "Suspended" : "Active"}</Badge></td>
                    <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-500">{dateLabel(a.created_at)}</td>
-                  <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-600" title="Last observed authenticated app usage; not necessarily a recruiting action. Tracking began Oct 13, 2026.">{a.last_active_at ? dateLabel(a.last_active_at) : "Not yet recorded"}</td>
+                  <td className="whitespace-nowrap px-4 py-4 text-xs text-slate-600" title="Last observed authenticated app usage; not necessarily a recruiting action. Tracking began Oct 13, 2026."><div>{a.last_active_at ? dateLabel(a.last_active_at) : "Not yet recorded"}</div><div className="mt-1 text-[11px] text-slate-400">{a.active_days_7d || 0}d / 7 · {a.active_days_30d || 0}d / 30</div></td>
                   <td className="px-4 py-4 text-right"><button className="btn whitespace-nowrap text-xs" onClick={() => openAccount(a)}>View account</button></td>
                 </tr>)}
               </tbody>
@@ -465,6 +465,7 @@ export default function PlatformAccountsPage() {
             <Detail label="Profile"><Badge tone={selected.profile_completed_at ? "green" : "amber"}>{selected.profile_completed_at ? "Complete" : "Incomplete"}</Badge></Detail>
             <Detail label="Joined">{dateLabel(selected.created_at)}</Detail>
             <Detail label="Last Activity">{selected.last_active_at ? dateLabel(selected.last_active_at) : "Not yet recorded"}</Detail>
+            <Detail label="Active days (7 / 30)">{selected.active_days_7d || 0} / {selected.active_days_30d || 0}</Detail>
             <Detail label="Last sign-in">{authDetails?.last_sign_in_at ? dateLabel(authDetails.last_sign_in_at) : "Unknown"}</Detail>
             {authDetails?.email && authDetails.email.toLowerCase() !== (selected.email || "").toLowerCase() &&
               <Detail label="Authentication email">{authDetails.email}</Detail>}
