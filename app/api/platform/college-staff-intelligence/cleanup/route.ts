@@ -8,6 +8,7 @@ const DIVISIONS=["NCAA D1","NCAA D2","NCAA D3","NAIA","JC"];
 const MAX_RETRY_BATCH=10;
 const reason=(s:string|null)=>{
   const x=(s||"").toLowerCase();
+  if(x.includes("institution closed")||x.includes("program discontinued")) return "inactive_program";
   if(x.includes("quality gate")) return "quality";
   if(x.includes("timeout")||x.includes("aborted")) return "timeout";
   if(x.includes("staff page not discovered")) return "staff_discovery";
@@ -81,7 +82,7 @@ export async function POST(req:NextRequest){
     // Bounded batches protect the live app and prevent a single click from
     // dispatching dozens of costly external fetches.
     // Prefer least-attempted schools so persistent failures do not starve the queue.
-    const candidates=rows.filter(r=>r.status==="review"&&(group==="all"||r.reason===group))
+    const candidates=rows.filter(r=>r.status==="review"&&r.reason!=="inactive_program"&&(group==="all"||r.reason===group))
       .sort((a,b)=>(a.attempts||0)-(b.attempts||0)||a.updated_at.localeCompare(b.updated_at));
     const ids=candidates.slice(0,MAX_RETRY_BATCH).map(r=>r.college_id);
     if(!ids.length) return NextResponse.json({requeued:0,division,group},{headers});
