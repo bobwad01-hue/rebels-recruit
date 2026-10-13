@@ -171,7 +171,8 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
 function plausibleName(name:string){
  const n=name.trim().replace(/\s+-\s+/g,"-");
  if(!/^[A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3}$/.test(n)) return false;
- if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book)\b/i.test(n)) return false;
+ if(/\b(Stadium|Field|Center|Complex|Development|Academic|Success|Tryouts?|Tickets?|Roster|Schedule|News|Facilities|Archives?|Parking|Map|Women|Rise|Weather|Line|Full|Bio|View|Recruit|Questionnaire|Media|Almanac|Guide|Record|Book|Classic|Tournament|Invitational|Championship|Showcase|Festival|Season|Series|Roundup|Recap|Preview)\b/i.test(n)) return false;
+ if(/^The\s/i.test(n)) return false; // News/event headings are not person names.
  if(/\b(University|College|Athletics|Softball|Baseball|Basketball|Football|Volleyball|Soccer|Association|Additional|Links?|Camp|Staff|Directory|Department|Sports?|Coach(?:es)?|National|Christian University's)\b/i.test(n)) return false;
  // Reject common navigation/news/template fragments that can look like person names.
  if(/\b(Quick Facts|Graduate Assistantships?|Hired As|Named|Full Bio|View Bio|Recruiting Central|Archived Statistics|Position Social)\b/i.test(n)) return false;
