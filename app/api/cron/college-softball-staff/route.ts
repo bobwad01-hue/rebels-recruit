@@ -237,6 +237,28 @@ function sourceSpecificExtract(html:string,url:string,collegeName:string){
    out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email,phone,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
   }
  }
+ // Official Tusculum directory uses "Surname, Given (Ms.) Job Title ...
+ // Email: ..." entries. Require a direct university email for each row.
+ if(collegeName==="Tusculum University"&&hostname==="web.tusculum.edu"&&pathname==="/directory/"){
+  for(const m of text.matchAll(/\b([A-Z][\p{L}.'’-]+),\s+([A-Z][\p{L}.'’-]+)\s+\((?:Ms|Mr|Dr)\.\)\s+(Head Softball Coach|Assistant Softball Coach)\b([\s\S]{0,360}?)\bEmail:\s*([\w.+-]+@tusculum\.edu)\b/gu)){
+   if(!plausibleName(m[2]+" "+m[1]))continue;
+   const rr=role(m[3]);
+   const phone=m[4].match(/\bDirect Line:\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
+   out.push({first_name:m[2],last_name:m[1],title:m[3],email:m[5].toLowerCase(),phone,
+     x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,
+     is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+  }
+ }
+ // Saint Michael's official roster has a coaching footer without coach cards.
+ if(collegeName==="Saint Michael's College"&&hostname==="smcathletics.com"&&/\/sports\/softball\/roster/i.test(pathname)){
+  const m=text.match(/\bHead Coach:\s*([A-Z][\p{L}.'’-]+\s+[A-Z][\p{L}.'’-]+)\s*\([^)]*\)\s*Assistant Coaches:\s*([\s\S]{0,500}?)(?=Volunteer Assistant Coach:|Manager:|Captains:)/u);
+  if(m){
+   add(m[1],"Head Coach");
+   for(const assistant of m[2].matchAll(/([A-Z][\p{L}.'’-]+\s+[A-Z][\p{L}.'’-]+)\s*\(/gu))add(assistant[1],"Assistant Coach");
+   const volunteer=text.match(/\bVolunteer Assistant Coach:\s*([A-Z][\p{L}.'’-]+\s+[A-Z][\p{L}.'’-]+)/u);
+   if(volunteer)add(volunteer[1],"Volunteer Assistant Coach");
+  }
+ }
  // Narrow adapters for official pages whose rendered templates flatten coach rows.
  // Names/titles still must be present in the fetched official source; nothing is hard-coded as data.
  if(collegeName==="Austin Peay State University" || collegeName==="University of Florida"){
@@ -359,7 +381,7 @@ function parseOfficialStaff(html:string,url:string,collegeName:string){
        x_handle:matched.x_handle,official_bio_url:matched.official_bio_url}:x;
    });
  }
- if(collegeName==="Mars Hill University"||collegeName==="University of Tampa"||collegeName==="Tusculum University"){
+ if(collegeName==="Mars Hill University"||collegeName==="University of Tampa"||collegeName==="Tusculum University"||collegeName==="Saint Michael's College"){
    const specific=sourceSpecificExtract(html,url,collegeName);
    if(specific.length>0&&specific.length<=8&&specific.some((x:any)=>x.role_category==="head_coach"))
      return specific;
