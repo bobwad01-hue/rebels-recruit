@@ -213,24 +213,24 @@ function sourceSpecificExtract(html:string,url:string,collegeName:string){
  // Official university directories sometimes publish staff without a softball-only
  // page. Scope extraction to explicit softball job titles on the university's
  // verified host. Do not infer any name, title, or contact from outside the HTML.
- const hostname=new URL(url).hostname.replace(/^www\\./,"").toLowerCase();
+ const hostname=new URL(url).hostname.replace(/^www\./,"").toLowerCase();
  const pathname=new URL(url).pathname.toLowerCase();
  const isMarsHill=collegeName==="Mars Hill University"&&hostname==="mhu.edu"&&pathname==="/staff-directory/";
  const isTampa=collegeName==="University of Tampa"&&hostname==="ut.edu"&&pathname==="/directory";
  if(isMarsHill||isTampa){
   const pattern=isMarsHill
-   ? /\\b([A-Z][A-Za-z.'’-]+\\s+[A-Z][A-Za-z.'’-]+)\\s+(Head Coach:\\s*Softball|Assistant Softball Coach)\\b/g
-   : /\\b([A-Z][A-Za-z.'’-]+\\s+[A-Z][A-Za-z.'’-]+)\\s+(Head Coach,\\s*Softball|Assistant Coach,\\s*(?:Women's\\s+)?Softball)\\b/g;
+   ? /\b([A-Z][A-Za-z.'’-]+\s+[A-Z][A-Za-z.'’-]+)\s+(Head Coach:\s*Softball|Assistant Softball Coach)\b/g
+   : /\b([A-Z][A-Za-z.'’-]+\s+[A-Z][A-Za-z.'’-]+)\s+(Head Coach,\s*Softball|Assistant Coach,\s*(?:Women's\s+)?Softball)\b/g;
   for(const m of text.matchAll(pattern)){
    const name=m[1],title=m[2];
    if(!plausibleName(name)) continue;
    const next=text.slice((m.index||0)+m[0].length,(m.index||0)+m[0].length+400);
-   const email=next.match(/\\bEmail:\\s*([\\w.+-]+@[\\w.-]+\\.[A-Za-z]{2,})/i)?.[1]?.toLowerCase()||null;
+   const email=next.match(/\bEmail:\s*([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})/i)?.[1]?.toLowerCase()||null;
    // Require a direct university email as individual-row evidence; never borrow
    // the next directory entry's contact information.
    if(!email||!(isMarsHill?email.endsWith("@mhu.edu"):email.endsWith("@ut.edu"))) continue;
-   const phone=next.split(/\\bEmail:/i)[0].match(/\\bPhone:\\s*((?:\\+?1[-.\\s]?)?\\(?\\d{3}\\)?[-.\\s]\\d{3}[-.\\s]\\d{4})/i)?.[1]||null;
-   const rr=role(title),parts=name.split(/\\s+/);
+   const phone=next.split(/\bEmail:/i)[0].match(/\bPhone:\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
+   const rr=role(title),parts=name.split(/\s+/);
    out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email,phone,x_url:null,x_handle:null,official_bio_url:null,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
   }
  }
