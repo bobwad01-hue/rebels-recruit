@@ -4,12 +4,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
-export default function AdvisorInvitationActions({ id }: { id: string }) {
+export default function AdvisorInvitationActions({ id, canAccept }: { id: string; canAccept: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<'active' | 'declined' | null>(null);
   const [error, setError] = useState('');
 
   async function respond(status: 'active' | 'declined') {
+    if (status === 'active' && !canAccept) {
+      setError('This advisor’s name is unavailable. Please refresh before accepting.');
+      return;
+    }
     setBusy(status);
     setError('');
 
@@ -44,7 +48,7 @@ export default function AdvisorInvitationActions({ id }: { id: string }) {
       <button type="button" className="btn" onClick={() => respond('declined')} disabled={busy !== null}>
         {busy === 'declined' ? 'Declining...' : 'Decline'}
       </button>
-      <button type="button" className="btn btn-red" onClick={() => respond('active')} disabled={busy !== null}>
+      <button type="button" className="btn btn-red" onClick={() => respond('active')} disabled={busy !== null || !canAccept}>
         {busy === 'active' ? 'Accepting...' : 'Accept'}
       </button>
       {error && <div className="text-xs text-red-600 self-center max-w-xs">{error}</div>}
