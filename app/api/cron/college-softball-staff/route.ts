@@ -253,12 +253,16 @@ function extract(html:string,url:string){
  const pageText=clean(html);
  const softballSection=pageText.match(/(?:Softball|Softball Coaching Staff)[\s\S]{0,3000}?(?=(?:Baseball|Basketball|Football|Golf|Lacrosse|Soccer|Tennis|Track|Volleyball|Support Staff)\b|$)/i)?.[0]||"";
  // Work from semantic rows/cards first. The fallback fragments handle Sidearm and custom athletics templates.
- const candidates=[
-   ...[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0]),
-   ...[...html.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/gi)].map(m=>m[0]),
-   ...[...html.matchAll(/<article\b[^>]*>[\s\S]*?<\/article>/gi)].map(m=>m[0]),
-   ...html.split(/<\/(?:section|div)>/i)
- ].filter(x=>/coach|coordinator|graduate assistant|director of softball/i.test(clean(x)));
+ // Department filters on Sidearm pages may still include every sport. Never
+ // infer a coach's sport from a large parent div or the page URL.
+ const candidates=(departmentScoped
+   ? [...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0])
+   : [
+     ...[...html.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>/gi)].map(m=>m[0]),
+     ...[...html.matchAll(/<li\b[^>]*>[\s\S]*?<\/li>/gi)].map(m=>m[0]),
+     ...[...html.matchAll(/<article\b[^>]*>[\s\S]*?<\/article>/gi)].map(m=>m[0]),
+     ...html.split(/<\/(?:section|div)>/i)
+   ]).filter(x=>/coach|coordinator|graduate assistant|director of softball/i.test(clean(x)));
  if(broadDirectory&&softballSection){
    for(const m of softballSection.matchAll(/([A-Z][A-Za-z.'’-]+(?:\s+[A-Z][A-Za-z.'’-]+){1,3})\s+(Head Coach|Associate Head Coach|Assistant Coach(?:\s*-\s*Recruiting Coordinator)?)/g)){
      candidates.unshift(`<div>${m[1]} ${m[2]}</div>`);
@@ -268,13 +272,13 @@ function extract(html:string,url:string){
  for(const block of candidates){
   const text=clean(block);
   if(!/coach|coordinator|graduate assistant|director of softball/i.test(text)) continue;
-  if(!dedicated&&!departmentScoped&&!/softball/i.test(text)) continue;
+  if(!dedicated&&!/softball/i.test(text)) continue;
   // A softball-filtered official staff directory is authoritative page context.
   // Broad staff directories still require softball evidence in the individual row.
   if(/\b(strength|conditioning|athletic trainer|sports medicine|communications?|academic|nutrition|dietitian|administrator|sport administrator|video|creative|manager|operations|player development|performance)\b/i.test(text)
      && !/\b(head|associate head|assistant|pitching|hitting)\s+(?:softball\s+)?coach\b|recruit(?:ing|ment) coordinator/i.test(text)) continue;
   if(/\b(baseball|basketball|football|volleyball|soccer|lacrosse|tennis|golf|wrestling|track|cross country|swimming)\b/i.test(text)&&!/softball/i.test(text)) continue;
-  const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,55}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant|(?:[A-Z][A-Za-z.]+(?:\s+[A-Z][A-Za-z.]+){0,5}\s+)?Director\s+of\s+Softball)/i);
+  const titleMatch=text.match(/((?:Associate\s+Head|Head|Assistant|Volunteer\s+Assistant|Graduate\s+Assistant|Pitching|Hitting)[^|,;]{0,65}(?:Softball\s+)?Coach(?:\/[^|,;]{0,35})?|Softball\s+(?:Head\s+Coach|Assistant\s+Coach|Graduate\s+Coaching\s+Assistant)|(?:Recruit(?:ing|ment)|Pitching|Hitting)\s+Coordinator|Graduate\s+Assistant|(?:[A-Z][A-Za-z.]+(?:\s+[A-Z][A-Za-z.]+){0,5}\s+)?Director\s+of\s+Softball)/i);
   if(!titleMatch) continue;
   let title=titleMatch[1].trim()
     .replace(/\s+[\w.+-]+@[\w.-]*(?:\.\w{0,})?.*$/i,"")
