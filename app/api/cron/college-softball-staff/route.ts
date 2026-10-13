@@ -64,9 +64,9 @@ async function allowedByRobots(url:string){
   return !rules.some(rule=>u.pathname.startsWith(rule));
  }catch{return false}
 }
-async function get(url:string){
+async function get(url:string,timeoutMs=FETCH_TIMEOUT_MS){
  if(!(await allowedByRobots(url))) throw new Error("Blocked by robots.txt");
- const r=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(FETCH_TIMEOUT_MS),headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)","accept":"text/html,application/xhtml+xml"}});
+ const r=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(timeoutMs),headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)","accept":"text/html,application/xhtml+xml"}});
  if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
  return {html:await r.text(),url:r.url,status:r.status};
 }
@@ -276,7 +276,7 @@ function profileContact(html:string,url:string){
 async function enrichCoachProfile(c:any,staffUrl:string){
  if(!c.official_bio_url||!sameHost(c.official_bio_url,staffUrl)) return c;
  try{
-   const p=await get(c.official_bio_url);
+   const p=await get(c.official_bio_url,5000);
    if(!sameHost(p.url,staffUrl)) return c;
    const contact=profileContact(p.html,p.url);
    return {...c,email:c.email||contact.email,phone:c.phone||contact.phone,x_url:c.x_url||contact.x_url,x_handle:c.x_handle||contact.x_handle,official_bio_url:p.url,profile_source_hash:hash(p.html)};
@@ -435,6 +435,7 @@ export async function POST(req:NextRequest){
  const queuedAttempt=(id:string)=>queuedAttempts.get(id)||0;
  const results:any[]=[];
  for(const college of colleges||[]){
+  const collegeStartedAt=Date.now();
   try{
    const {data:knownSource}=await supabase.from("college_softball_sources").select("athletics_url,softball_url,staff_url,status").eq("college_id",college.id).maybeSingle();
    let d:any;
@@ -489,12 +490,15 @@ export async function POST(req:NextRequest){
    if(bootstrap && (coaches.length===0 || coaches.length>8 || !coaches.some((x:any)=>x.role_category==="head_coach"))){
      const origins=[...new Set([page.url,d.staff_url,d.softball_url,d.athletics_url]
        .filter(Boolean).map((u:string)=>{try{return new URL(u).origin}catch{return ""}}).filter(Boolean))];
-     const candidates=origins.flatMap(origin=>[
-       origin+"/sports/softball/coaches",
-       origin+"/sports/sball/coaches",
-       origin+"/staff-directory/department/softball",
-       origin+"/staff-directory/softball-department",
-     ]).filter(url=>url!==page.url);
+     const routes=[
+       "/sports/softball/coaches",
+       "/sports/sball/coaches",
+       "/staff-directory/department/softball",
+       "/staff-directory/softball-department",
+     ];
+     // Spread bounded retries across official hosts, not only the first origin.
+     const candidates=routes.flatMap(route=>origins.map(origin=>origin+route))
+       .filter(url=>url!==page.url);
      // Keep work bounded to avoid runaway requests and Vercel timeouts.
      for(const alt of [...new Set(candidates)].slice(0,4)){
        try{
@@ -507,27 +511,61 @@ export async function POST(req:NextRequest){
        }catch{ /* Try the next official candidate; never bypass robots or 403. */ }
      }
    }
-   for(let i=0;i<coaches.length;i++) coaches[i]=await enrichCoachProfile(coaches[i],page.url);
    const suspicious=coaches.length===0||coaches.length>8||coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`))||!coaches.some((x:any)=>x.role_category==="head_coach");
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});
      await supabase.from("college_staff_bootstrap_queue").update({status:"review",attempts:((queuedAttempt(college.id))+1),last_error:"Bootstrap quality gate",updated_at:now}).eq("college_id",college.id);
      results.push({college:college.name,status:"review",staff_url:page.url,coaches:coaches.length,error:"Bootstrap quality gate"}); continue;
    }
+   // Optional contact enrichment cannot rescue a failed identity/role quality gate.
+   // Bound enrichment so it cannot exhaust the serverless worker budget.
+   for(let i=0;i<coaches.length;i++){
+     if(bootstrap && Date.now()-collegeStartedAt>35000) break;
+     coaches[i]=await enrichCoachProfile(coaches[i],page.url);
+   }
    if(!dryRun) await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_success_at:now,last_status:page.status,content_hash:hash(page.html),status:coaches.length?"healthy":"review",updated_at:now});
    for(const c of coaches){
     if(dryRun) continue;
     const confidence=c.email&&c.official_bio_url?0.98:c.email?0.94:c.official_bio_url?0.90:0.75;
     const verificationStatus=confidence>=0.94?"high_confidence":"review";
-    let existing:any=null;
-    if(c.email){
-      const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("email",c.email).maybeSingle(); existing=r.data;
-    } else {
-      const r=await supabase.from("college_coaches").select("id").eq("college_id",college.id).ilike("first_name",c.first_name).ilike("last_name",c.last_name).maybeSingle(); existing=r.data;
+    // Prefer school + name identity over email: addresses can change.
+    // Never replace verified contact fields with weaker or empty bootstrap values.
+    const {data:matches,error:matchErr}=await supabase.from("college_coaches")
+      .select("id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,source_urls,verification_status,verification_confidence,last_verified_at,lifecycle_status,role_category,staff_sort_order,is_recruiting_coordinator")
+      .eq("college_id",college.id).ilike("first_name",c.first_name).ilike("last_name",c.last_name).limit(10);
+    if(matchErr) throw matchErr;
+    const existing=(matches||[]).filter((x:any)=>x.lifecycle_status==="active")
+      .sort((a:any,b:any)=>Number(b.verification_confidence||0)-Number(a.verification_confidence||0))[0]||null;
+    if(!existing&&c.email){
+      const {data:emailMatches,error:emailErr}=await supabase.from("college_coaches")
+        .select("id,first_name,last_name").eq("college_id",college.id).ilike("email",c.email).limit(5);
+      if(emailErr) throw emailErr;
+      if((emailMatches||[]).some((x:any)=>x.first_name.toLowerCase()!==c.first_name.toLowerCase()||x.last_name.toLowerCase()!==c.last_name.toLowerCase())){
+        throw new Error("Conflicting coach identity for an existing email; manual review required");
+      }
     }
     const sources=[...new Set([page.url,c.official_bio_url].filter(Boolean))];
-    const row={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:verificationStatus,official_source_hash:hash(page.html),last_verified_at:null,verification_status:verificationStatus,verification_confidence:confidence,source_urls:sources};
-    delete (row as any).profile_source_hash;
+    const incoming:any={college_id:college.id,...c,official_source_url:page.url,official_source_checked_at:now,official_source_status:verificationStatus,official_source_hash:hash(page.html),last_verified_at:null,verification_status:verificationStatus,verification_confidence:confidence,source_urls:sources};
+    delete incoming.profile_source_hash;
+    const previousConfidence=Number(existing?.verification_confidence||0);
+    const bestStatus=previousConfidence>confidence?(existing.verification_status||verificationStatus):verificationStatus;
+    const row=existing?{
+      ...incoming,
+      title:existing.title||c.title,
+      email:existing.email||c.email,
+      phone:existing.phone||c.phone,
+      x_url:existing.x_url||c.x_url,
+      x_handle:existing.x_handle||c.x_handle,
+      official_bio_url:existing.official_bio_url||c.official_bio_url,
+      role_category:existing.role_category||c.role_category,
+      staff_sort_order:existing.staff_sort_order??c.staff_sort_order,
+      is_recruiting_coordinator:Boolean(existing.is_recruiting_coordinator||c.is_recruiting_coordinator),
+      last_verified_at:existing.last_verified_at,
+      verification_status:bestStatus,
+      official_source_status:bestStatus,
+      verification_confidence:Math.max(previousConfidence,confidence),
+      source_urls:[...new Set([...(existing.source_urls||[]),...sources])]
+    }:incoming;
     const {data:saved,error:saveErr}=existing?.id?await supabase.from("college_coaches").update(row).eq("id",existing.id).select("id").single():await supabase.from("college_coaches").insert(row).select("id").single();
     if(saveErr) throw saveErr;
     await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:c.official_bio_url||page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:c.profile_source_hash||hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v3-profile-enrichment",staff_source_url:page.url,profile_enriched:Boolean(c.official_bio_url)}});
