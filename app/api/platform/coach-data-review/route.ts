@@ -52,15 +52,22 @@ export async function POST(req:Request){const {c,user}=await owner();if(!user)re
   if(!countError&&count===0)await c.from('college_coaches').update({contact_verification_needed:false}).eq('id',review.coach_id);
   return NextResponse.json({ok:true});
  }
- const {data:s}=await c.from('college_coach_update_suggestions').select('*').eq('id',b.id).eq('status','pending').maybeSingle();if(!s)return NextResponse.json({error:'Suggestion not found'},{status:404});
- if(b.decision==='reject'){const {error}=await c.from('college_coach_update_suggestions').update({status:'rejected',reviewed_at:new Date().toISOString(),reviewed_by_user_id:user.id}).eq('id',s.id);return NextResponse.json(error?{error:error.message}:{ok:true},{status:error?500:200})}
- if(b.decision!=='accept')return NextResponse.json({error:'Invalid decision'},{status:400});
- const patch:any={updated_by_user_id:user.id,updated_at:new Date().toISOString(),source_note:'Verified community update approved by RLTNL'};
- if(s.suggestion_type==='contact_update'||s.suggestion_type==='incorrect_info'){if(s.proposed_first_name)patch.first_name=s.proposed_first_name;if(s.proposed_last_name)patch.last_name=s.proposed_last_name;if(s.proposed_email)patch.email=s.proposed_email;if(s.proposed_phone)patch.phone=s.proposed_phone;if(s.proposed_x_url)patch.x_url=s.proposed_x_url;if(s.proposed_title)patch.title=s.proposed_title}
- if(s.suggestion_type==='title_update'&&s.proposed_title)patch.title=s.proposed_title;
- if(s.suggestion_type==='left_program'){patch.lifecycle_status='departed';patch.departed_at=new Date().toISOString().slice(0,10);patch.lifecycle_note=s.details||'Community report verified by RLTNL'}
- if(s.suggestion_type==='retired'){patch.lifecycle_status='retired';patch.departed_at=new Date().toISOString().slice(0,10);patch.lifecycle_note=s.details||'Retirement verified by RLTNL'}
- if(s.suggestion_type==='moved_school'&&s.proposed_college_id){const {data:coach}=await c.from('college_coaches').select('college_id').eq('id',s.coach_id).single();patch.previous_college_id=coach?.college_id||null;patch.college_id=s.proposed_college_id;patch.lifecycle_status='active';patch.departed_at=null;patch.lifecycle_note=s.details||'School move verified by RLTNL'}
- if(!Object.keys(patch).some(k=>!['updated_by_user_id','updated_at','source_note'].includes(k)))return NextResponse.json({error:'Other suggestions require manual investigation before acceptance.'},{status:400});
- const {data:updated,error:u}=await c.from('college_coaches').update(patch).eq('id',s.coach_id).select('id').maybeSingle();if(u)return NextResponse.json({error:u.message},{status:500});if(!updated)return NextResponse.json({error:'Coach record was not updated. Check Super Owner database write permissions. Suggestion remains pending.'},{status:403});
- const {error:r}=await c.from('college_coach_update_suggestions').update({status:'accepted',reviewed_at:new Date().toISOString(),reviewed_by_user_id:user.id}).eq('id',s.id);return NextResponse.json(r?{error:r.message}:{ok:true},{status:r?500:200})}
+ if(!b||typeof b.id!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.id))
+  return NextResponse.json({error:'Invalid suggestion identifier.'},{status:400});
+ if(!['accept','reject'].includes(b.decision))
+  return NextResponse.json({error:'Invalid review decision.'},{status:400});
+ if(b.message!==undefined&&b.message!==null&&typeof b.message!=='string')
+  return NextResponse.json({error:'Invalid message.'},{status:400});
+ if(b.source_url!==undefined&&b.source_url!==null&&typeof b.source_url!=='string')
+  return NextResponse.json({error:'Invalid official source URL.'},{status:400});
+ const {data,error}=await c.rpc('review_college_coach_suggestion_with_message',{
+  p_id:b.id,p_decision:b.decision,p_message:b.message||null,p_source_url:b.source_url||null
+ });
+ if(error){
+  const message=error.message||'Could not review coach submission.';
+  const status=/Super Owner access required/.test(message)?403:/already been reviewed/.test(message)?409:
+   /Suggestion not found/.test(message)?404:/manual investigation|Invalid|must be|Add a message|Official source/.test(message)?400:500;
+  return NextResponse.json({error:message},{status,headers:{'Cache-Control':'private, no-store'}});
+ }
+ return NextResponse.json(data,{headers:{'Cache-Control':'private, no-store'}});
+}
