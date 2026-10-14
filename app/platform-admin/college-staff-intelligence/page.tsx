@@ -309,8 +309,8 @@ export default function Page(){
     }catch(e){setHostError(e instanceof Error?e.message:'Official university link check failed');}
     finally{setHostChecking(false);}
   }
-  async function approveOfficialHost(){
-    if(!verifySchool||!hostEvidence?.verified||!hostConfirmed||hostApproving||hostChecking)return;
+  async function validateSavedStaffSource(){
+    if(!verifySchool||!hostConfirmed||hostApproving)return;
     if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
       setHostError('Wait for the other pipeline task to finish.');return;
     }
@@ -318,14 +318,14 @@ export default function Page(){
     try{
       const response=await fetch('/api/platform/college-staff-intelligence/host-review',{
         method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
-        body:JSON.stringify({action:'approve',college_id:verifySchool.college_id,
-          evidence_url:hostEvidenceUrl,confirmed_approval:true})
+        body:JSON.stringify({action:'validate_saved',college_id:verifySchool.college_id,
+          source_url:activeVerification?.source_url,confirmed_approval:true})
       });
       const data=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(data.error||'Official host approval failed');
+      if(!response.ok)throw new Error(data.error||'Saved coaching source validation could not start');
       setHostApprovalComplete(true);
       setVerifySaved(true);setVerifyResultKind('queued');
-      setVerifyResult('Official athletics domain approved for this school using an independently verified university link. Your saved coaching URL, head coach, and notes are preserved. Running one-school quality recheck…');
+      setVerifyResult('Using your exact saved coaching URL. Running the one-school softball staff quality check…');
       await load();
       // Only this school, never the full ingestion queue.
       try{
@@ -337,22 +337,22 @@ export default function Page(){
         if(!check.ok)throw new Error(checked.error||'Automatic recheck failed');
         const result=(checked.results||[])[0];
         if(result?.status==='ok'){
-          setVerifyResult('Official athletics domain approved. Source passed the coaching quality gates; '+result.coaches+' coaches processed and school imported.');
+          setVerifyResult('Saved coaching page passed the softball staff quality gates; '+result.coaches+' coaches processed and school imported.');
           setVerifyResultKind('success');
         }else if(result){
-          setVerifyResult('Official athletics domain approved and saved. Coaching staff still needs review: '+(result.error||'Quality gate not passed')+'. Use Review Saved Staff to finish without verifying the domain again.');
+          setVerifyResult('Saved coaching page was checked, but staff needs review: '+(result.error||'Quality gate not passed')+'. Review the coaches on the saved page and use the manual fallback if needed.');
           setVerifyResultKind('review');
         }else{
-          setVerifyResult('Official athletics domain approved. The targeted recheck is pending; Process Queued can finish it.');
+          setVerifyResult('Saved coaching page queued for a targeted check; Process Queued can finish it.');
           setVerifyResultKind('queued');
         }
       }catch(e){
-        setVerifyResult('Official athletics domain approved and saved. Targeted recheck did not finish: '+
-          (e instanceof Error?e.message:'Unknown error')+'. Use Process Queued; do not reverify the domain.');
+        setVerifyResult('Saved coaching page queued. Targeted recheck did not finish: '+
+          (e instanceof Error?e.message:'Unknown error')+'. Use Process Queued; the saved URL remains confirmed.');
         setVerifyResultKind('review');
       }
       await load();
-    }catch(e){setHostError(e instanceof Error?e.message:'Official host approval failed');}
+    }catch(e){setHostError(e instanceof Error?e.message:'Saved coaching source validation failed');}
     finally{setHostApproving(false);}
   }
 
@@ -1176,48 +1176,23 @@ export default function Page(){
             {activeVerification.recheck_message&&<p className="mt-1 text-xs">{activeVerification.recheck_message}</p>}
           </div>}
           {needsHostApproval&&!hostEditing&&<section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
-            <h3 className="font-black text-slate-950">Approve this school's official athletics domain</h3>
-            <p className="mt-1 text-slate-700">You already verified the coaching page. RLTNL now needs independent evidence that this athletics domain belongs to {verifySchool.name}. Your saved verification will not be changed.</p>
+            <h3 className="font-black text-slate-950">Validate the saved softball coaching staff</h3>
+            <p className="mt-1 text-slate-700">You have already verified this official coaching page. RLTNL will use this exact URL to check each listed softball coach, their role, and any direct contact details. No other university pages will be searched.</p>
             <div className="mt-3 rounded-lg bg-white p-3">
-              <p className="text-xs font-semibold text-slate-500">Saved coaching page</p>
+              <p className="text-xs font-semibold text-slate-500">Your saved coaching page</p>
               <a className="mt-1 block break-all font-bold text-blue-700 underline" href={activeVerification?.source_url||'#'}
                 target="_blank" rel="noopener noreferrer">{activeVerification?.source_url} <ExternalLink size={12} className="inline"/></a>
             </div>
-            <div className="mt-3">
-              <label htmlFor="host-evidence-url" className="text-xs font-bold text-slate-900">Official university page linking to this athletics site (optional)</label>
-              <input id="host-evidence-url" type="url" className="input mt-1 w-full" value={hostEvidenceUrl}
-                placeholder="Leave blank to search the university’s official pages automatically"
-                disabled={hostChecking||hostApproving}
-                onChange={e=>{setHostEvidenceUrl(e.target.value);setHostEvidence(null);setHostConfirmed(false);setHostError('');}}/>
-              <p className="mt-1 text-xs text-slate-600">RLTNL checks several official university pages automatically. If none works, paste a specific page on the university’s website that directly links to this athletics site.</p>
-            </div>
-            <button type="button" className="btn mt-3" disabled={hostChecking||hostApproving}
-              onClick={()=>void checkHostEvidence()}>
-              <ShieldCheck size={15}/>{hostChecking?'Checking official university website…':'Check official university link'}
-            </button>
-            {hostEvidence&&<div className={'mt-3 rounded-lg border p-3 '+(hostEvidence.verified
-              ?'border-green-200 bg-green-50 text-green-950':'border-amber-200 bg-amber-50 text-amber-950')} role="status">
-              <p className="font-bold">{hostEvidence.verified?'Independent official link found':'Official link not yet confirmed'}</p>
-              <p className="mt-1 text-xs">{hostEvidence.message}</p>
-              <p className="mt-1 text-xs font-medium">Official university pages checked: {hostEvidence.checked_urls.length}</p>
-              {!hostEvidence.verified&&<p className="mt-2 text-xs">RLTNL has not approved this host. You can open <a href={hostEvidence.school_website}
-                target="_blank" rel="noopener noreferrer" className="font-bold underline">the official university website</a>,
-                find its Athletics link, and paste the university-side URL above. Official university Athletics-page redirects are also accepted.</p>}
-              {hostEvidence.verified&&hostEvidence.evidence_url&&hostEvidence.matched_link&&
-                <div className="mt-2 space-y-1 break-all text-xs">
-                  <p>University evidence: <a href={hostEvidence.evidence_url} target="_blank" rel="noopener noreferrer" className="font-bold underline">{hostEvidence.evidence_url}</a></p>
-                  <p>Linked athletics site: <a href={hostEvidence.matched_link} target="_blank" rel="noopener noreferrer" className="font-bold underline">{hostEvidence.matched_link}</a></p>
-                </div>}
-            </div>}
-            {hostEvidence?.verified&&<label className="mt-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-white p-3 text-sm">
+            <label className="mt-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-white p-3 text-sm">
               <input type="checkbox" className="mt-1" checked={hostConfirmed} disabled={hostApproving}
                 onChange={e=>setHostConfirmed(e.target.checked)}/>
-              <span>I approve <strong>{hostEvidence.athletics_host}</strong> as an official athletics host for <strong>{verifySchool.name}</strong> based on the independent university link. This approves the domain, not any coaching identities or contacts.</span>
-            </label>}
+              <span>I confirm this is the official softball coaching page for <strong>{verifySchool.name}</strong> and authorize RLTNL to validate its staff using this saved URL. This does not approve any coach until the identity and quality checks pass.</span>
+            </label>
+            <p className="mt-2 text-xs text-slate-600">If the page blocks automated access or its staff cannot be reliably extracted, RLTNL will flag it for manual coach-by-coach review rather than substitute a different source.</p>
             {hostError&&<p className="mt-3 text-sm font-semibold text-red-700" role="alert">{hostError}</p>}
             <button type="button" className="mt-3 text-xs font-semibold text-slate-600 underline"
-              disabled={hostApproving||hostChecking} onClick={()=>{setHostEditing(true);setHostEvidence(null);setHostConfirmed(false);}}>
-              The saved coaching URL is wrong? Edit source instead
+              disabled={hostApproving} onClick={()=>{setHostEditing(true);setHostConfirmed(false);}}>
+              Saved coaching URL is wrong? Edit source instead
             </button>
           </section>}
           {(!needsHostApproval||hostEditing)&&<>
@@ -1370,19 +1345,15 @@ export default function Page(){
               </>:
             needsHostApproval&&!hostEditing&&!verifySaved?
               <>
-                <p className="mr-auto max-w-64 self-center text-xs font-semibold text-amber-800" role="status">
-                  {hostChecking?'Checking the official university link…':
-                    !hostEvidence?.verified?'Approval locked: an official university link must be confirmed above.':
-                    !hostConfirmed?'Check the approval confirmation above to unlock the button.':
-                    'Independent evidence confirmed. Ready for your approval.'}
+                <p className="mr-auto max-w-64 self-center text-xs font-semibold text-slate-700" role="status">
+                  {hostConfirmed?'Ready to check the saved coaching page.':'Confirm the saved softball coaching URL above to continue.'}
                 </p>
-                <button type="button" className="btn" disabled={hostChecking||hostApproving}
+                <button type="button" className="btn" disabled={hostApproving}
                   onClick={()=>setVerifySchool(null)}>Close</button>
-                {hostEvidence?.verified&&hostConfirmed&&<button type="button" className="btn btn-red"
-                  disabled={hostChecking||hostApproving}
-                  onClick={()=>void approveOfficialHost()}>
-                  <ShieldCheck size={16}/>{hostApproving?'Approving & rechecking…':'Approve official athletics host'}
-                </button>}
+                <button type="button" className="btn btn-red" disabled={hostApproving||!hostConfirmed}
+                  onClick={()=>void validateSavedStaffSource()}>
+                  <ShieldCheck size={16}/>{hostApproving?'Validating saved staff…':'Validate saved softball coaches'}
+                </button>
               </>:
             manualMode&&canManualImport?
               <>
