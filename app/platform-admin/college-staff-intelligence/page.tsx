@@ -481,8 +481,9 @@ export default function Page(){
           <div className="rr-eyebrow">TARGETED CONTACT RECOVERY · ALL DIVISIONS</div>
           <h2 className="mt-1 text-xl font-black">Recover contact exceptions</h2>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            Rechecks only the 26 transient website failures and six athletics-host false positives.
-            The broken SJU bio remains a separate source-review case. The completed 960-profile backfill stays unchanged.
+            Rechecks only the 26 transient website failures and five valid athletics-host false positives.
+            Two source conflicts are held for review, including a broken SJU bio and a Green Bay coach identity discrepancy.
+            The completed 960-profile backfill stays unchanged.
           </p>
         </div>
         {recovery&&<span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold uppercase text-slate-700">
