@@ -620,7 +620,7 @@ export async function POST(req:NextRequest){
      return NextResponse.json({processed:0,pending:pending||0,results:[]});
    }
    const {data:coachRows,error:cErr}=await supabase.from("college_coaches")
-     .select("id,college_id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,official_source_url,source_urls")
+     .select("id,college_id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,official_source_url,source_urls,lifecycle_status")
      .in("id",ids);
    if(cErr)throw cErr;
    const byId=new Map((coachRows||[]).map((x:any)=>[x.id,x]));
@@ -629,11 +629,13 @@ export async function POST(req:NextRequest){
      try{
        if(!coach||!coach.official_bio_url||!coach.official_source_url)
          throw new Error("Coach official bio/source missing");
+       if(coach.lifecycle_status!=="active")
+         throw new Error("Inactive coach excluded from contact backfill");
        const u=new URL(coach.official_bio_url),s=new URL(coach.official_source_url);
        if(u.protocol!=="https:"||s.protocol!=="https:"||u.username||u.password||u.port||
           !sameHost(u.href,s.href)||badOfficialUrl(u.href))
          throw new Error("Coach bio is not on the approved HTTPS athletics host");
-       const p=await get(u.href);
+       const p=await get(u.href,9000);
        if(!p.url.startsWith("https:")||!sameHost(p.url,u.href))
          throw new Error("Coach bio redirected off the approved HTTPS athletics host");
        const sidearm=Boolean(sidearmBioSlug(u.href));
@@ -649,7 +651,7 @@ export async function POST(req:NextRequest){
            origin+"/staff-directory/softball-department",origin+"/staff-directory"];
          for(const alt of alternates){
            try{
-             const d=await get(alt);
+             const d=await get(alt,5000);
              if(!d.url.startsWith("https:")||!sameHost(d.url,s.href))continue;
              const exact=extract(d.html,d.url).find((x:any)=>
                x.first_name.toLowerCase()===coach.first_name.toLowerCase() &&
@@ -665,7 +667,7 @@ export async function POST(req:NextRequest){
        }
        const {data:merged,error:mergeError}=await supabase.rpc("merge_verified_college_coach_contacts",{
          p_coach_id:id,p_email:contact.email,p_phone:contact.phone,
-         p_x_url:contact.x_url,p_x_handle:contact.x_handle,p_source_url:contactSource
+         p_x_url:runId?null:contact.x_url,p_x_handle:runId?null:contact.x_handle,p_source_url:contactSource
        });
        if(mergeError)throw mergeError;
        const addedEmail=merged?.added_email===true,addedPhone=merged?.added_phone===true;
