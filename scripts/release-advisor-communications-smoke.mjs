@@ -145,6 +145,7 @@ const sanitized = safeAttachmentMetadata(metadata);
 assert.equal(sanitized.attachments.length, 2);
 assert.equal(sanitized.attachments[1].size, 60000);
 assert.equal(safeAttachmentMetadata({ urls: [] }).checked, false, 'Legacy rows are unverified');
+assert.equal(safeAttachmentMetadata({ attachments: [{ name: 'unverified.pdf' }] }).attachments.length, 0, 'Never show unverified file names');
 assert.equal(extractGmailAttachmentMetadata(undefined).attachmentMetadataChecked, false);
 
 console.log('Advisor Communications threading, email reader, and attachment metadata smoke tests passed.');
