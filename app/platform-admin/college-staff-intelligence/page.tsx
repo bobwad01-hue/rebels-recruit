@@ -24,6 +24,16 @@ type ContactBackfill={
   progress:{total:number;pending:number;processing:number;enriched:number;no_email:number;
     error:number;blocked:number;added_emails:number;added_phones:number}|null;
 };
+type ContactRecoveryCase={
+  coach_id:string;coach:string;school:string;issue:string;status:string;attempts:number;
+  error:string|null;source_candidate_url:string|null;review_note:string|null;
+  official_bio_url:string|null;added_email:boolean;added_phone:boolean;
+};
+type ContactRecovery={
+  total:number;retry_total:number;pending:number;processing:number;enriched:number;
+  checked:number;error:number;blocked:number;needs_review:number;
+  added_emails:number;added_phones:number;cases:ContactRecoveryCase[];
+};
 type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
   head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
@@ -48,6 +58,11 @@ export default function Page(){
   const [backfillError,setBackfillError]=useState('');
   const backfillStop=useRef(false);
   const backfillRunningRef=useRef(false);
+  const [recovery,setRecovery]=useState<ContactRecovery|null>(null);
+  const [recoveryRunning,setRecoveryRunning]=useState(false);
+  const [recoveryError,setRecoveryError]=useState('');
+  const recoveryRunningRef=useRef(false);
+  const recoveryStop=useRef(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
   const [runStats,setRunStats]=useState({processed:0,imported:0,review:0,blocked:0});
@@ -93,6 +108,18 @@ export default function Page(){
     const timer=window.setInterval(()=>{void loadBackfill().catch(()=>{})},15000);
     return()=>window.clearInterval(timer);
   },[loadBackfill]);
+  const loadRecovery=useCallback(async()=>{
+    const r=await fetch('/api/platform/college-staff-intelligence/contact-recovery',{cache:'no-store'});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(data.error||'Could not load contact recovery');
+    setRecovery(data as ContactRecovery);
+    return data as ContactRecovery;
+  },[]);
+  useEffect(()=>{
+    void loadRecovery().catch(e=>setRecoveryError(e instanceof Error?e.message:'Could not load contact recovery'));
+    const timer=window.setInterval(()=>{void loadRecovery().catch(()=>{})},15000);
+    return()=>window.clearInterval(timer);
+  },[loadRecovery]);
 
   useEffect(()=>{
     if(!verifySchool)return;
@@ -114,7 +141,7 @@ export default function Page(){
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!verifySchool||verifySaving)return;
-    if(running||busy||diagnosing||enriching||backfillRunning){
+    if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
       setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
       return;
     }
@@ -273,7 +300,7 @@ export default function Page(){
   }
 
   async function runContactBackfill(action:'start'|'resume'|'continue'){
-    if(backfillRunningRef.current||running||busy||diagnosing||verifySaving||enriching)return;
+    if(backfillRunningRef.current||running||busy||diagnosing||verifySaving||enriching||recoveryRunning)return;
     backfillRunningRef.current=true;backfillStop.current=false;setBackfillRunning(true);setBackfillError('');
     try{
       const initial=action==='continue'?await loadBackfill():await contactBackfillAction(action);
@@ -308,6 +335,36 @@ export default function Page(){
     try{await contactBackfillAction('pause');}
     catch(e){setBackfillError(e instanceof Error?e.message:'Could not pause backfill');}
   }
+
+  async function runContactRecovery(){
+    if(recoveryRunningRef.current||backfillRunning||running||busy||diagnosing||verifySaving||enriching)return;
+    recoveryRunningRef.current=true;recoveryStop.current=false;
+    setRecoveryRunning(true);setRecoveryError('');
+    try{
+      for(let i=0;i<24&&!recoveryStop.current;i++){
+        const before=await loadRecovery();
+        if(before.pending===0)break;
+        const response=await fetch('/api/cron/college-softball-staff',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({contact_recovery:true,limit:2}),cache:'no-store'
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Contact exception recovery request failed');
+        const current=await loadRecovery();
+        if(current.pending===0)break;
+        if(!data.processed){
+          setRecoveryError('No profile was claimed. The queue is saved; refresh before continuing.');
+          break;
+        }
+        if(i%4===0)await load();
+      }
+      await loadRecovery();await load();
+    }catch(e){
+      setRecoveryError(e instanceof Error?e.message:'Recovery interrupted. Saved progress is safe; retry the remaining profiles.');
+    }finally{recoveryRunningRef.current=false;setRecoveryRunning(false);}
+  }
+  const recoveryReview=(recovery?.cases||[]).filter(x=>['needs_review','error','blocked'].includes(x.status));
+  const recoveryFinished=recovery?recovery.total-recovery.pending-recovery.processing:0;
 
   const exceptions=(cleanup?.exceptions||[]).filter(x=>filter==='all'||x.status===filter);
   const shown=expanded?exceptions:exceptions.slice(0,25);
@@ -416,6 +473,80 @@ export default function Page(){
       </div>
       <p className="mt-3 text-xs text-slate-500">Click Continue Backfill once to process small batches automatically while this page stays open. You can pause, leave, and resume later without losing progress. No new paid background service is required.</p>
       {backfillError&&<p className="mt-3 text-sm text-red-700" role="alert"><AlertCircle size={15} className="mr-2 inline"/>{backfillError}</p>}
+    </section>
+
+    <section className="card mt-6 p-5 sm:p-6" aria-label="Contact exception recovery">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="rr-eyebrow">TARGETED CONTACT RECOVERY · ALL DIVISIONS</div>
+          <h2 className="mt-1 text-xl font-black">Recover contact exceptions</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            Rechecks only the 26 transient website failures and six athletics-host false positives.
+            The broken SJU bio remains a separate source-review case. The completed 960-profile backfill stays unchanged.
+          </p>
+        </div>
+        {recovery&&<span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold uppercase text-slate-700">
+          {recoveryRunning?'Retrying':recovery.pending?'Ready to retry':'Retry pass complete'}
+        </span>}
+      </div>
+      {recovery&&<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{recoveryFinished} / {recovery.total}</div>
+          <div className="text-xs text-slate-500">Classified / processed</div></div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{recovery.enriched}</div>
+          <div className="text-xs text-slate-500">Profiles improved</div></div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{recovery.added_emails} / {recovery.added_phones}</div>
+          <div className="text-xs text-slate-500">New emails / phones</div></div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{recovery.needs_review+recovery.error+recovery.blocked}</div>
+          <div className="text-xs text-slate-500">Unresolved cases</div></div>
+      </div>}
+      {recovery&&<div className="mt-4">
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-600">
+          <span>{recovery.retry_total-recovery.pending-recovery.processing} of {recovery.retry_total} targeted retries finished</span>
+          <span>{recovery.pending} waiting</span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full bg-slate-950 transition-all"
+            style={{width:(recovery.retry_total?Math.round((recovery.retry_total-recovery.pending-recovery.processing)/recovery.retry_total*100):100)+'%'}}/>
+        </div>
+        <p className="mt-2 text-xs text-slate-600">
+          {recovery.checked} rechecked with no new contacts · {recovery.error+recovery.blocked} retry failures · {recovery.needs_review} source review
+        </p>
+      </div>}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {recovery&&recovery.pending>0&&!recoveryRunning&&<button type="button" className="btn btn-red"
+          disabled={backfillRunning||running||busy||diagnosing||verifySaving||enriching}
+          onClick={()=>void runContactRecovery()}><Play size={16}/>Recover {recovery.pending} remaining profiles</button>}
+        {recoveryRunning&&<button type="button" className="btn"
+          onClick={()=>{recoveryStop.current=true;}}><Square size={16}/>Stop after current batch</button>}
+        {recovery&&recovery.pending===0&&recovery.processing===0&&<span className="flex items-center gap-2 text-sm font-bold text-green-700">
+          <CheckCircle2 size={17}/>One-time retry pass finished</span>}
+        <button type="button" className="btn" onClick={()=>void loadRecovery().catch(e=>setRecoveryError(String(e)))}>
+          <RefreshCw size={16}/>Refresh results
+        </button>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Runs two profiles per request while this page stays open. Each failed profile gets at most one targeted retry.
+        Original coach contacts, source verification states, and backfill history are preserved.
+      </p>
+      {recoveryError&&<p className="mt-3 text-sm text-red-700" role="alert"><AlertCircle size={15} className="mr-2 inline"/>{recoveryError}</p>}
+      {recoveryReview.length>0&&<div className="mt-5 border-t pt-4">
+        <h3 className="text-sm font-black">Cases still requiring source review ({recoveryReview.length})</h3>
+        <div className="mt-3 space-y-3">
+          {recoveryReview.map(item=><div key={item.coach_id} className="rounded-xl border border-slate-200 p-3 text-sm">
+            <div className="flex flex-wrap justify-between gap-2">
+              <div className="font-bold">{item.coach} <span className="font-normal text-slate-600">· {item.school}</span></div>
+              <span className="text-xs font-semibold uppercase text-slate-500">{item.issue.replaceAll('_',' ')} · {item.status.replaceAll('_',' ')}</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-600">{item.review_note||item.error||'Official source needs another review.'}</p>
+            <div className="mt-2 flex flex-wrap gap-4 text-xs">
+              {item.official_bio_url&&<a className="font-semibold text-blue-700 underline" href={item.official_bio_url}
+                target="_blank" rel="noopener noreferrer">Original coach bio <ExternalLink size={12} className="inline"/></a>}
+              {item.source_candidate_url&&<a className="font-semibold text-blue-700 underline" href={item.source_candidate_url}
+                target="_blank" rel="noopener noreferrer">Official replacement candidate <ExternalLink size={12} className="inline"/></a>}
+            </div>
+          </div>)}
+        </div>
+      </div>}
     </section>
 
     {division!=='all'&&<section className="card mt-6 overflow-hidden">
