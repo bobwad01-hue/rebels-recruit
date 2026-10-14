@@ -75,7 +75,7 @@ export async function PATCH(request: NextRequest) {
     if (body.status !== previous.status) {
       patch.status = body.status;
       patch.alert_acknowledged_at = now;
-      if (body.status === 'new') patch.alert_dismissed_at = null;
+      if (['new','contacted','demo_scheduled'].includes(body.status)) patch.alert_dismissed_at = null;
       events.push({ event_type: 'status', summary: 'Status: ' + previous.status.replaceAll('_',' ') + ' → ' + body.status.replaceAll('_',' ') });
     }
   }
@@ -94,6 +94,8 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Enter a valid follow-up date.' }, { status: 400, headers: noStore });
     if (value !== previous.follow_up_at) {
       patch.follow_up_at = value;
+      patch.alert_acknowledged_at = null;
+      patch.alert_dismissed_at = null;
       events.push({ event_type: 'follow_up', summary: value ? 'Follow-up scheduled for ' + value : 'Follow-up date cleared' });
     }
   }
