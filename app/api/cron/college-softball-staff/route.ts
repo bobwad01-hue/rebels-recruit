@@ -30,7 +30,7 @@ const abs=(u:string,b:string)=>{try{return new URL(u,b).toString()}catch{return 
 const hash=(s:string)=>crypto.createHash("sha256").update(s).digest("hex");
 
 function role(title:string){
- const t=title.toLowerCase();
+ const t=title.toLowerCase().replace(/\([^)]*\)/g," ").trim();
  const recruiting=/recruit(ing|ment) coordinator/.test(t);
  let category="other_coaching_staff", order=90;
  if(/\b(?:head\s+softball(?:\/[a-z]+)?\s+coach|softball\s+head\s+coach|head\s+coach)\b/.test(t)
@@ -452,6 +452,57 @@ function parseOfficialStaff(html:string,url:string,collegeName:string,anchorId="
  return regular;
 }
 
+
+/**
+ * The read-only inspection and the importer MUST use the same coaching quality
+ * gate. Identical repeated rows can be consolidated, but conflicting identities,
+ * roles, or direct contact fields are held for human review.
+ */
+function assessStaffCandidates(input:any[]){
+ const byName=new Map<string,any>();
+ let conflict:string|null=null;
+ let duplicateRows=0;
+ const keyName=(value:string)=>normalizeCoachName(value).normalize("NFKD")
+   .replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
+ for(const candidate of input){
+   const full=String(candidate.first_name||"")+" "+String(candidate.last_name||"");
+   const key=keyName(full);
+   const previous=byName.get(key);
+   if(!previous){byName.set(key,candidate);continue;}
+   duplicateRows++;
+   if(previous.role_category!==candidate.role_category){
+     conflict??="conflicting coaching roles for "+full.trim();
+     continue;
+   }
+   const changed=(field:string)=>{
+     const a=String(previous[field]||"").trim(),b=String(candidate[field]||"").trim();
+     const normalized=(v:string)=>field==="phone"?v.replace(/\D/g,""):v.toLowerCase();
+     return Boolean(a&&b&&normalized(a)!==normalized(b));
+   };
+   if(["email","phone","x_url"].some(changed)){
+     conflict??="conflicting coach contact evidence for "+full.trim();
+     continue;
+   }
+   // Repeat entries on the same official page do not create repeat coaches.
+   // Preserve the richer source evidence without changing existing DB records.
+   byName.set(key,{...previous,
+     email:previous.email||candidate.email,phone:previous.phone||candidate.phone,
+     x_url:previous.x_url||candidate.x_url,x_handle:previous.x_handle||candidate.x_handle,
+     official_bio_url:previous.official_bio_url||candidate.official_bio_url,
+     title:/softball/i.test(candidate.title||"")&&!/softball/i.test(previous.title||"")
+       ?candidate.title:previous.title});
+ }
+ const coaches=[...byName.values()];
+ const headCount=coaches.filter(c=>c.role_category==="head_coach").length;
+ const invalid=coaches.some(c=>!plausibleName(String(c.first_name||"")+" "+String(c.last_name||"")));
+ const issue=conflict||(coaches.length===0?"no coach rows"
+   :coaches.length>8?"more than eight coach rows"
+   :invalid?"invalid coach name"
+   :headCount===0?"no head coach identified"
+   :headCount>1?"multiple head coaches identified; verify roles before import":null);
+ return {coaches,headCount,issue,duplicateRows};
+}
+
 // A Sidearm bio must identify the exact coach, and contact details must
 // appear in that person's labeled profile header. Do not borrow a generic
 // athletics footer email or phone from elsewhere in the HTML.
@@ -575,22 +626,35 @@ export async function POST(req:NextRequest){
      const url=source?.staff_url||null;
      if(!url) return {...school,source_url:null,status:"missing_source",issue:"No official coaching-staff source saved",coaches:[],head_count:0};
      try{
-       const page=await get(url,8000);
+       let page=await get(url,8000);
        let coaches=parseOfficialStaff(page.html,page.url,school.name,
          sidearmCoachAnchor(source?.staff_navigation_url,page.url));
-       if(school.name==="Mars Hill University"||school.name==="University of Tampa"){
-         const specific=sourceSpecificExtract(page.html,page.url,school.name);
-         if(specific.length>0) coaches=specific;
+       let assessed=assessStaffCandidates(coaches);
+       // A failed saved page may be outdated rather than an absent softball
+       // program. Probe two conventional coaching routes on that SAME official
+       // host, respecting robots and bounded timeouts. No records are changed.
+       if(assessed.issue){
+         const origin=new URL(page.url).origin;
+         for(const path of ["/sports/softball/coaches","/staff-directory/department/softball"]){
+           const alternative=origin+path;
+           if(alternative===page.url)continue;
+           try{
+             const candidatePage=await get(alternative,6000);
+             if(!sameHost(candidatePage.url,page.url)||badOfficialUrl(candidatePage.url))continue;
+             const candidate=assessStaffCandidates(parseOfficialStaff(candidatePage.html,candidatePage.url,school.name));
+             if(!candidate.issue){page=candidatePage;assessed=candidate;break;}
+           }catch{ /* Source still needs human review; do not bypass access controls. */ }
+         }
        }
-       const headCount=coaches.filter((x:any)=>x.role_category==="head_coach").length;
-       const invalid=coaches.some((x:any)=>!plausibleName(x.first_name+" "+x.last_name));
-       const issue=coaches.length===0?"No coaching staff identified on saved page"
-         :coaches.length>8?"More than eight coaching rows; potential page contamination"
-         :invalid?"Unreliable name detected"
-         :headCount===0?"Head coach not identified on saved page"
-         :"Saved page now passes the primary-source quality gate";
-       return {...school,source_url:source?.staff_navigation_url||page.url,status:headCount>0&&coaches.length<=8&&!invalid?"candidate":"review",
-         issue,head_count:headCount,coaches:coaches.slice(0,12).map((x:any)=>({name:x.first_name+" "+x.last_name,title:x.title,role:x.role_category,has_email:Boolean(x.email),has_bio:Boolean(x.official_bio_url)}))};
+       const issue=assessed.issue
+         ?assessed.issue==="no coach rows"?"No coaching staff identified on saved or alternate official pages"
+           :"Quality gate: "+assessed.issue
+         :"Official page passes the coaching identity and head-coach quality gates";
+       const sourceUrl=source?.staff_navigation_url&&source?.staff_url?.split("#")[0]===page.url.split("#")[0]
+         ?source.staff_navigation_url:page.url;
+       return {...school,source_url:sourceUrl,status:assessed.issue?"review":"candidate",
+         issue,head_count:assessed.headCount,duplicate_rows:assessed.duplicateRows,
+         coaches:assessed.coaches.slice(0,12).map((x:any)=>({name:x.first_name+" "+x.last_name,title:x.title,role:x.role_category,has_email:Boolean(x.email),has_bio:Boolean(x.official_bio_url)}))};
      }catch(e:any){
        return {...school,source_url:url,status:"fetch_error",issue:e?.message||String(e),coaches:[],head_count:0};
      }
@@ -835,7 +899,7 @@ export async function POST(req:NextRequest){
    // be fetched successfully but contain no actual softball head coach.
    // Before failing the quality gate, try a bounded set of canonical official
    // coaching routes on the same previously discovered athletics host.
-   if(bootstrap && verification?.outcome!=="verified" && (coaches.length===0 || coaches.length>8 || !coaches.some((x:any)=>x.role_category==="head_coach"))){
+   if(bootstrap && verification?.outcome!=="verified" && Boolean(assessStaffCandidates(coaches).issue)){
      const origins=[...new Set([page.url,d.staff_url,d.softball_url,d.athletics_url]
        .filter(Boolean).map((u:string)=>{try{return new URL(u).origin}catch{return ""}}).filter(Boolean))];
      const routes=[
@@ -853,20 +917,21 @@ export async function POST(req:NextRequest){
          const alternative=await get(alt);
          if(badOfficialUrl(alternative.url)) continue;
          const extracted=parseOfficialStaff(alternative.html,alternative.url,college.name);
-         if(extracted.length>=1 && extracted.length<=8 && extracted.some((x:any)=>x.role_category==="head_coach")){
+         if(!assessStaffCandidates(extracted).issue){
            page=alternative; d.staff_url=alternative.url; coaches=extracted; break;
          }
        }catch{ /* Try the next official candidate; never bypass robots or 403. */ }
      }
    }
-   const headCount=coaches.filter((x:any)=>x.role_category==="head_coach").length;
-   const invalidNames=coaches.some((x:any)=>!plausibleName(`${x.first_name} ${x.last_name}`));
+   const assessed=assessStaffCandidates(coaches);
+   coaches=assessed.coaches;
+   const headCount=assessed.headCount;
    const expectedHead=verification?.outcome==="verified"?String(verification.head_coach_name||"").trim():"";
    const keyName=(value:string)=>normalizeCoachName(value).normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/gi,"").toLowerCase();
    const headMismatch=Boolean(expectedHead&&!coaches.some((x:any)=>
      x.role_category==="head_coach"&&keyName(x.first_name+" "+x.last_name)===keyName(expectedHead)));
-   const suspicious=coaches.length===0||coaches.length>8||invalidNames||headCount===0||headMismatch;
-   const gateReason=coaches.length===0?"no coach rows":coaches.length>8?"more than eight coach rows":invalidNames?"invalid coach name":headCount===0?"no head coach identified":"head coach does not match human-verified name";
+   const suspicious=Boolean(assessed.issue||headMismatch);
+   const gateReason=assessed.issue||"head coach does not match human-verified name";
    const gateMessage=`Bootstrap quality gate: ${gateReason} (${coaches.length} candidates, ${headCount} head coach candidates)`;
    if(bootstrap&&suspicious){
      await supabase.from("college_softball_sources").upsert({college_id:college.id,...d,last_checked_at:now,last_status:page.status,content_hash:hash(page.html),status:"review",updated_at:now});

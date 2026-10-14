@@ -134,14 +134,16 @@ export default function Page(){
     setVerifySchool(school);
     // An inspection is a read-only parser preview, not an approval. Prefill the
     // inspected source to save typing; the Super Owner still opens and confirms it.
-    const candidate=suggestion?.status==='candidate'&&suggestion.source_url?.startsWith('https://')
+    const candidate=suggestion?.source_url?.startsWith('https://')
       ?suggestion.source_url:null;
     const navigation=school.staff_navigation_url;
     const preferred=candidate&&navigation&&candidate.split('#')[0]===navigation.split('#')[0]
       ?navigation:candidate;
     setVerifyUrl(preferred||school.verification?.source_url||navigation||school.staff_url||school.softball_url||'');
     setVerifyOutcome(suggestion?'verified':school.verification?.outcome||'verified');
-    setVerifyHead(school.verification?.head_coach_name||'');
+    const suggestedHeads=suggestion?.coaches.filter(c=>c.role==='head_coach')||[];
+    setVerifyHead(school.verification?.head_coach_name||
+      (suggestedHeads.length===1?suggestedHeads[0].name:''));
     setVerifyNotes(school.verification?.notes||'');
     setVerifyConfirmed(false);setVerifySaved(false);setVerifyError('');setVerifyResult('');
     setVerifyResultKind('queued');
@@ -379,14 +381,20 @@ export default function Page(){
 
   // Keep the guided verification list in sync with live queue status so schools
   // already imported disappear after the successful targeted recheck.
-  const readyQuality=diagnostics.filter(x=>x.status==='candidate'&&x.source_url?.startsWith('https://')
-    &&(cleanup?.exceptions||[]).some(s=>s.college_id===x.college_id&&s.status==='review'));
-  const nextReadyQuality=verifySchool
-    ?readyQuality.find(x=>x.college_id!==verifySchool.college_id):null;
+  const activeQuality=diagnostics.filter(x=>(cleanup?.exceptions||[])
+    .some(s=>s.college_id===x.college_id&&s.status==='review'));
+  const readyQuality=activeQuality.filter(x=>x.status==='candidate'
+    &&[x.source_url,cleanup?.exceptions.find(s=>s.college_id===x.college_id)?.staff_url]
+      .some(url=>url?.startsWith('https://')));
+  const orderedQuality=[...activeQuality].sort((a,b)=>
+    Number(readyQuality.some(x=>x.college_id===b.college_id))
+    -Number(readyQuality.some(x=>x.college_id===a.college_id))
+    ||a.name.localeCompare(b.name));
+  const nextQuality=verifySchool
+    ?orderedQuality.find(x=>x.college_id!==verifySchool.college_id):null;
   function reviewQualitySource(item:QualityDiagnostic){
     const school=cleanup?.exceptions.find(x=>x.college_id===item.college_id&&x.status==='review');
-    if(school&&item.status==='candidate'&&item.source_url?.startsWith('https://'))
-      openVerify(school,item);
+    if(school)openVerify(school,item);
   }
   const exceptions=(cleanup?.exceptions||[]).filter(x=>filter==='all'||x.status===filter);
   const shown=expanded?exceptions:exceptions.slice(0,25);
@@ -397,13 +405,14 @@ export default function Page(){
   return <AppShell><main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 md:px-8">
     <PageHeader eyebrow="PLATFORM ADMIN" title="College Staff Intelligence"
       subtitle="Official-source ingestion, coaching staff coverage and cleanup across college softball."/>
-    <div className="mt-6 flex items-center gap-3">
+    <div className="mt-6 flex flex-wrap items-center gap-3">
       <label htmlFor="division" className="text-xs font-black uppercase text-slate-500">Division</label>
       <select id="division" className="input w-full max-w-52" value={division} disabled={running||busy||diagnosing||verifySaving}
         onChange={e=>{diagnoseStop.current=true;setDiagnostics([]);setDiagnosticTotal(0);setDiagnosticError('');setDivision(e.target.value);setD(null);setCleanup(null);setExpanded(false);setMessage('');setError('');}}>
         {opts.map(([v,l])=><option value={v} key={v}>{l}</option>)}
       </select>
-      <button type="button" className="btn ml-auto" onClick={()=>void load()} aria-label="Refresh status"><RefreshCw size={16}/>Refresh</button>
+      {division!=='all'&&<a href="#college-staff-cleanup" className="btn btn-red ml-auto">Continue {opts.find(x=>x[0]===division)?.[1]} cleanup <ArrowRight size={15}/></a>}
+      <button type="button" className="btn" onClick={()=>void load()} aria-label="Refresh status"><RefreshCw size={16}/>Refresh</button>
     </div>
     {!d?<div className="card mt-4 p-6">Loading…</div>:<>
       <section className="card mt-4 p-5 sm:p-6">
@@ -572,7 +581,7 @@ export default function Page(){
       </div>}
     </section>
 
-    {division!=='all'&&<section className="card mt-6 overflow-hidden">
+    {division!=='all'&&<section id="college-staff-cleanup" className="card mt-6 scroll-mt-6 overflow-hidden">
       <div className="border-b p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><div className="rr-eyebrow">CLEANUP WORKBENCH</div>
@@ -640,30 +649,47 @@ export default function Page(){
             diagnostics.map(x=>[x.name,x.status,x.issue,x.source_url||'',x.coaches.map(c=>c.name+' ('+c.title+')').join('; ')].join(' | ')).join('\\n')
           )}>Copy report</button>
         </div>
-        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>
-            <th className="px-3 py-2">School</th><th className="px-3 py-2">Diagnostic</th>
-            <th className="px-3 py-2">Coach candidates (not imported)</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">Next step</th>
-          </tr></thead>
-          <tbody className="divide-y">{diagnostics.map(x=><tr key={x.college_id}>
-            <td className="px-3 py-3 font-semibold">{x.name}</td>
-            <td className="px-3 py-3"><div>{x.issue}</div><div className="mt-1 text-xs text-slate-500">{x.head_count} head coach candidates</div></td>
-            <td className="px-3 py-3 text-xs">{x.coaches.length?x.coaches.map(c=>c.name+' ('+c.title+')').join('; '):'None identified'}</td>
-            <td className="px-3 py-3 text-xs">{x.source_url?.startsWith('https://')?
-              <a href={x.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Official source ↗</a>:'No source'}
-              <div className="mt-1"><a href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
-                target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Search Google ↗</a></div>
-            </td>
-            <td className="px-3 py-3">
-              {readyQuality.some(ready=>ready.college_id===x.college_id)?
-                <button type="button" className="btn whitespace-nowrap" disabled={running||busy||diagnosing||verifySaving}
-                  onClick={()=>reviewQualitySource(x)}>Review &amp; verify <ArrowRight size={14}/></button>:
-                <span className="text-xs text-slate-500">
-                  {(cleanup?.exceptions||[]).some(s=>s.college_id===x.college_id)?'Needs source investigation':'Already imported'}
-                </span>}
-            </td>
-          </tr>)}</tbody>
-        </table></div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-700">
+          <span className="rounded-lg bg-green-50 px-3 py-2 text-green-800">{readyQuality.length} ready for source verification</span>
+          <span className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{activeQuality.length-readyQuality.length} need investigation</span>
+          <span className="text-slate-500">Reviewable schools first. No coach is imported by inspection.</span>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {[...diagnostics].sort((a,b)=>
+            Number(readyQuality.some(x=>x.college_id===b.college_id))
+            -Number(readyQuality.some(x=>x.college_id===a.college_id))
+            ||a.name.localeCompare(b.name)).map(x=>{
+            const school=cleanup?.exceptions.find(s=>s.college_id===x.college_id&&s.status==='review');
+            const ready=readyQuality.some(s=>s.college_id===x.college_id);
+            return <article key={x.college_id} className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h4 className="font-black text-slate-950">{x.name}</h4>
+                <span className={'rounded-md px-2 py-1 text-[11px] font-bold '+(ready?'bg-green-50 text-green-800':'bg-amber-50 text-amber-900')}>
+                  {ready?'Ready to verify':school?'Needs investigation':'Already imported'}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-slate-600">{x.issue} · {x.head_count} head coach candidate{x.head_count===1?'':'s'}</p>
+              {x.coaches.length>0?<div className="mt-3 space-y-1.5 text-sm text-slate-800">
+                {x.coaches.map((c,i)=><div key={i}><span className="font-semibold">{c.name}</span> <span className="text-slate-500">· {c.title}</span></div>)}
+              </div>:<p className="mt-3 text-sm text-slate-500">No coach candidates. Find a current official coaching page and enter its URL in verification.</p>}
+              <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4 text-xs">
+                {(x.source_url||school?.staff_url)?.startsWith('https://')&&
+                  <a href={x.source_url||school?.staff_url||'#'} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline">
+                    Open official page <ExternalLink size={12} className="inline"/>
+                  </a>}
+                <a href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
+                  target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline">
+                  Find current staff <ExternalLink size={12} className="inline"/>
+                </a>
+              </div>
+              {school&&<button type="button" className={'btn mt-3 w-full justify-center '+(ready?'btn-red':'')}
+                disabled={running||busy||diagnosing||verifySaving}
+                onClick={()=>reviewQualitySource(x)}>
+                <ShieldCheck size={15}/>{ready?'Review & verify source':'Update / verify official source'} <ArrowRight size={14}/>
+              </button>}
+            </article>;
+          })}
+        </div>
       </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
         <div><h3 className="font-black">Schools requiring attention</h3>
@@ -760,9 +786,10 @@ export default function Page(){
               RLTNL keeps this # section link for opening the coaching section. The importer fetches the same page without the # anchor.
             </p>}
           </div>
-          {diagnostics.some(x=>x.college_id===verifySchool.college_id&&x.status==='candidate')&&
+          {diagnostics.some(x=>x.college_id===verifySchool.college_id)&&
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
               <div className="font-bold text-slate-900">Read-only coaching preview · not yet verified</div>
+              <p className="mt-1 text-slate-600">{diagnostics.find(x=>x.college_id===verifySchool.college_id)?.issue}</p>
               <p className="mt-1 text-slate-600">Check the official page yourself. These names were found by the parser, not approved as canonical records.</p>
               <div className="mt-2 space-y-1 text-slate-800">
                 {diagnostics.find(x=>x.college_id===verifySchool.college_id)?.coaches.map((c,i)=>
@@ -786,7 +813,7 @@ export default function Page(){
             <label htmlFor="verify-head" className="mb-1 block text-sm font-bold">Current head coach <span className="font-normal text-slate-500">(optional)</span></label>
             <input id="verify-head" className="input w-full" value={verifyHead} maxLength={120}
               onChange={e=>setVerifyHead(e.target.value)} placeholder="First and last name" disabled={verifySaving||verifySaved}/>
-            <p className="mt-1 text-xs text-slate-500">If entered, the importer must find this head coach on the official page or stop for review.</p>
+            <p className="mt-1 text-xs text-slate-500">A suggested name comes from the unverified preview. Check it on the official page; the importer must match it or stop for review.</p>
           </div>}
           <div>
             <label htmlFor="verify-notes" className="mb-1 block text-sm font-bold">Verification notes <span className="font-normal text-slate-500">(optional)</span></label>
@@ -815,9 +842,9 @@ export default function Page(){
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
             {verifySaved?
               <>
-                {verifyResultKind==='success'&&nextReadyQuality&&
-                  <button type="button" className="btn" onClick={()=>reviewQualitySource(nextReadyQuality)}>
-                    Verify next school <ArrowRight size={15}/>
+                {nextQuality&&
+                  <button type="button" className="btn" onClick={()=>reviewQualitySource(nextQuality)}>
+                    {nextQuality.status==='candidate'?'Verify next school':'Investigate next school'} <ArrowRight size={15}/>
                   </button>}
                 <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
                   onClick={()=>setVerifySchool(null)}>
