@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
 
 type DemoForm = {
-  fullName: string; email: string; organizationName: string;
+  fullName: string; email: string; phone: string; preferredContact: string; organizationName: string;
   organizationType: string; roleTitle: string; teamCount: string;
   message: string; website: string; privacyAccepted: boolean;
 };
 const initial: DemoForm = {
-  fullName: '', email: '', organizationName: '', organizationType: 'travel_club',
+  fullName: '', email: '', phone: '', preferredContact: 'either', organizationName: '', organizationType: 'travel_club',
   roleTitle: '', teamCount: '', message: '', website: '', privacyAccepted: false,
 };
 const inputClass = 'mt-1.5 block w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm text-slate-950 outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-100';
@@ -47,7 +47,7 @@ export default function DemoRequestForm() {
   if (complete) return <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-7 sm:p-9" role="status">
     <CheckCircle2 size={36} className="text-emerald-700"/>
     <h2 className="mt-4 text-2xl font-black text-slate-950">Your request is in.</h2>
-    <p className="mt-3 text-sm leading-7 text-slate-700">Thanks for your interest in RLTNL Recruiting. We've received your information and will use the email you provided to follow up about your organization.</p>
+    <p className="mt-3 text-sm leading-7 text-slate-700">Thanks for your interest in RLTNL Recruiting. We've received your information and will use your preferred contact method to follow up about your organization.</p>
     <Link href="/" className="btn mt-6 bg-white">Return to homepage <ArrowRight size={16}/></Link>
   </div>;
 
@@ -65,6 +65,16 @@ export default function DemoRequestForm() {
       <label className={labelClass}>Email address <span className="text-red-700">*</span>
         <input className={inputClass} name="email" type="email" autoComplete="email" required maxLength={254}
           value={form.email} onChange={e => change('email', e.target.value)} placeholder="you@organization.com"/>
+      </label>
+      <label className={labelClass}>Phone number <span className="font-normal text-slate-500">(optional)</span>
+        <input className={inputClass} name="phone" type="tel" autoComplete="tel" maxLength={30}
+          value={form.phone} onChange={e => change('phone', e.target.value)} placeholder="(555) 555-0123"/>
+      </label>
+      <label className={labelClass}>Preferred contact method <span className="font-normal text-slate-500">(optional)</span>
+        <select className={inputClass} name="preferredContact" value={form.preferredContact}
+          onChange={e => change('preferredContact', e.target.value)}>
+          <option value="either">No preference</option><option value="email">Email</option><option value="phone">Phone</option>
+        </select>
       </label>
       <label className={labelClass}>Organization name <span className="text-red-700">*</span>
         <input className={inputClass} name="organizationName" required minLength={2} maxLength={150}
