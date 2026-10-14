@@ -16,6 +16,7 @@ const workflow = read('supabase/migrations/20261014_03_demo_inquiry_workflow.sql
 const alerts = read('app/api/platform/attention/route.ts');
 const alertUi = read('components/PlatformOwnerAlerts.tsx');
 const adminHome = read('app/platform-admin/page.tsx');
+const shell = read('components/AppShell.tsx');
 const inquiryPage = read('app/platform-admin/inquiries/page.tsx');
 
 assert.match(home, /RLTNL: Relationships lead to the next level\./, 'Approved closing line uses colon');
@@ -61,6 +62,19 @@ assert.match(alerts, /approvals/, 'Surface pending account approvals in platform
 assert.match(alertUi, /Needs Your Attention/, 'Command center prioritizes outstanding work');
 assert.ok(adminHome.indexOf('<PlatformOwnerAlerts variant="home"/>') < adminHome.indexOf('<Metric label="Organizations"'), 'Prioritize owner alerts over platform statistics');
 assert.match(adminHome, /id="pending-approvals"/, 'Deep link to pending approvals');
+assert.match(adminHome, /id="organizations"/, 'Deep link to platform organizations');
+assert.ok(!adminHome.includes('className="btn btn-red">Usage Analytics'), 'Avoid redundant Usage Analytics quick action');
+assert.match(shell, /\['\/platform-admin','Home',Home\]/, 'Platform navigation starts with Home');
+for (const section of ['Demo Inquiries','User Feedback','Account Approvals','Usage Analytics','Coach Data Review','Coach Directory','Pipeline Status','Accounts','Email Templates','Organizations']) {
+  assert.ok(shell.includes("'"+section+"'"), 'Platform sidebar includes '+section);
+}
+assert.match(shell, /const mobileNav=platformContext/, 'Platform navigation works on mobile');
+assert.match(alerts, /workItems/, 'API returns direct outstanding work');
+assert.match(alerts, /alertTotal/, 'Active alert count is separate from outstanding work count');
+assert.match(alertUi, /Outstanding right now/, 'Home lists specific pending items');
+assert.match(alertUi, /href=\{item.url\}/, 'Home opens the exact pending item');
+assert.match(alertUi, /data\.counts\[key\]>0/, 'Highlight actionable categories');
+
 assert.match(form, /required/, 'Browser validates required fields');
 assert.match(form, /role="alert"/, 'Form errors are accessible');
 assert.match(form, /Request a demo/, 'Demo request CTA present');
