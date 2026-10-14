@@ -36,6 +36,7 @@ export default function Page(){
   const [expanded,setExpanded]=useState(false);
   const [running,setRunning]=useState(false);
   const [busy,setBusy]=useState(false);
+  const [enriching,setEnriching]=useState(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
   const [runStats,setRunStats]=useState({processed:0,imported:0,review:0,blocked:0});
@@ -90,7 +91,7 @@ export default function Page(){
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!verifySchool||verifySaving)return;
-    if(running||busy||diagnosing){
+    if(running||busy||diagnosing||enriching){
       setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
       return;
     }
@@ -173,6 +174,28 @@ export default function Page(){
     finally{setRunning(false);await load();}
   }
 
+
+  async function enrichCoachContacts(){
+    if(running||busy||diagnosing||verifySaving||enriching)return;
+    setEnriching(true);setError('');setMessage('Checking queued individual coach bios for missing contact details…');
+    try{
+      const response=await fetch('/api/cron/college-softball-staff',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({profile_enrichment:true,limit:10}),cache:'no-store'
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Coach contact enrichment failed');
+      const results=Array.isArray(data.results)?data.results:[];
+      const enriched=results.filter((x:{status:string})=>x.status==='enriched').length;
+      const missing=results.filter((x:{status:string})=>x.status==='no_email').length;
+      const failed=results.filter((x:{status:string})=>x.status==='error'||x.status==='blocked').length;
+      setMessage(data.processed
+        ?'Contact-only check complete: '+enriched+' coach profiles enriched, '+missing+' without published email, '+failed+' need review. '+(data.pending||0)+' still queued. Existing contact fields were preserved.'
+        :'No coach profiles are currently queued for contact enrichment.');
+      await load();
+    }catch(e){setError(e instanceof Error?e.message:'Could not enrich coach contacts');}
+    finally{setEnriching(false);}
+  }
 
   async function diagnoseQuality(){
     if(division==='all'||running||busy||diagnosing)return;
@@ -289,6 +312,9 @@ export default function Page(){
           </button>
           <button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||!pendingCount} onClick={()=>void runQueue()}>
             <Play size={16}/>Process {pendingCount} queued
+          </button>
+          <button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||enriching} onClick={()=>void enrichCoachContacts()}>
+            <RefreshCw size={16}/>{enriching?'Checking coach bios…':'Enrich coach contacts'}
           </button>
           {running&&<button type="button" className="btn" onClick={()=>{stop.current=true;setMessage('Stopping after the current school…')}}>
             <Square size={15}/>Stop after current
