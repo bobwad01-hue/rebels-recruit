@@ -456,9 +456,11 @@ function sidearmProfileContact(html:string,url:string,firstName:string,lastName:
  const fullName=firstName+" "+lastName;
  if(sidearmBioSlug(url)!==sidearmNameSlug(fullName))return null;
  const text=clean(html);
- const re=new RegExp(fullName.replace(/[.*+?^$()|[\]\\{}]/g,"\\function profileContact(html:string,url:string,firstName:string,lastName:string){"),"gi");
- for(const match of text.matchAll(re)){
-   const nearby=text.slice(match.index||0,(match.index||0)+2200);
+ const lowerText=text.toLowerCase(),lowerName=fullName.toLowerCase();
+ let at=0;
+ while((at=lowerText.indexOf(lowerName,at))!==-1){
+   const nearby=text.slice(at,at+2200);
+   at+=lowerName.length;
    if(!/\bTITLE\s*:/i.test(nearby.slice(0,500)))continue;
    const email=nearby.match(/\bE-?MAIL\s*:\s*([\w.+-]+@[\w.-]+\.[a-z]{2,})\b/i)?.[1]?.toLowerCase()||null;
    const phone=nearby.match(/\bPHONE\s*:\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
