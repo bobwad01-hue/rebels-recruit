@@ -77,7 +77,7 @@ function staffFromSavedNotes(notes:string):ManualCoach[]{
 
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
 const errorLabel=(r:string)=>({
-  quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_conflict:'Staff sources conflict',source_access:'Source access review',staff_discovery:'Staff discovery',
+  quality:'Quality gate',timeout:'Timeout',inactive_program:'Program inactive / discontinued',future_program:'2027–28 relaunch',staff_conflict:'Staff sources conflict',source_access:'Source access review',staff_discovery:'Staff discovery',
   softball_discovery:'Softball discovery',not_found:'Broken link',blocked:'Access blocked',
   manual_verification:'Manual verification',other:'Other'
 } as Record<string,string>)[r]||r;
@@ -251,7 +251,9 @@ export default function Page(){
       setVerifyResultKind(saved.recheck_status==='host_review'||saved.recheck_status==='needs_review'?'review':'queued');
       if(saved.recheck_status==='needs_review'&&manualOnly){
         const fromNotes=staffFromSavedNotes(verifyNotes);
-        if(fromNotes.length)setManualCoaches(fromNotes);
+        setManualCoaches(fromNotes.length?fromNotes:[
+          {name:verifyHead.trim(),title:'Head Softball Coach',role:'head_coach',email:''}
+        ]);
         setManualMode(true);setManualConfirmed(false);
       }
       await load();
@@ -632,9 +634,9 @@ export default function Page(){
   const accessBlockedSchools=(cleanup?.exceptions||[]).filter(x=>
     x.status==='blocked'&&x.reason==='blocked');
   const inactiveBlockedSchools=(cleanup?.exceptions||[]).filter(x=>
-    x.status==='blocked'&&x.reason==='inactive_program');
+    x.status==='blocked'&&['inactive_program','future_program'].includes(x.reason));
   const otherBlockedSchools=(cleanup?.exceptions||[]).filter(x=>
-    x.status==='blocked'&&x.reason!=='blocked'&&x.reason!=='inactive_program');
+    x.status==='blocked'&&x.reason!=='blocked'&&!['inactive_program','future_program'].includes(x.reason));
   const liveVerifySchool=cleanup?.exceptions.find(x=>x.college_id===verifySchool?.college_id)||verifySchool;
   const liveAccessBlocked=Boolean(liveVerifySchool?.status==='blocked'&&liveVerifySchool.reason==='blocked');
   const timeoutCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'&&x.reason==='timeout').length;
@@ -872,9 +874,10 @@ export default function Page(){
               {groups.map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </div>}
-          {reviewCount>0&&<button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||!retryEligibleCount} onClick={()=>void requeue()}>
+          {reviewCount>0&&retryEligibleCount>0&&<button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving} onClick={()=>void requeue()}>
             <Play size={16}/>{busy?'Queuing…':group==='all'?'Retry & process reviews':'Retry up to '+Math.min(10,retryEligibleCount)+' '+(groups.find(x=>x[0]===group)?.[1]||'reviews').toLowerCase()}
           </button>}
+          {reviewCount>0&&retryEligibleCount===0&&<span className="self-center text-xs font-semibold text-amber-800">Manual review only · no automatic retries</span>}
           {(pendingCount>0||reviewCount>0)&&<button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||!pendingCount} onClick={()=>void runQueue()}>
             <Play size={16}/>Process {pendingCount} queued
           </button>}

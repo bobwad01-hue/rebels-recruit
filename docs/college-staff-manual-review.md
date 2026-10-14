@@ -14,6 +14,9 @@ Supported recruiting divisions: NCAA D1, NCAA D2, NCAA D3, NAIA, and JC (JUCO). 
 ## Division rollout
 The same UI, verification endpoint, trusted-host approval, and manual staff import procedure apply to NCAA D3, NAIA and JC as soon as their college staff bootstrap queues are initialized. No D3/NAIA/JC batch processing is initiated by this fallback feature.
 
+## Future program hold
+Sonoma State University officially announced NCAA D2 softball will return for the 2027–28 season after its 2025 athletics shutdown (https://news.sonoma.edu/articles/2026/athletics-launch-fall-2027). Its queue stays blocked as a future-program hold until current coaching appointments can be independently verified. Do not import historical 2025 coaches as current.
+
 ## Outstanding cross-division coach source reviews
 These are independent of the college bootstrap review count and must remain visible even when D2 shows zero review schools:
 - **Kayla Tauber — Saint Joseph's University (NCAA D1)**: original official bio link is broken; a broken link alone is not evidence of departure. Verify current official softball staff.

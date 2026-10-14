@@ -8,6 +8,7 @@ const DIVISIONS=["NCAA D1","NCAA D2","NCAA D3","NAIA","JC"];
 const MAX_RETRY_BATCH=10;
 const reason=(s:string|null)=>{
   const x=(s||"").toLowerCase();
+  if(x.includes("program launch pending")) return "future_program";
   if(x.includes("institution closed")||x.includes("program discontinued")||x.includes("softball program reported inactive")) return "inactive_program";
   if(x.includes("manual verification:")) return "manual_verification";
   if(x.includes("official source access needs manual verification")) return "source_access";
