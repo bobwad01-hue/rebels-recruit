@@ -46,7 +46,7 @@ export async function GET(req:NextRequest){
     });
     const count=(s:string)=>queue.filter(x=>x.status===s).length;
     return NextResponse.json({
-      total:queue.length,retry_total:queue.filter(x=>x.issue_kind!=="broken_link").length,
+      total:queue.length,retry_total:queue.filter(x=>x.issue_kind!=="broken_link"&&x.status!=="needs_review").length,
       pending:count("pending"),processing:count("processing"),
       enriched:count("enriched"),checked:count("checked"),
       error:count("error"),blocked:count("blocked"),needs_review:count("needs_review"),
