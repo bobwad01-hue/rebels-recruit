@@ -99,7 +99,9 @@ export default function Page(){
       });
       const saved=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(saved.error||'Could not save source verification');
-      setVerifyResult(saved.message||'Verification saved.');
+      if(typeof saved.source_url==='string')setVerifyUrl(saved.source_url);
+      setVerifyResult((saved.anchor_removed?'Page-jump anchor removed automatically. ':'')+
+        (saved.message||'Verification saved.'));
       setVerifyResultKind(saved.recheck_status==='host_review'?'review':'queued');
       await load();
       if(saved.should_recheck){
@@ -419,6 +421,9 @@ export default function Page(){
                 target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-blue-700 underline">
                 Find official page <ExternalLink size={12}/></a>
             </div>
+            {verifyUrl.includes('#')&&<p className="mt-2 text-xs text-slate-600">
+              The # section link is a browser-only jump. RLTNL will automatically remove it when saving the official source URL.
+            </p>}
           </div>
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm font-bold">What did you find?</legend>
