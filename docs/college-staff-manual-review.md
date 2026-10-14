@@ -17,14 +17,14 @@ The same UI, verification endpoint, trusted-host approval, and manual staff impo
 ## Future program hold
 Sonoma State University officially announced NCAA D2 softball will return for the 2027–28 season after its 2025 athletics shutdown (https://news.sonoma.edu/articles/2026/athletics-launch-fall-2027). Its queue stays blocked as a future-program hold until current coaching appointments can be independently verified. Do not import historical 2025 coaches as current.
 
-## Outstanding cross-division coach source reviews
-These are independent of the college bootstrap review count and must remain visible even when D2 shows zero review schools:
-- **Kayla Tauber — Saint Joseph's University (NCAA D1)**: original official bio link is broken; a broken link alone is not evidence of departure. Verify current official softball staff.
-- **Jenna Redders — University of Wisconsin–Green Bay (NCAA D1)**: identity conflict with current coaching roster; athlete roster evidence must not be treated as coaching evidence. Verify current official staff before changing identity, role, or contact information.
+## Cross-division coach source reviews — resolved 2026-10-14
+The platform owner confirmed both cases; live records and review status were updated with audit entries. These are direct owner confirmations, not independent website verification.
+- **Kayla Tauber — Saint Joseph's University (NCAA D1)**: no longer on softball staff. Marked departed, source verification stale, departure date unknown. Historical data preserved. Source-review status checked.
+- **Jenna Redders — University of Wisconsin–Green Bay (NCAA D1)**: confirmed current Graduate Assistant with email reddersj@uwgb.edu. Existing role and email were correct; owner confirmation recorded. Source-review status checked.
 
-Both remain in `college_coach_contact_recovery_queue` with status `needs_review`. Do not auto-replace, auto-close, or overwrite either coach based on a broken biography or athlete roster.
+**Unresolved source reviews: 0** in production as of 2026-10-14. Keep dynamic source-review display for future cases.
 
 ## Existing completed work
 - One-time 960-coach contact backfill: completed; do not rerun.
-- Targeted contact recovery pass: completed; the two unresolved source-review cases remain open.
+- Targeted contact recovery pass: completed; both source-review cases resolved by owner confirmation on 2026-10-14.
 - Paine College: excluded from supported divisions (NCCAA-only) with source history preserved.
