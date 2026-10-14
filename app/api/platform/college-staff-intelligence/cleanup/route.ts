@@ -42,7 +42,7 @@ async function load(admin:ReturnType<typeof createAdminClient>,division:string){
     admin.from("college_staff_bootstrap_queue")
       .select("college_id,status,last_error,attempts,updated_at").in("college_id",ids),
     admin.from("college_softball_sources")
-      .select("college_id,staff_url,softball_url").in("college_id",ids),
+      .select("college_id,staff_url,staff_navigation_url,softball_url").in("college_id",ids),
     admin.from("college_staff_source_verifications")
       .select("college_id,outcome,source_url,head_coach_name,notes,verified_by_user_id,verified_at,recheck_status,recheck_message,rechecked_at")
       .in("college_id",ids)
@@ -56,7 +56,9 @@ async function load(admin:ReturnType<typeof createAdminClient>,division:string){
     const source=bySource.get(q.college_id);
     return {college_id:q.college_id,name:school?.name||"Unknown college",status:q.status,
       reason:reason(q.last_error),last_error:q.last_error,attempts:q.attempts,
-      updated_at:q.updated_at,staff_url:source?.staff_url||null,softball_url:source?.softball_url||null,
+      updated_at:q.updated_at,staff_url:source?.staff_url||null,
+      staff_navigation_url:source?.staff_navigation_url||null,
+      softball_url:source?.softball_url||null,
       verification:byVerification.get(q.college_id)||null};
   }).sort((a,b)=>a.name.localeCompare(b.name));
 }
