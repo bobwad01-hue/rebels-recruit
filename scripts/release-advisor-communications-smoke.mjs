@@ -111,6 +111,7 @@ assert.ok(!formatted.signature.includes('[cid:'), 'Hide inline CID markup in cle
 assert.ok(formatted.signature.includes('coach@example.edu'), 'Keep email contact');
 assert.ok(!formatted.signature.includes('mailto:'), 'Remove duplicated mailto markup');
 assert.ok(formatted.signature.includes('https://example.edu/sports/softball'), 'Keep web links');
+assert.equal(formatRecruitingEmail('Camps<https://example.edu/camp><https://example.edu/camp>').message, 'Camps — https://example.edu/camp', 'Deduplicate Outlook links');
 assert.equal(formatted.attachmentMentioned, true, 'Flag mentioned but unverified attachments');
 assert.ok(rawCoachEmail.includes('[cid:'), 'Saved original text remains intact');
 
