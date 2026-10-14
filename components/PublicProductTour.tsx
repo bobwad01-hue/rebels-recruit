@@ -122,18 +122,12 @@ export default function PublicProductTour() {
       </button>)}
     </div>
     <div id="rltnl-product-tour-panel" role="tabpanel" className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-[0_20px_70px_-35px_rgba(15,23,42,.3)]">
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3">
-        <div className="flex gap-1.5" aria-hidden="true"><span className="h-2 w-2 rounded-full bg-slate-300"/><span className="h-2 w-2 rounded-full bg-slate-300"/><span className="h-2 w-2 rounded-full bg-slate-300"/></div>
-        <span className="text-[10px] font-black uppercase tracking-[.16em] text-slate-500">RLTNL Recruiting · Product walkthrough</span>
-        <span className="w-8"/>
-      </div>
       <div className="flex"><PreviewSidebar tab={tab}/><div className="min-w-0 flex-1 p-4 sm:p-6">
-        <div className="mb-4 flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-red-700">{heading[0]}</p><h3 className="mt-1 text-lg font-black tracking-tight text-slate-950 sm:text-xl">{heading[1]}</h3></div><span className="hidden rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-slate-500 sm:block">Sample data</span></div>
+        <div className="mb-4 flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-[.14em] text-red-700">{heading[0]}</p><h3 className="mt-1 text-lg font-black tracking-tight text-slate-950 sm:text-xl">{heading[1]}</h3></div></div>
         {tab==='athlete'?<AthleteScreen/>:tab==='connections'?<ConnectionsScreen/>:tab==='advisor'?<AdvisorScreen/>:<OrganizationScreen/>}
       </div></div>
     </div>
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <p className="max-w-2xl text-xs leading-5 text-slate-500">Interactive, anonymized walkthrough based on RLTNL's actual feature layouts. Sample names and numbers; not a live account or a screenshot.</p>
+    <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
       <Link href="/demo" className="inline-flex items-center gap-1.5 text-sm font-black text-red-700 hover:underline">See it with your organization <ChevronRight size={16}/></Link>
     </div>
   </div>;
