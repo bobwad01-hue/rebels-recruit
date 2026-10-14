@@ -117,7 +117,7 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
     {accepting&&(!notify||!body.trim())&&<div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-4">
      <div className="flex items-center gap-2 text-sm font-black text-green-800"><CheckCircle2 size={17}/>Automatic RLTNL Support confirmation</div>
      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{automaticMessage}</p>
-     <p className="mt-2 text-xs text-slate-600">Sent automatically after approval, unless you write a personal message above.</p>
+     <p className="mt-2 text-xs text-slate-600">Sent automatically after approval unless you write a personal message.</p>
     </div>}
     {notify&&<div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
      <label className="block text-xs font-bold">{accepting?'Personal message (replaces the automatic confirmation)':'Message'} to {recipient}
