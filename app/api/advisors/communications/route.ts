@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
+import type { AdvisorMessage } from '@/lib/advisor-communication-threads';
 
 export const dynamic = 'force-dynamic';
 const DEFAULTS = {
@@ -37,11 +38,11 @@ export async function GET() {
   const [pr, ir, gr] = await Promise.all([
     db.from('profiles').select('id,full_name').in('id', ids),
     db.from('interactions')
-      .select('id,athlete_user_id,actor_user_id,coach_id,college_id,type,date,created_at,source,email_subject,email_content,note,initiated_by')
+      .select('id,athlete_user_id,actor_user_id,coach_id,college_id,type,date,created_at,source,email_subject,email_content,note,initiated_by,gmail_thread_id,gmail_message_id,gmail_sender_email')
       .in('athlete_user_id', ids).in('type', ['Email Sent', 'Email Received'])
       .order('created_at', { ascending: false }).limit(350),
     db.from('gmail_recruiting_messages')
-      .select('id,interaction_id,athlete_user_id,coach_id,college_id,received_at,subject,summary,action_required,next_action,action_state,reviewed_at,recruiting_intent')
+      .select('id,interaction_id,athlete_user_id,coach_id,college_id,received_at,subject,summary,action_required,next_action,action_state,action_decision,reviewed_at,recruiting_intent,gmail_thread_id,gmail_message_id')
       .in('athlete_user_id', ids).order('received_at', { ascending: false }).limit(350),
   ]);
   if (pr.error || ir.error || gr.error) {
@@ -62,38 +63,46 @@ export async function GET() {
   const gmailByInteraction = new Map((gr.data || []).filter(g => g.interaction_id).map(g => [g.interaction_id, g]));
   const linked = new Set<string>();
 
-  const messages = (ir.data || []).map(i => {
+  const messages: AdvisorMessage[] = (ir.data || []).map(i => {
     const g = gmailByInteraction.get(i.id);
     if (g) linked.add(g.id);
     const incoming = i.type === 'Email Received';
     const body = (i.email_content || '').slice(0, 20000);
     return {
       id: i.id, athleteId: i.athlete_user_id, athleteName: names.get(i.athlete_user_id) || 'Athlete',
-      coachName: coachNames.get(i.coach_id) || 'College coach', schoolName: schoolNames.get(i.college_id) || 'College program',
-      direction: incoming ? 'received' : 'sent', sentByAdvisor: !incoming && (i.initiated_by === 'Advisor' || i.actor_user_id !== i.athlete_user_id),
+      coachId: i.coach_id || g?.coach_id || null, collegeId: i.college_id || g?.college_id || null,
+      coachName: coachNames.get(i.coach_id || g?.coach_id || '') || 'College coach', schoolName: schoolNames.get(i.college_id || g?.college_id || '') || 'College program',
+      direction: incoming ? 'received' : 'sent', sentByAdvisor: !incoming && (i.initiated_by === 'Advisor' || (!!i.actor_user_id && i.actor_user_id !== i.athlete_user_id)),
       subject: i.email_subject || g?.subject || (incoming ? 'Coach email' : 'Recruiting email'),
       body: body || null, summary: g?.summary || i.note || null,
       timestamp: g?.received_at || i.created_at || i.date,
       tracked: i.source === 'automatic',
-      needsAttention: incoming && !!g?.action_required && !['completed', 'closed'].includes(g?.action_state || ''),
-      nextAction: g?.next_action || null,
+      actionRequired: incoming && !!g?.action_required, actionState: g?.action_state || null,
+      actionDecision: g?.action_decision || null, nextAction: g?.next_action || null,
       reviewed: !!g?.reviewed_at,
-      source: incoming ? (g ? 'gmail' : 'manual') : (i.source === 'automatic' ? 'rltnl' : 'manual'),
+      gmailThreadId: g?.gmail_thread_id || i.gmail_thread_id || null,
+      gmailMessageId: g?.gmail_message_id || i.gmail_message_id || null,
+      senderEmail: incoming ? i.gmail_sender_email || null : null,
+      source: incoming ? (g || i.gmail_message_id ? 'gmail' : 'manual') : (i.source === 'automatic' ? 'rltnl' : 'manual'),
     };
   });
 
   // Gmail records can be linked to an older manually logged interaction. If the
   // interaction fell outside the activity limit, show a summary-only entry.
+  const linkedGmailIds = new Set((ir.data || []).map(i => i.gmail_message_id).filter(Boolean));
   for (const g of gr.data || []) {
-    if (linked.has(g.id)) continue;
+    if (linked.has(g.id) || (g.gmail_message_id && linkedGmailIds.has(g.gmail_message_id))) continue;
     messages.push({
       id: g.id, athleteId: g.athlete_user_id, athleteName: names.get(g.athlete_user_id) || 'Athlete',
+      coachId: g.coach_id || null, collegeId: g.college_id || null,
       coachName: coachNames.get(g.coach_id) || 'College coach', schoolName: schoolNames.get(g.college_id) || 'College program',
       direction: 'received', sentByAdvisor: false, subject: g.subject || 'Coach email',
       body: null, summary: g.summary || null, timestamp: g.received_at,
-      tracked: true,
-      needsAttention: !!g.action_required && !['completed', 'closed'].includes(g.action_state || ''),
+      tracked: true, actionRequired: !!g.action_required,
+      actionState: g.action_state || null, actionDecision: g.action_decision || null,
       nextAction: g.next_action || null, reviewed: !!g.reviewed_at, source: 'gmail',
+      gmailThreadId: g.gmail_thread_id || null, gmailMessageId: g.gmail_message_id || null,
+      senderEmail: null,
     });
   }
   messages.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
