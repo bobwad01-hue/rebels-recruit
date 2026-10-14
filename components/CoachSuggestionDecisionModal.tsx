@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useState} from 'react';
-import {CheckCircle2,ExternalLink,MessageSquareText,Send,X} from 'lucide-react';
+import {CheckCircle2,MessageSquareText,Send,X} from 'lucide-react';
 
 type Decision='accept'|'reject';
 type Suggestion={
@@ -19,13 +19,14 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
  const coachName=[coach?.first_name,coach?.last_name].filter(Boolean).join(' ')||'this coach';
  const recipient=suggestion.submitter?.full_name||suggestion.submitter?.email||'the submitter';
  const accepting=decision==='accept';
+ const school=Array.isArray(coach?.colleges)?coach.colleges[0]?.name:coach?.colleges?.name;
+ const kind=({contact_update:'contact information',incorrect_info:'information correction',title_update:'coaching title',left_program:'coaching staff status',moved_school:'school affiliation',retired:'retirement status'} as Record<string,string>)[suggestion.suggestion_type||'']||'coach information';
+ const automaticMessage=`Thank you for helping keep RLTNL Recruiting's coach information accurate.\n\nYour submission regarding ${coachName}${school?' at '+school:''} (${kind}) has been reviewed, approved, and updated in our shared coach directory.\n\nWe appreciate your contribution!\n\nRLTNL Support`;
  const [notify,setNotify]=useState(false);
  const [body,setBody]=useState('');
  const [sourceUrl,setSourceUrl]=useState('');
  const [busy,setBusy]=useState(false);
- const [reviewSaved,setReviewSaved]=useState(false);
  const [error,setError]=useState('');
- const [threadId,setThreadId]=useState<string|null>(null);
 
  useEffect(()=>{
   const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!busy)onClose()};
@@ -41,57 +42,35 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
   ['X / Twitter',coach?.x_url,suggestion.proposed_x_url],
  ].filter(([,oldValue,newValue])=>newValue&&String(oldValue||'').trim()!==String(newValue).trim());
 
- function toggleMessage(value:boolean){
-  setNotify(value);setError('');
-  if(value&&!body&&accepting){
-   setBody(`Thank you for helping keep the RLTNL Recruiting coach directory accurate. We reviewed your report for ${coachName} and applied the verified update.`);
-  }
- }
+ function toggleMessage(value:boolean){setNotify(value);setError('');}
 
  async function confirm(){
   if(busy)return;
   if(notify){
-   if(!body.trim())return setError('Write a message to the submitter or turn off messaging.');
+   if(!accepting&&!body.trim())return setError('Write a message explaining the rejection or turn off messaging.');
    if(body.trim().length>4000)return setError('The message must be 4,000 characters or fewer.');
    if(!accepting&&body.trim().length<20)return setError('Please explain the reason for not applying the update.');
    if(sourceUrl.trim()&&!/^https:\/\/[^\s]+$/i.test(sourceUrl.trim()))return setError('Use a valid HTTPS URL for the official source.');
   }
   setBusy(true);setError('');
-  let decisionWasSaved=reviewSaved;
   try{
-   if(!reviewSaved){
-    const response=await fetch('/api/platform/coach-data-review',{
-     method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({id:suggestion.id,decision})
-    });
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'The review decision could not be saved.');
-    setReviewSaved(true);
-    decisionWasSaved=true;
-    onReviewed();
-   }
-   if(notify){
-    const response=await fetch('/api/platform/messages',{
-     method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({source_type:'coach_suggestion',source_id:suggestion.id,
-      body:body.trim(),source_url:sourceUrl.trim()})
-    });
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||'The message could not be delivered.');
-    setThreadId(data.thread_id||null);
-    window.dispatchEvent(new Event('rltnl:platform-messages-updated'));
-   }
-   onFinished(`${accepting?'Coach update verified and applied':'Coach update rejected'}.${notify?' Message sent to '+recipient+'.':''}`);
-  }catch(e){
-   const reason=e instanceof Error?e.message:'Something went wrong.';
-   setError(decisionWasSaved?`Decision saved, but the message was not sent: ${reason}`:
-    reason);
-  }finally{setBusy(false)}
+   const response=await fetch('/api/platform/coach-data-review',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:suggestion.id,decision,
+     message:notify?body.trim():null,
+     source_url:notify?sourceUrl.trim():null})
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(data.error||'The review decision could not be saved.');
+   onReviewed();
+   if(data.message_sent)window.dispatchEvent(new Event('rltnl:platform-messages-updated'));
+   const confirmation=data.automatic_message?' Automatic RLTNL Support confirmation sent to '+recipient+'.':
+    data.message_sent?' Your message was sent to '+recipient+'.':'';
+   onFinished(`${accepting?'Coach update verified and applied':'Coach update rejected'}.${confirmation}`);
+  }catch(e){setError(e instanceof Error?e.message:'Something went wrong.')}
+  finally{setBusy(false)}
  }
-
- // A review can be saved before the separate message request fails.
- // Keep the dialog open and retry only the message; never reapply the coach change.
- const close=()=>{if(!busy){if(reviewSaved)onFinished(`${accepting?'Coach update verified and applied':'Coach update rejected'}. Message was not sent.`);else onClose()}};
+ const close=()=>{if(!busy)onClose()};
 
  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/55 p-3 sm:p-6"
   onMouseDown={e=>{if(e.target===e.currentTarget)close()}}>
@@ -129,12 +108,19 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
     <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-4">
      <input type="checkbox" checked={notify} disabled={busy} onChange={e=>toggleMessage(e.target.checked)}
       className="mt-1 h-4 w-4 accent-red-600"/>
-     <span><span className="flex items-center gap-2 text-sm font-black"><MessageSquareText size={17}/>Message the submitter</span>
-      <span className="mt-1 block text-xs text-slate-600">Optional. Send {recipient} a response in their RLTNL Messages inbox, with an unread notification.</span>
+     <span><span className="flex items-center gap-2 text-sm font-black"><MessageSquareText size={17}/>{accepting?'Write a personal message (optional)':'Message the submitter (optional)'}</span>
+      <span className="mt-1 block text-xs text-slate-600">{accepting?
+       `RLTNL Support automatically sends ${recipient} an approval confirmation. Write your own message to replace it.`:
+       `Send ${recipient} an explanation in their RLTNL Messages inbox. No message is sent automatically for rejections.`}</span>
      </span>
     </label>
+    {accepting&&(!notify||!body.trim())&&<div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-4">
+     <div className="flex items-center gap-2 text-sm font-black text-green-800"><CheckCircle2 size={17}/>Automatic RLTNL Support confirmation</div>
+     <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{automaticMessage}</p>
+     <p className="mt-2 text-xs text-slate-600">Sent automatically after approval, unless you write a personal message above.</p>
+    </div>}
     {notify&&<div className="mt-3 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-     <label className="block text-xs font-bold">Message to {recipient}
+     <label className="block text-xs font-bold">{accepting?'Personal message (replaces the automatic confirmation)':'Message'} to {recipient}
       <textarea rows={4} maxLength={4000} className="input mt-1 w-full bg-white" value={body}
        disabled={busy} onChange={e=>setBody(e.target.value)}
        placeholder={accepting?'Thank you for helping us keep our coach information accurate.':
@@ -145,25 +131,19 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
        onChange={e=>setSourceUrl(e.target.value)}
        placeholder="https://school.edu/athletics/staff"/>
      </label>
-     <p className="text-xs text-slate-600">Your message and source link are visible to the submitter. The decision is saved separately, so you can message them later too.</p>
-    </div>}
-    {reviewSaved&&<div className="mt-4 flex items-start gap-2 rounded-lg bg-green-50 p-3 text-sm font-semibold text-green-800">
-     <CheckCircle2 size={18} className="mt-0.5 shrink-0"/>The review decision has been saved. You can retry the message without repeating the decision.
+     <p className="text-xs text-slate-600">Your message and source link are visible to the submitter. {accepting?'Leave the message blank to send the standard approval confirmation.':'Messaging is optional for rejections.'} The review decision and any message are saved together.</p>
     </div>}
     {error&&<p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
-    {threadId&&<a href={`/messages?platformThread=${threadId}`} className="mt-2 inline-flex items-center gap-1 text-sm text-blue-700 underline">
-     View message <ExternalLink size={13}/></a>}
    </div>
    <div className="flex flex-wrap items-center justify-end gap-2 border-t px-5 py-4 sm:px-6">
     <button type="button" className="btn" disabled={busy} onClick={close}>
-     {reviewSaved?'Close without messaging':'Cancel'}
+     Cancel
     </button>
     <button type="button" className={`btn ${accepting?'btn-red':'bg-slate-900 text-white hover:bg-slate-800'}`}
      disabled={busy} onClick={()=>void confirm()}>
-     {busy?(reviewSaved?'Sending…':'Saving decision…'):
-      reviewSaved?(notify?'Retry Sending Message':'Close Review'):notify?
-       <><Send size={16}/>{accepting?'Verify, Apply & Message':'Reject & Message'}</>:
-       accepting?'Confirm Verify & Apply':'Confirm Reject'}
+     {busy?'Saving decision…':accepting?
+      <><Send size={16}/>{notify&&body.trim()?'Verify, Apply & Message':'Verify, Apply & Notify'}</>:
+      notify?<><Send size={16}/>Reject & Message</>:'Confirm Reject'}
     </button>
    </div>
   </div>
