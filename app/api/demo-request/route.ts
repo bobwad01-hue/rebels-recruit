@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
 
   const fullName = clean(body.fullName);
   const email = clean(body.email).toLowerCase();
+  const phone = clean(body.phone);
+  const preferredContact = clean(body.preferredContact) || 'either';
   const organizationName = clean(body.organizationName);
   const organizationType = clean(body.organizationType);
   const roleTitle = clean(body.roleTitle);
@@ -48,6 +50,8 @@ export async function POST(request: NextRequest) {
       email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       organizationName.length < 2 || organizationName.length > 150 ||
       !['travel_club', 'high_school', 'other'].includes(organizationType) ||
+      phone.length > 30 || (phone && !/^[+0-9() .-]{7,30}$/.test(phone)) ||
+      !['either','email','phone'].includes(preferredContact) || (preferredContact === 'phone' && !phone) ||
       roleTitle.length > 100 || (teamCount && !['1', '2-5', '6-10', '11+'].includes(teamCount)) ||
       message.length > 2000 || body.privacyAccepted !== true) {
     return fail('Please complete the required fields and accept the privacy notice.');
@@ -64,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await admin.from('organization_demo_requests').insert({
-      full_name: fullName, email, organization_name: organizationName,
+      full_name: fullName, email, phone: phone || null, preferred_contact: preferredContact, organization_name: organizationName,
       organization_type: organizationType, role_title: roleTitle || null,
       team_count: teamCount || null, message: message || null,
     }).select('id').single();
@@ -76,7 +80,8 @@ export async function POST(request: NextRequest) {
       const typeLabel = organizationType === 'travel_club' ? 'Travel / club' :
         organizationType === 'high_school' ? 'High school' : 'Other';
       const fields: [string, string][] = [
-        ['Name', fullName], ['Email', email], ['Organization', organizationName],
+        ['Name', fullName], ['Email', email], ['Phone', phone || 'Not provided'],
+        ['Preferred contact', preferredContact === 'either' ? 'No preference' : preferredContact], ['Organization', organizationName],
         ['Organization type', typeLabel], ['Role', roleTitle || 'Not specified'],
         ['Number of teams', teamCount || 'Not specified'], ['Message', message || 'None'],
       ];
