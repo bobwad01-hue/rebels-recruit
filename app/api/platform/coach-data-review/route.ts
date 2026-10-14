@@ -12,7 +12,18 @@ export async function GET(){const {c,user}=await owner();if(!user)return NextRes
  const {data:conflicts,error:conflictError}=await c.from('college_coach_contact_reviews')
   .select('id,coach_id,field_name,observed_values,status,created_at,college_coaches(id,first_name,last_name,title,email,phone,x_url,instagram_url,colleges!college_coaches_college_id_fkey(name))')
   .eq('status','pending').order('created_at',{ascending:true});
- return NextResponse.json(conflictError?{error:conflictError.message}:{suggestions:data||[],contactConflicts:conflicts||[]},{status:conflictError?500:200})}
+ if(conflictError)return NextResponse.json({error:conflictError.message},{status:500});
+ const {data:recent,error:recentError}=await c.from('college_coach_update_suggestions')
+  .select('id,coach_id,submitted_by_user_id,suggestion_type,details,proposed_first_name,proposed_last_name,proposed_email,proposed_phone,proposed_title,proposed_x_url,status,created_at,reviewed_at,college_coaches(id,first_name,last_name,title,email,phone,x_url,lifecycle_status,colleges!college_coaches_college_id_fkey(name))')
+  .neq('status','pending').order('reviewed_at',{ascending:false}).limit(40);
+ if(recentError)return NextResponse.json({error:recentError.message},{status:500});
+ const ids=[...new Set([...(data||[]),...(recent||[])].map((s:any)=>s.submitted_by_user_id).filter(Boolean))];
+ const {data:people,error:peopleError}=ids.length?await c.from('profiles').select('id,full_name,email').in('id',ids):{data:[],error:null};
+ if(peopleError)return NextResponse.json({error:peopleError.message},{status:500});
+ const names=new Map((people||[]).map((p:any)=>[p.id,{full_name:p.full_name,email:p.email}]));
+ const enrich=(items:any[])=>items.map(s=>({...s,submitter:names.get(s.submitted_by_user_id)||null}));
+ return NextResponse.json({suggestions:enrich(data||[]),recent:enrich(recent||[]),contactConflicts:conflicts||[]},
+  {headers:{'Cache-Control':'private, no-store'}})}
 export async function POST(req:Request){const {c,user}=await owner();if(!user)return NextResponse.json({error:'Forbidden'},{status:403});const b=await req.json();
  if(b.type==='resolve_contact'){
   const id=Number(b.id),value=String(b.verifiedValue||'').trim(),evidence=String(b.evidence||'').trim();
