@@ -22,8 +22,17 @@ assert.match(home, /href="\/signup"/, 'Existing team signup stays available');
 assert.match(home, /#features/, 'Feature navigation anchor exists');
 assert.match(home, /#organizations/, 'Organization navigation anchor exists');
 assert.match(home, /#how-it-works/, 'Lifecycle navigation anchor exists');
-assert.match(tour, /Sample data/, 'Product tour explicitly marks demo data');
-assert.match(tour, /not a live account or a screenshot/, 'Do not misrepresent recreated UI as a real screenshot');
+assert.match(home, /<header className="sticky top-0 z-50/, 'Keep public homepage navigation visible during scroll');
+assert.match(home, /Recruiting built on relationships/, 'Relationship-led hero eyebrow');
+for (const promise of ['Athletes first', 'Families supported', 'Advisors connected', 'Organizations informed']) {
+  assert.ok(home.includes(promise), 'Hero includes ' + promise);
+}
+for (const [file, source] of [['homepage', home], ['product tour', tour]]) {
+  for (const removed of ['Sample data', 'sample data', 'Illustrative product preview', 'Product walkthrough', 'Interactive, anonymized walkthrough', 'not a live account or a screenshot']) {
+    assert.ok(!source.includes(removed), file + ' should not show ' + removed);
+  }
+}
+assert.match(home, /<PreviewChrome label="Game Plan">/, 'Keep clean Game Plan hero preview label');
 assert.match(tour, /Recruiting Board/, 'Show organization product evidence');
 assert.match(tour, /Advisor Communications/, 'Show advisor product evidence');
 assert.match(form, /privacyAccepted/, 'Consent is required in the form');
