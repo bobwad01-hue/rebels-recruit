@@ -41,7 +41,7 @@ function PreviewChrome({ children, label }: { children: React.ReactNode; label: 
 function HeroPreview() {
   return <div className="relative mx-auto w-full max-w-[540px]">
     <div className="pointer-events-none absolute -right-4 -top-5 h-32 w-32 rounded-full bg-red-100/80 blur-3xl" aria-hidden="true" />
-    <PreviewChrome label="Game Plan · Sample data">
+    <PreviewChrome label="Game Plan">
       <div className="p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3"><div><div className="text-[11px] font-bold text-red-700">RECRUITING GAME PLAN</div><h3 className="mt-1 text-xl font-black tracking-tight">Know your next move.</h3></div><div className="rounded-xl bg-red-50 p-3 text-red-700"><Target size={23}/></div></div>
         <div className="mt-5 grid grid-cols-3 gap-2.5">
@@ -59,7 +59,6 @@ function HeroPreview() {
         </div>
       </div>
     </PreviewChrome>
-    <p className="mt-3 text-center text-xs text-slate-500">Illustrative product preview with sample data.</p>
   </div>;
 }
 
@@ -70,7 +69,7 @@ function RoleCard({ icon: Icon, title, description, items }: { icon: typeof User
 export default function Home() {
   return <div className="min-h-screen bg-white text-slate-950">
     <a href="#main" className="rr-skip-link">Skip to content</a>
-    <header className="relative z-20 border-b border-slate-100 bg-white">
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
       <nav aria-label="Main navigation" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
         <Link href="/" aria-label="RLTNL Recruiting home" className="flex shrink-0 items-center">
           <img src="/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" className="h-auto w-[128px] object-contain sm:w-[170px] md:w-[205px]"/>
@@ -99,7 +98,7 @@ export default function Home() {
       <section className="relative overflow-hidden bg-gradient-to-br from-white via-white to-slate-50">
         <div className="mx-auto grid max-w-7xl items-center gap-9 px-5 pb-14 pt-11 sm:gap-12 sm:px-8 sm:pb-20 sm:pt-16 lg:grid-cols-[1.03fr_.97fr] lg:gap-16">
           <div>
-            <SectionEyebrow>Built for softball recruiting programs</SectionEyebrow>
+            <SectionEyebrow>Recruiting built on relationships</SectionEyebrow>
             <h1 className="mt-5 max-w-[660px] text-[clamp(2.55rem,6.1vw,5.1rem)] font-black leading-[1.04] tracking-[-.055em]">Recruiting happens in the <span className="text-red-700">follow-through.</span></h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600 sm:text-xl">Getting noticed is only the beginning. RLTNL helps athletes, families and advisors turn coach conversations, camps and recruiting activity into stronger relationships and clear next steps.</p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -107,7 +106,7 @@ export default function Home() {
               <Link href="/signup" className="btn w-full justify-center px-5 py-3 text-sm sm:w-auto">Have a Team Code? Join <ArrowUpRight size={16}/></Link>
             </div>
             <p className="mt-4 max-w-xl text-xs leading-5 text-slate-500">New to RLTNL? Request a demo for your organization or high school team. Already invited? Join using your team code.</p>
-            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600"><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Athletes first</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Advisors connected</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Organizations informed</span></div>
+            <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600"><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Athletes first</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Families supported</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Advisors connected</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Organizations informed</span></div>
           </div>
           <HeroPreview/>
         </div>
@@ -143,7 +142,7 @@ export default function Home() {
       <section id="features" className="mx-auto max-w-7xl scroll-mt-20 px-5 py-16 sm:px-8 sm:py-24">
         <SectionEyebrow>Inside RLTNL Recruiting</SectionEyebrow>
         <SectionTitle>See the system behind the follow-through.</SectionTitle>
-        <SectionDescription>Explore the athlete, advisor and organization experiences. These previews reflect real RLTNL workflows and layouts, with sample data instead of private recruiting records.</SectionDescription>
+        <SectionDescription>Explore how athletes, families, advisors and organizations stay connected through the recruiting process.</SectionDescription>
         <div className="mt-9"><PublicProductTour/></div>
       </section>
 
