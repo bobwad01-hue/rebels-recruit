@@ -3,7 +3,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
-import {AlertCircle,CheckCircle2,ChevronDown,ExternalLink,Play,RefreshCw,Square,ShieldCheck,X} from 'lucide-react';
+import {AlertCircle,ArrowRight,CheckCircle2,ChevronDown,ExternalLink,Play,RefreshCw,Square,ShieldCheck,X} from 'lucide-react';
 
 const opts=[['all','All Divisions'],['NCAA D1','D1'],['NCAA D2','D2'],['NCAA D3','D3'],['NAIA','NAIA'],['JC','JUCO']];
 const groups=[
@@ -130,10 +130,17 @@ export default function Page(){
     return()=>{document.removeEventListener('keydown',escape);document.body.style.overflow=previous;};
   },[verifySchool,verifySaving]);
 
-  function openVerify(school:Exception){
+  function openVerify(school:Exception,suggestion?:QualityDiagnostic){
     setVerifySchool(school);
-    setVerifyUrl(school.verification?.source_url||school.staff_navigation_url||school.staff_url||school.softball_url||'');
-    setVerifyOutcome(school.verification?.outcome||'verified');
+    // An inspection is a read-only parser preview, not an approval. Prefill the
+    // inspected source to save typing; the Super Owner still opens and confirms it.
+    const candidate=suggestion?.status==='candidate'&&suggestion.source_url?.startsWith('https://')
+      ?suggestion.source_url:null;
+    const navigation=school.staff_navigation_url;
+    const preferred=candidate&&navigation&&candidate.split('#')[0]===navigation.split('#')[0]
+      ?navigation:candidate;
+    setVerifyUrl(preferred||school.verification?.source_url||navigation||school.staff_url||school.softball_url||'');
+    setVerifyOutcome(suggestion?'verified':school.verification?.outcome||'verified');
     setVerifyHead(school.verification?.head_coach_name||'');
     setVerifyNotes(school.verification?.notes||'');
     setVerifyConfirmed(false);setVerifySaved(false);setVerifyError('');setVerifyResult('');
@@ -370,6 +377,17 @@ export default function Page(){
   const recoveryReview=(recovery?.cases||[]).filter(x=>['needs_review','error','blocked'].includes(x.status));
   const recoveryFinished=recovery?recovery.total-recovery.pending-recovery.processing:0;
 
+  // Keep the guided verification list in sync with live queue status so schools
+  // already imported disappear after the successful targeted recheck.
+  const readyQuality=diagnostics.filter(x=>x.status==='candidate'&&x.source_url?.startsWith('https://')
+    &&(cleanup?.exceptions||[]).some(s=>s.college_id===x.college_id&&s.status==='review'));
+  const nextReadyQuality=verifySchool
+    ?readyQuality.find(x=>x.college_id!==verifySchool.college_id):null;
+  function reviewQualitySource(item:QualityDiagnostic){
+    const school=cleanup?.exceptions.find(x=>x.college_id===item.college_id&&x.status==='review');
+    if(school&&item.status==='candidate'&&item.source_url?.startsWith('https://'))
+      openVerify(school,item);
+  }
   const exceptions=(cleanup?.exceptions||[]).filter(x=>filter==='all'||x.status===filter);
   const shown=expanded?exceptions:exceptions.slice(0,25);
   const reviewCount=cleanup?.summary.review||0;
@@ -595,6 +613,16 @@ export default function Page(){
             {diagnosing?'Inspecting':'Inspected'} {diagnostics.length} of {diagnosticTotal||qualityCount} schools.
             {diagnostics.length>0&&' '+diagnostics.filter(x=>x.status==='candidate').length+' currently pass primary-source parsing.'}
           </p>}
+          {diagnostics.length>0&&readyQuality.length>0&&<div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-3 py-3">
+            <div className="flex-1 text-sm text-green-950">
+              <strong>{readyQuality.length} school{readyQuality.length===1?'':'s'} ready for your official-source review.</strong>
+              <span className="ml-1">The preview found coaching candidates, but nothing is approved or imported until you confirm the source.</span>
+            </div>
+            <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving}
+              onClick={()=>reviewQualitySource(readyQuality[0])}>
+              Review first source <ArrowRight size={15}/>
+            </button>
+          </div>}
           {diagnosticError&&<p className="mt-2 text-sm text-red-700" role="alert">{diagnosticError}</p>}
         </div>}
         {running&&<div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-semibold" role="status">
@@ -615,7 +643,7 @@ export default function Page(){
         <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[700px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr>
             <th className="px-3 py-2">School</th><th className="px-3 py-2">Diagnostic</th>
-            <th className="px-3 py-2">Coach candidates (not imported)</th><th className="px-3 py-2">Source</th>
+            <th className="px-3 py-2">Coach candidates (not imported)</th><th className="px-3 py-2">Source</th><th className="px-3 py-2">Next step</th>
           </tr></thead>
           <tbody className="divide-y">{diagnostics.map(x=><tr key={x.college_id}>
             <td className="px-3 py-3 font-semibold">{x.name}</td>
@@ -625,6 +653,14 @@ export default function Page(){
               <a href={x.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Official source ↗</a>:'No source'}
               <div className="mt-1"><a href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
                 target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">Search Google ↗</a></div>
+            </td>
+            <td className="px-3 py-3">
+              {readyQuality.some(ready=>ready.college_id===x.college_id)?
+                <button type="button" className="btn whitespace-nowrap" disabled={running||busy||diagnosing||verifySaving}
+                  onClick={()=>reviewQualitySource(x)}>Review &amp; verify <ArrowRight size={14}/></button>:
+                <span className="text-xs text-slate-500">
+                  {(cleanup?.exceptions||[]).some(s=>s.college_id===x.college_id)?'Needs source investigation':'Already imported'}
+                </span>}
             </td>
           </tr>)}</tbody>
         </table></div>
@@ -724,6 +760,15 @@ export default function Page(){
               RLTNL keeps this # section link for opening the coaching section. The importer fetches the same page without the # anchor.
             </p>}
           </div>
+          {diagnostics.some(x=>x.college_id===verifySchool.college_id&&x.status==='candidate')&&
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+              <div className="font-bold text-slate-900">Read-only coaching preview · not yet verified</div>
+              <p className="mt-1 text-slate-600">Check the official page yourself. These names were found by the parser, not approved as canonical records.</p>
+              <div className="mt-2 space-y-1 text-slate-800">
+                {diagnostics.find(x=>x.college_id===verifySchool.college_id)?.coaches.map((c,i)=>
+                  <div key={i}>{c.name} · {c.title}</div>)}
+              </div>
+            </div>}
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm font-bold">What did you find?</legend>
             {[
@@ -769,11 +814,17 @@ export default function Page(){
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
             {verifySaved?
-              <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
-                onClick={()=>setVerifySchool(null)}>
-                {verifyResultKind==='success'&&<ShieldCheck size={16}/>}
-                {verifyResultKind==='success'?'Done':'Close'}
-              </button>:
+              <>
+                {verifyResultKind==='success'&&nextReadyQuality&&
+                  <button type="button" className="btn" onClick={()=>reviewQualitySource(nextReadyQuality)}>
+                    Verify next school <ArrowRight size={15}/>
+                  </button>}
+                <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
+                  onClick={()=>setVerifySchool(null)}>
+                  {verifyResultKind==='success'&&<ShieldCheck size={16}/>}
+                  {verifyResultKind==='success'?'Done':'Close'}
+                </button>
+              </>:
               <>
                 <button type="button" className="btn" disabled={verifySaving} onClick={()=>setVerifySchool(null)}>
                   Cancel
