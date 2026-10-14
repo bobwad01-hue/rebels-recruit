@@ -2,34 +2,14 @@ import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
 import {getGoogleAccessToken} from '@/lib/google-workspace';
+import {extractGmailAttachmentMetadata} from '@/lib/gmail-attachment-metadata';
+import type {GmailMimePart} from '@/lib/gmail-attachment-metadata';
 
 type Header={name?:string;value?:string};
-type GmailPart={mimeType?:string;filename?:string;headers?:Header[];body?:{data?:string;size?:number;attachmentId?:string};parts?:GmailPart[]};
-function attachmentMetadata(payload:GmailPart|undefined){
- const attachments:{name:string;mimeType:string;size:number|null;inline:boolean}[]=[];
- function visit(part:GmailPart|undefined){
-  if(!part||attachments.length>=20)return;
-  const mimeType=String(part.mimeType||'').slice(0,100);
-  const filename=String(part.filename||'').trim().slice(0,180);
-  const disposition=header(part.headers,'Content-Disposition').toLowerCase();
-  const inline=/\binline\b/.test(disposition)||!!header(part.headers,'Content-ID');
-  const hasFile=!!filename||!!part.body?.attachmentId||/\battachment\b/.test(disposition);
-  if(hasFile&&!/^multipart\//i.test(mimeType)&&!/^text\/(?:plain|html)$/i.test(mimeType)){
-   attachments.push({
-    name:filename||(inline?'Inline image':'Unnamed attachment'),
-    mimeType,size:typeof part.body?.size==='number'&&Number.isFinite(part.body.size)?part.body.size:null,
-    inline,
-   });
-  }
-  for(const child of part.parts||[])visit(child);
- }
- visit(payload);
- return {attachmentMetadataChecked:!!payload,attachments};
-}
 function header(headers:Header[]|undefined,name:string){return headers?.find(h=>h.name?.toLowerCase()===name.toLowerCase())?.value||''}
 function emailFrom(value:string){return (value.match(/<([^>]+)>/)?.[1]||value).trim().toLowerCase()}
 function decode(data?:string){if(!data)return '';try{return Buffer.from(data.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8')}catch{return ''}}
-function bodyText(p:GmailPart|undefined):string{if(!p)return '';if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);for(const x of p.parts||[]){const v=bodyText(x);if(v)return v}return ''}
+function bodyText(p:GmailMimePart|undefined):string{if(!p)return '';if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);for(const x of p.parts||[]){const v=bodyText(x);if(v)return v}return ''}
 function cleanMessage(body:string,subject:string){const raw=(body||subject).replace(/\r/g,'');const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];return cut.replace(/\n{3,}/g,'\n\n').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim()}
 function summaryText(v:string){return v.replace(/\s+/g,' ').trim().slice(0,500)}
 function extractUrls(v:string){return [...new Set((v.match(/https?:\/\/[^\s<>]+/gi)||[]).map(x=>x.replace(/[),.;]+$/,'')))]}
@@ -69,8 +49,8 @@ export async function POST(req:NextRequest){
     if(backfilled<8&&existing.data.extracted_data?.attachmentMetadataChecked!==true){
      const detail=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+encodeURIComponent(item.id)+'?format=full',{headers:{Authorization:'Bearer '+accessToken},cache:'no-store'});
      if(detail.ok){
-      const oldMessage=await detail.json() as {payload?:GmailPart};
-      const meta=attachmentMetadata(oldMessage.payload);
+      const oldMessage=await detail.json() as {payload?:GmailMimePart};
+      const meta=extractGmailAttachmentMetadata(oldMessage.payload);
       if(meta.attachmentMetadataChecked){
        const prior=existing.data.extracted_data&&typeof existing.data.extracted_data==='object'&&!Array.isArray(existing.data.extracted_data)?existing.data.extracted_data:{};
        const saved=await admin.from('gmail_recruiting_messages').update({extracted_data:{...prior,...meta}}).eq('id',existing.data.id).eq('athlete_user_id',userId);
@@ -90,7 +70,7 @@ export async function POST(req:NextRequest){
    const trackedIds=new Set((tracked.data||[]).map((x:any)=>x.coach_id));
    const coach=coachRes.data.find((x:any)=>trackedIds.has(x.id));
    if(!coach)continue; matched++;
-   const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text); const meta=attachmentMetadata(m.payload);
+   const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text); const meta=extractGmailAttachmentMetadata(m.payload);
    if(/^\s*(fwd|fw):/i.test(subject)||/^\s*-{2,}\s*forwarded message/i.test(text))continue;
    let intel=classify(subject,text); if(!intel.summary)continue;
    // Use the existing relationship history to avoid treating an acknowledgement as a brand-new invitation.
