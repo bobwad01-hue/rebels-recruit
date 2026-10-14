@@ -22,7 +22,8 @@ function host(value:string|null|undefined):string|null{
   }catch{return null;}
 }
 function sameUniversityHost(url:string,schoolHost:string){
-  return host(url)===schoolHost;
+  const h=host(url);
+  return h===schoolHost||Boolean(h&&h.endsWith('.'+schoolHost));
 }
 async function fetchOfficialUniversityPage(url:string,schoolHost:string,athleticsHost:string){
   let current=url;
@@ -97,7 +98,7 @@ const knownUniversityEvidencePaths:Record<string,string[]>={
   'lynn.edu':['/news/2026/coaching-beyond-the-field'],
   'obu.edu':['/athletics.php'],
   'pba.edu':['/about/facts/students/'],
-  'uco.edu':['/about/divisions'],
+  'uco.edu':['/about/divisions','https://www3.uco.edu/press/prdetail.asp?NewsID=29594'],
   'uiu.edu':['/families/']
 };
 function discoverUniversityPages(html:string,pageUrl:string,schoolHost:string){
@@ -156,7 +157,7 @@ async function verifyIndependentEvidence(website:string,sourceUrl:string,optiona
   }else{
     // Parallel, bounded checks avoid exhausting the 30-second route budget.
     const first=[
-      ...(knownUniversityEvidencePaths[schoolHost]||[]).map(path=>origin+path),
+      ...(knownUniversityEvidencePaths[schoolHost]||[]).map(path=>path.startsWith('https://')?path:origin+path),
       origin+'/athletics/',origin+'/athletics',origin+'/athletics.php',
       home,origin+'/student-life/'
     ];
