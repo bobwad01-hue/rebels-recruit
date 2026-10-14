@@ -357,6 +357,19 @@ function sidearmCoachAnchor(navigationUrl:string|null|undefined,pageUrl:string){
  }catch{return ""}
 }
 
+// Sidearm coach bios use name-specific slugs. Match them exactly; never
+// attach a generic "Full Bio" link to a coach by page order or proximity.
+function sidearmNameSlug(name:string){
+ return name.normalize("NFKD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
+   .replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+}
+function sidearmBioSlug(url:string){
+ try{
+   const path=new URL(url).pathname;
+   return path.match(/\/sports\/(?:softball|sball|w-softbl)\/roster\/coaches\/([^/]+)\/\d+\/?$/i)?.[1]?.toLowerCase()||"";
+ }catch{return ""}
+}
+
 // Sidearm softball rosters render coaching cards as "Title Name Full Bio".
 // Only read the explicitly labelled softball coaching section; never scrape
 // generic site-wide cards or athletes as coaching staff.
@@ -364,6 +377,16 @@ function rosterSectionCoaches(html:string,url:string,anchorId=""){
  const path=new URL(url).pathname;
  if(!/\/sports\/(?:softball|sball)\/(?:roster|coaches)/i.test(path)) return [];
  const flat=clean(html),out:any[]=[];
+ // Restrict bio links to the explicitly labeled coaching section. Player
+ // roster and support-staff bios must not enter the coach import.
+ const headingAt=html.search(/Softball Coaching Staff/i);
+ const sectionHtml=headingAt<0?"":html.slice(headingAt,headingAt+75000).split(/Softball Support Staff/i)[0];
+ const bioLinks=links(sectionHtml,url).filter(x=>sameHost(x.url,url)&&Boolean(sidearmBioSlug(x.url)));
+ const bioFor=(fullName:string)=>{
+   const slug=sidearmNameSlug(fullName);
+   const matches=[...new Set(bioLinks.filter(x=>sidearmBioSlug(x.url)===slug).map(x=>x.url))];
+   return matches.length===1?matches[0]:null;
+ };
  const title=String.raw`(?:Assistant AD for Internal Affairs\s*\/\s*Head Softball Coach(?:,\s*\d+(?:st|nd|rd|th) Year)?|Associate Head Softball Coach|Associate Head Coach|Head Softball Coach(?:,\s*\d+(?:st|nd|rd|th) Year)?(?:\s*\/\s*Asst AD for Internal Affairs\s*\/)?(?:\/Assistant Volleyball Coach)?|Head Coach(?:\/Community Connections Designee|\s*-\s*Softball)?|Softball Head Coach|Softball Assistant Coach|Softball Graduate Coaching Assistant|Assistant Softball Coach|Assistant Coach(?:\s*\/\s*Compliance Coordinator)?|Volunteer Assistant Coach|Graduate Assistant Coach|Graduate Assistant)`;
  const name=String.raw`([A-Z][\p{L}.'’-]+(?:\s+\([^)]+\))?(?:\s+[A-Z][\p{L}.'’-]+){1,3})`;
  const re=new RegExp("("+title+")\\s+"+name+"(?:\\s+['’]\\d{2})?\\s+(?:Full Bio|View Full Bio)\\b","gu");
@@ -374,7 +397,7 @@ function rosterSectionCoaches(html:string,url:string,anchorId=""){
      if(!plausibleName(full))continue;
      const parts=full.split(/\s+/),rr=role(m[1]);
      matches.push({first_name:parts.shift()!,last_name:parts.join(" "),title:m[1],
-       email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,
+       email:null,phone:null,x_url:null,x_handle:null,official_bio_url:bioFor(full),
        role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
    }
    return [...new Map(matches.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()];
@@ -413,7 +436,7 @@ function parseOfficialStaff(html:string,url:string,collegeName:string,anchorId="
      const matched=regular.find((y:any)=>y.first_name.toLowerCase()===x.first_name.toLowerCase()
        && y.last_name.toLowerCase()===x.last_name.toLowerCase());
      return matched?{...x,email:matched.email,phone:matched.phone,x_url:matched.x_url,
-       x_handle:matched.x_handle,official_bio_url:matched.official_bio_url}:x;
+       x_handle:matched.x_handle,official_bio_url:x.official_bio_url||matched.official_bio_url}:x;
    });
  }
  if(collegeName==="Mars Hill University"||collegeName==="University of Tampa"||collegeName==="Tusculum University"||collegeName==="Saint Michael's College"){
@@ -426,6 +449,23 @@ function parseOfficialStaff(html:string,url:string,collegeName:string,anchorId="
  return regular;
 }
 
+// A Sidearm bio must identify the exact coach, and contact details must
+// appear in that person's labeled profile header. Do not borrow a generic
+// athletics footer email or phone from elsewhere in the HTML.
+function sidearmProfileContact(html:string,url:string,firstName:string,lastName:string){
+ const fullName=firstName+" "+lastName;
+ if(sidearmBioSlug(url)!==sidearmNameSlug(fullName))return null;
+ const text=clean(html);
+ const re=new RegExp(fullName.replace(/[.*+?^$()|[\]\\{}]/g,"\\function profileContact(html:string,url:string,firstName:string,lastName:string){"),"gi");
+ for(const match of text.matchAll(re)){
+   const nearby=text.slice(match.index||0,(match.index||0)+2200);
+   if(!/\bTITLE\s*:/i.test(nearby.slice(0,500)))continue;
+   const email=nearby.match(/\bE-?MAIL\s*:\s*([\w.+-]+@[\w.-]+\.[a-z]{2,})\b/i)?.[1]?.toLowerCase()||null;
+   const phone=nearby.match(/\bPHONE\s*:\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
+   if(email||phone)return {email,phone,x_url:null,x_handle:null};
+ }
+ return null;
+}
 function profileContact(html:string,url:string,firstName:string,lastName:string){
  const email=(html.match(/mailto:([^"'?\s>]+)/i)?.[1]||"").replace(/[.,;]+$/,"").toLowerCase()||null;
  const text=clean(html);
@@ -438,7 +478,10 @@ async function enrichCoachProfile(c:any,staffUrl:string){
  try{
    const p=await get(c.official_bio_url,5000);
    if(!sameHost(p.url,staffUrl)) return c;
-   const contact=profileContact(p.html,p.url,c.first_name,c.last_name);
+   const sidearm=Boolean(sidearmBioSlug(c.official_bio_url));
+   const contact=sidearm?sidearmProfileContact(p.html,p.url,c.first_name,c.last_name)
+     :profileContact(p.html,p.url,c.first_name,c.last_name);
+   if(!contact)return c;
    return {...c,email:c.email||contact.email,phone:c.phone||contact.phone,x_url:c.x_url||contact.x_url,x_handle:c.x_handle||contact.x_handle,official_bio_url:p.url,profile_source_hash:hash(p.html)};
  }catch{return c}
 }
