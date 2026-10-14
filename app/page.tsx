@@ -73,7 +73,7 @@ export default function Home() {
     <header className="relative z-20 border-b border-slate-100 bg-white">
       <nav aria-label="Main navigation" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
         <Link href="/" aria-label="RLTNL Recruiting home" className="flex shrink-0 items-center">
-          <img src="/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" className="h-auto w-[170px] object-contain sm:w-[205px]"/>
+          <img src="/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" className="h-auto w-[128px] object-contain sm:w-[170px] md:w-[205px]"/>
         </Link>
         <div className="hidden items-center gap-5 lg:flex">
           <a href="#features" className="text-sm font-bold text-slate-600 transition hover:text-red-700">Features</a>
@@ -84,7 +84,7 @@ export default function Home() {
           <Link href="/demo" className="btn btn-red px-4 py-2.5 text-sm">Request a Demo <ArrowRight size={15}/></Link>
         </div>
         <div className="flex items-center gap-2 lg:hidden">
-          <Link href="/demo" className="btn btn-red px-3 py-2 text-xs sm:text-sm">Request a Demo <ArrowRight size={14}/></Link>
+          <Link href="/demo" className="btn btn-red px-3 py-2 text-xs sm:text-sm"><span className="sm:hidden">Demo</span><span className="hidden sm:inline">Request a Demo</span> <ArrowRight size={14}/></Link>
           <details className="group relative">
             <summary aria-label="Open navigation menu" className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-slate-200 text-slate-800 [&::-webkit-details-marker]:hidden"><Menu size={21}/></summary>
             <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[220px] rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
