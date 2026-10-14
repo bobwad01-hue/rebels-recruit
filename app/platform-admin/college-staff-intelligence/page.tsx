@@ -1186,10 +1186,10 @@ export default function Page(){
             <div className="mt-3">
               <label htmlFor="host-evidence-url" className="text-xs font-bold text-slate-900">Official university page linking to this athletics site (optional)</label>
               <input id="host-evidence-url" type="url" className="input mt-1 w-full" value={hostEvidenceUrl}
-                placeholder="Leave blank to check the university homepage automatically"
+                placeholder="Leave blank to search the university’s official pages automatically"
                 disabled={hostChecking||hostApproving}
                 onChange={e=>{setHostEvidenceUrl(e.target.value);setHostEvidence(null);setHostConfirmed(false);setHostError('');}}/>
-              <p className="mt-1 text-xs text-slate-600">Must be on the school's existing university website, not the proposed athletics domain. RLTNL requires a direct link on that university page.</p>
+              <p className="mt-1 text-xs text-slate-600">RLTNL checks several official university pages automatically. If none works, paste a specific page on the university’s website that directly links to this athletics site.</p>
             </div>
             <button type="button" className="btn mt-3" disabled={hostChecking||hostApproving}
               onClick={()=>void checkHostEvidence()}>
@@ -1199,6 +1199,7 @@ export default function Page(){
               ?'border-green-200 bg-green-50 text-green-950':'border-amber-200 bg-amber-50 text-amber-950')} role="status">
               <p className="font-bold">{hostEvidence.verified?'Independent official link found':'Official link not yet confirmed'}</p>
               <p className="mt-1 text-xs">{hostEvidence.message}</p>
+              <p className="mt-1 text-xs font-medium">Official university pages checked: {hostEvidence.checked_urls.length}</p>
               {!hostEvidence.verified&&<p className="mt-2 text-xs">RLTNL has not approved this host. You can open <a href={hostEvidence.school_website}
                 target="_blank" rel="noopener noreferrer" className="font-bold underline">the official university website</a>,
                 find its Athletics link, and paste the university-side URL above. Official university Athletics-page redirects are also accepted.</p>}
