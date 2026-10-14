@@ -20,16 +20,20 @@ export default function AdvisorCommunicationAlerts({ compact = false }: { compac
     async function load() {
       const { data: { user } } = await db.auth.getUser();
       if (!user || !active) return;
-      const [list, total] = await Promise.all([
-        db.from('notifications').select('id,title,body,url,created_at')
+      const [list, assignments] = await Promise.all([
+        db.from('notifications').select('id,title,body,url,created_at,data')
           .eq('user_id', user.id).in('kind', kinds).is('read_at', null)
-          .order('created_at', { ascending: false }).limit(6),
-        db.from('notifications').select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id).in('kind', kinds).is('read_at', null),
+          .order('created_at', { ascending: false }).limit(250),
+        db.from('athlete_advisor_assignments').select('athlete_user_id')
+          .eq('advisor_user_id', user.id).eq('status', 'active'),
       ]);
-      if (!active || list.error || total.error) return;
-      setAlerts(list.data || []);
-      setCount(total.count || 0);
+      if (!active || list.error || assignments.error) return;
+      // Revoked athletes must disappear from Advisor alerts too, even if the
+      // notification was generated while the assignment was active.
+      const allowed = new Set((assignments.data || []).map(a => String(a.athlete_user_id)));
+      const visible = (list.data || []).filter(n => allowed.has(String((n.data as any)?.athlete_user_id || '')));
+      setAlerts(visible.slice(0, 6));
+      setCount(visible.length);
     }
     void load();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 60000);
