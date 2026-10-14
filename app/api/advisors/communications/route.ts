@@ -70,7 +70,7 @@ export async function GET() {
     return {
       id: i.id, athleteId: i.athlete_user_id, athleteName: names.get(i.athlete_user_id) || 'Athlete',
       coachName: coachNames.get(i.coach_id) || 'College coach', schoolName: schoolNames.get(i.college_id) || 'College program',
-      direction: incoming ? 'received' : 'sent',
+      direction: incoming ? 'received' : 'sent', sentByAdvisor: !incoming && (i.initiated_by === 'Advisor' || i.actor_user_id !== i.athlete_user_id),
       subject: i.email_subject || g?.subject || (incoming ? 'Coach email' : 'Recruiting email'),
       body: body || null, summary: g?.summary || i.note || null,
       timestamp: g?.received_at || i.created_at || i.date,
@@ -89,7 +89,7 @@ export async function GET() {
     messages.push({
       id: g.id, athleteId: g.athlete_user_id, athleteName: names.get(g.athlete_user_id) || 'Athlete',
       coachName: coachNames.get(g.coach_id) || 'College coach', schoolName: schoolNames.get(g.college_id) || 'College program',
-      direction: 'received', subject: g.subject || 'Coach email',
+      direction: 'received', sentByAdvisor: false, subject: g.subject || 'Coach email',
       body: null, summary: g.summary || null, timestamp: g.received_at,
       tracked: true,
       needsAttention: !!g.action_required && !['completed', 'closed'].includes(g.action_state || ''),
