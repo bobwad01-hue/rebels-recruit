@@ -10,6 +10,7 @@ const inbox = read('app/api/platform/demo-inquiries/route.ts');
 const tour = read('components/PublicProductTour.tsx');
 const sql = read('supabase/migrations/20261014_organization_demo_requests.sql');
 const privacy = read('app/privacy/page.tsx');
+const middleware = read('middleware.ts');
 const lockdown = read('supabase/migrations/20261014_02_lock_down_demo_requests.sql');
 
 assert.match(home, /RLTNL: Relationships lead to the next level\./, 'Approved closing line uses colon');
@@ -43,4 +44,7 @@ assert.match(sql, /enable row level security/, 'Private inquiries have RLS');
 assert.ok(!/create policy/i.test(sql), 'Do not add public inquiry access policies');
 assert.match(lockdown, /revoke all on table public.organization_demo_requests from anon, authenticated/, 'Revoke direct client access');
 assert.match(privacy, /organization demo inquiry/, 'Privacy notice covers public form');
+assert.match(middleware, /publicPaths=\['\/',\s*'\/demo'/, 'Public demo page is accessible without sign-in');
+assert.match(middleware, /request.method==='POST'&&\(pathname==='\/api\/signup\/authorize'\|\|pathname==='\/api\/demo-request'\)/, 'Anonymous demo POST passes middleware');
+assert.match(middleware, /pendingApiAllowed=pathname==='\/api\/demo-request'/, 'Pending accounts may request a demo');
 console.log('Commercial homepage, product tour, inquiry and privacy smoke tests passed.');
