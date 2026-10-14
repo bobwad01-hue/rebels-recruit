@@ -26,7 +26,7 @@ export default function PlatformMessages(){
   finally{setLoading(false)}
  },[]);
  useEffect(()=>{void load();const timer=window.setInterval(()=>{void load()},30000);return()=>window.clearInterval(timer)},[load]);
- useEffect(()=>{let active=true;import('@/lib/supabase-browser').then(({createClient})=>createClient().auth.getUser()).then(({data})=>{if(active)setMe(data.user?.id||null});return()=>{active=false}},[]);
+ useEffect(()=>{let active=true;void import('@/lib/supabase-browser').then(({createClient})=>createClient().auth.getUser()).then(({data})=>{if(active)setMe(data.user?.id||null)});return()=>{active=false}},[]);
  useEffect(()=>{setOnline(navigator.onLine);const yes=()=>setOnline(true),no=()=>setOnline(false);window.addEventListener('online',yes);window.addEventListener('offline',no);return()=>{window.removeEventListener('online',yes);window.removeEventListener('offline',no)}},[]);
  const current=threads.find(t=>t.id===selected);
  useEffect(()=>{if(!current?.unread)return;
