@@ -91,9 +91,13 @@ export async function POST(req:NextRequest){
         .eq('college_id',collegeId).eq('host',candidate).maybeSingle()
       :{data:null,error:null};
     if(hostError)throw hostError;
-    // New domains can be saved, but not fetched until separately approved.
+    // An explicit Super Owner confirmation of the exact official coaching URL
+    // is sufficient for ONE-SCHOOL staff validation. The importer still checks
+    // the actual softball coaches and never trusts their identities by domain.
+    // Independently linked hosts remain reusable for subsequent corrections.
     const trusted=Boolean(candidate&&(approvedHost||
-      allowedHosts.some(h=>candidate===h||candidate.endsWith('.'+h))));
+      allowedHosts.some(h=>candidate===h||candidate.endsWith('.'+h))||
+      (outcome==='verified'&&body.confirmed_official===true)));
     const {data:state,error:saveError}=manualOnly
       ?await admin.rpc('prepare_college_staff_blocked_access_manual_review',{
         p_college_id:collegeId,p_user_id:user.id,p_source_url:url,
@@ -118,7 +122,7 @@ export async function POST(req:NextRequest){
         :state==='pending'
         ?'Official source saved. Running the existing coaching quality gates next.'
         :state==='host_review'
-        ?'Proposed source saved. This new domain needs manual official-host approval before automated fetching.'
+        ?'Proposed source saved for manual review; verify the exact official coaching URL before validating staff.'
         :'Verification saved. No coach records were changed.'},{headers});
   }catch(e){
     console.error('College source verification failed',e);
