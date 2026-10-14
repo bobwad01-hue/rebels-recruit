@@ -50,7 +50,7 @@ function HeroPreview() {
       <div className="p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3"><div><div className="text-[11px] font-bold text-red-700">RECRUITING GAME PLAN</div><h3 className="mt-1 text-xl font-black tracking-tight">Know your next move.</h3></div><div className="rounded-xl bg-red-50 p-3 text-red-700"><Target size={23}/></div></div>
         <div className="mt-5 grid grid-cols-3 gap-2.5">
-          {[['School list','Your fit'],['Coaches','Your connections'],['Next steps','Your plan']].map(([name,value])=><div key={name} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-3 sm:px-3"><p className="text-[10px] font-semibold text-slate-500">{name}</p><p className="mt-1 break-words text-[11px] font-black leading-4 sm:text-xs">{value}</p></div>)}
+          {[['Schools','12'],['Connections','8'],['Next steps','3']].map(([name,value])=><div key={name} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"><p className="text-[10px] font-semibold text-slate-500">{name}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
         </div>
         <div className="mt-4 rounded-xl border border-red-100 bg-red-50/70 p-3.5">
           <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-red-700"><Sparkles size={15}/> Your next best move</div>
@@ -80,7 +80,7 @@ function RelationshipPreview() {
 function AdvisorPreview() {
   return <PreviewChrome label="Advisor view"><div className="p-4 sm:p-5">
     <div className="text-[10px] font-bold uppercase tracking-wider text-red-700">Player 360°</div><h3 className="mt-1 text-lg font-black">See who needs support.</h3>
-    <div className="mt-4 grid grid-cols-2 gap-2.5">{[['Assigned athletes','Your roster'],['Next steps due','Needs review']].map(([title,value])=><div key={title} className="rounded-xl border bg-slate-50 p-3"><p className="text-[11px] text-slate-500">{title}</p><p className="mt-1 text-sm font-black">{value}</p></div>)}</div>
+    <div className="mt-4 grid grid-cols-2 gap-2.5">{[['Assigned athletes','8'],['Next steps due','4']].map(([title,value])=><div key={title} className="rounded-xl border bg-slate-50 p-3"><p className="text-[11px] text-slate-500">{title}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div>
     <div className="mt-3 space-y-2">
       {[['Athlete A','Coach response to review','Needs follow-through'],['Athlete B','Prospect camp approaching','Event prep'],['Athlete C','Next step completed','On track']].map(([name,detail,status],i)=><div key={name} className="flex items-center gap-3 rounded-lg border p-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700">{i+1}</div><div className="min-w-0 flex-1"><p className="text-xs font-black">{name}</p><p className="mt-0.5 text-[11px] text-slate-500">{detail}</p></div><span className="hidden text-[10px] font-bold text-slate-600 sm:block">{status}</span></div>)}
     </div>
