@@ -89,7 +89,16 @@ export default function Page(){
   }
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
-    if(!verifySchool||verifySaving||running||busy||diagnosing)return;
+    if(!verifySchool||verifySaving)return;
+    if(running||busy||diagnosing){
+      setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
+      return;
+    }
+    if((verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&!verifyConfirmed){
+      setVerifyError('Check the official-source confirmation box before saving.');
+      document.getElementById('verify-confirmation')?.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
     setVerifySaving(true);setVerifyError('');setVerifyResult('');
     try{
       const response=await fetch('/api/platform/college-staff-intelligence/verify',{
@@ -451,12 +460,16 @@ export default function Page(){
               onChange={e=>setVerifyNotes(e.target.value)} placeholder="For example: Head coach shown in the 2026 staff listing" className="input w-full resize-y"/>
           </div>
           {(verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&<label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-sm">
-            <input type="checkbox" checked={verifyConfirmed} onChange={e=>setVerifyConfirmed(e.target.checked)}
-              disabled={verifySaving} className="mt-1"/>
+            <input id="verify-confirmation" type="checkbox" checked={verifyConfirmed}
+              onChange={e=>{setVerifyConfirmed(e.target.checked);if(e.target.checked)setVerifyError('');}}
+              disabled={verifySaving} aria-invalid={Boolean(verifyError&&!verifyConfirmed)}
+              className="mt-1"/>
             <span>{verifyOutcome==='verified'
               ?'I checked this school’s official athletics or university source and confirm this URL is for its softball coaching staff.'
               :'I checked an official school source indicating this softball program is inactive.'}</span>
           </label>}
+          {(verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&!verifyConfirmed&&
+            <p className="text-xs text-amber-800">Required: confirm the official school source before saving.</p>}
           {verifyOutcome==='verified'&&<p className="text-xs text-slate-500">
             Saving a recognized official host starts a targeted recheck. Coach imports still require the existing quality gates; unfamiliar domains are held for review.
           </p>}
@@ -465,13 +478,11 @@ export default function Page(){
             (verifyResultKind==='success'?'border-green-200 bg-green-50 text-green-900':
               verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-900':
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
-          <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+          <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
             <button type="button" className="btn" disabled={verifySaving} onClick={()=>setVerifySchool(null)}>
               {verifyResult?'Close':'Cancel'}
             </button>
-            <button type="submit" className="btn btn-red" disabled={verifySaving||running||busy||diagnosing||
-              (verifyOutcome==='verified'&&!verifyUrl.trim())||
-              ((verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&!verifyConfirmed)}>
+            <button type="submit" className="btn btn-red" disabled={verifySaving||running||busy||diagnosing}>
               <ShieldCheck size={16}/>{verifySaving?'Saving / rechecking…':'Save verification'}
             </button>
           </div>
