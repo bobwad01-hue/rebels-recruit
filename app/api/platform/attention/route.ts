@@ -27,26 +27,28 @@ export async function GET(){
    .not('feedback_type','is',null).in('status',pendingFeedback)
    .order('created_at',{ascending:false}).limit(5)
  ]);
- const [demoCount,demoRecent,followCount,followRecent,orgApprovalCount,advisorApprovalCount,orgRecent,advisorRecent]=await Promise.all([
+ const [demoCount,demoRecent,followCount,followRecent,orgApprovalCount,advisorApprovalCount,orgRecent,advisorRecent,demoAlertCount,followAlertCount]=await Promise.all([
   admin.from('organization_demo_requests').select('id',{count:'exact',head:true}).eq('status','new'),
   admin.from('organization_demo_requests').select('id,organization_name,full_name,created_at,alert_acknowledged_at')
-    .eq('status','new').is('alert_dismissed_at',null).order('created_at',{ascending:false}).limit(5),
+    .eq('status','new').order('created_at',{ascending:false}).limit(5),
   admin.from('organization_demo_requests').select('id',{count:'exact',head:true}).in('status',['contacted','demo_scheduled']).lte('follow_up_at',today),
   admin.from('organization_demo_requests').select('id,organization_name,follow_up_at,created_at,alert_acknowledged_at')
-    .in('status',['contacted','demo_scheduled']).lte('follow_up_at',today).is('alert_dismissed_at',null).order('follow_up_at',{ascending:true}).limit(5),
+    .in('status',['contacted','demo_scheduled']).lte('follow_up_at',today).order('follow_up_at',{ascending:true}).limit(5),
   admin.from('organization_requests').select('id',{count:'exact',head:true}).eq('status','pending'),
   admin.from('profiles').select('id',{count:'exact',head:true}).eq('app_role','advisor').eq('advisor_account_type','independent').eq('commercial_status','pending'),
   admin.from('organization_requests').select('id,organization_name,submitted_at').eq('status','pending').order('submitted_at',{ascending:false}).limit(3),
-  admin.from('profiles').select('id,full_name,created_at').eq('app_role','advisor').eq('advisor_account_type','independent').eq('commercial_status','pending').order('created_at',{ascending:false}).limit(3)
+  admin.from('profiles').select('id,full_name,created_at').eq('app_role','advisor').eq('advisor_account_type','independent').eq('commercial_status','pending').order('created_at',{ascending:false}).limit(3),
+  admin.from('organization_demo_requests').select('id',{count:'exact',head:true}).eq('status','new').is('alert_dismissed_at',null),
+  admin.from('organization_demo_requests').select('id',{count:'exact',head:true}).in('status',['contacted','demo_scheduled']).lte('follow_up_at',today).is('alert_dismissed_at',null)
  ]);
- const errors=[sc.error,cc.error,fc.error,s.error,conflictsRecent.error,f.error,demoCount.error,demoRecent.error,followCount.error,followRecent.error,orgApprovalCount.error,advisorApprovalCount.error,orgRecent.error,advisorRecent.error].filter(Boolean);
+ const errors=[sc.error,cc.error,fc.error,s.error,conflictsRecent.error,f.error,demoCount.error,demoRecent.error,followCount.error,followRecent.error,orgApprovalCount.error,advisorApprovalCount.error,orgRecent.error,advisorRecent.error,demoAlertCount.error,followAlertCount.error].filter(Boolean);
  if(errors.length)return NextResponse.json({error:'Could not load the platform review queues.'},{status:500});
  const one=(v:any)=>Array.isArray(v)?v[0]:v;
  const coachName=(row:any)=>{
   const coach=one(row.college_coaches);
   return [coach?.first_name,coach?.last_name].filter(Boolean).join(' ')||'College coach';
  };
- const items=[
+ const allItems=[
   ...(s.data||[]).map((row:any)=>({
    kind:'coach_review',id:String(row.id),title:'Coach update: '+coachName(row),
    detail:String(row.suggestion_type||'New coach update').replaceAll('_',' '),
@@ -61,7 +63,7 @@ export async function GET(){
    kind:'demo_request',id:String(row.id),title:'Demo request: '+row.organization_name,
    detail:row.full_name+' wants to learn about RLTNL Recruiting',
    createdAt:row.created_at,url:'/platform-admin/inquiries?inquiry='+encodeURIComponent(row.id),
-   acknowledged:!!row.alert_acknowledged_at
+   acknowledged:!!row.alert_acknowledged_at,dismissed:!!row.alert_dismissed_at
   })),
   ...(followRecent.data||[]).map((row:any)=>({
    kind:'demo_follow_up',id:String(row.id),title:'Follow up: '+row.organization_name,
@@ -83,9 +85,13 @@ export async function GET(){
    detail:String(row.description||'').split('\n')[0].slice(0,140),
    createdAt:row.created_at,url:'/platform-admin/feedback?case='+encodeURIComponent(row.id)
   }))
- ].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()).slice(0,8);
+ ].sort((a,b)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
+ const items=allItems.filter(item=>!('dismissed' in item)||!item.dismissed).slice(0,8);
+ const workItems=allItems.slice(0,6);
  const counts={coachReviews:(sc.count||0)+(cc.count||0),feedback:fc.count||0,demoRequests:demoCount.count||0,followUps:followCount.count||0,approvals:(orgApprovalCount.count||0)+(advisorApprovalCount.count||0)};
- return NextResponse.json({counts,total:Object.values(counts).reduce((a,b)=>a+b,0),items},{
+ const total=Object.values(counts).reduce((a,b)=>a+b,0);
+ const alertTotal=counts.coachReviews+counts.feedback+counts.approvals+(demoAlertCount.count||0)+(followAlertCount.count||0);
+ return NextResponse.json({counts,total,alertTotal,items,workItems},{
   headers:{'Cache-Control':'private, no-store'}
  });
 }
