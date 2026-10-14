@@ -11,8 +11,9 @@
     "test:fixtures": "node scripts/release-access-fixture-smoke.mjs && node scripts/release-family-signup-smoke.mjs && node scripts/release-parent-full-access-smoke.mjs && node scripts/release-account-lifecycle-smoke.mjs && node scripts/release-invitation-only-signup-smoke.mjs && node scripts/release-journey-polish-smoke.mjs && node scripts/release-school-compare-smoke.mjs",
     "test:spreadsheets": "node scripts/release-spreadsheet-smoke.mjs",
     "audit:language": "node scripts/language-cta-audit.mjs",
-    "prebuild": "node scripts/release-advisor-communications-smoke.mjs",
-    "test:advisor-communications": "node scripts/release-advisor-communications-smoke.mjs"
+    "prebuild": "node scripts/release-advisor-communications-smoke.mjs && node scripts/release-public-home-smoke.mjs",
+    "test:advisor-communications": "node scripts/release-advisor-communications-smoke.mjs",
+    "test:public-home": "node scripts/release-public-home-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
