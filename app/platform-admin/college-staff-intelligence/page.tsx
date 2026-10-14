@@ -1041,9 +1041,9 @@ export default function Page(){
               ?'border-green-200 bg-green-50 text-green-950':'border-amber-200 bg-amber-50 text-amber-950')} role="status">
               <p className="font-bold">{hostEvidence.verified?'Independent official link found':'Official link not yet confirmed'}</p>
               <p className="mt-1 text-xs">{hostEvidence.message}</p>
-              {!hostEvidence.verified&&<p className="mt-2 text-xs">Start at <a href={hostEvidence.school_website}
-                target="_blank" rel="noopener noreferrer" className="font-bold underline">the official university website</a>
-                , find its Athletics page, and paste that university-page URL into the evidence field above.</p>}
+              {!hostEvidence.verified&&<p className="mt-2 text-xs">RLTNL has not approved this host. You can open <a href={hostEvidence.school_website}
+                target="_blank" rel="noopener noreferrer" className="font-bold underline">the official university website</a>,
+                find its Athletics link, and paste the university-side URL above. Official university Athletics-page redirects are also accepted.</p>}
               {hostEvidence.verified&&hostEvidence.evidence_url&&hostEvidence.matched_link&&
                 <div className="mt-2 space-y-1 break-all text-xs">
                   <p>University evidence: <a href={hostEvidence.evidence_url} target="_blank" rel="noopener noreferrer" className="font-bold underline">{hostEvidence.evidence_url}</a></p>
@@ -1189,13 +1189,19 @@ export default function Page(){
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
             {needsHostApproval&&!hostEditing&&!verifySaved?
               <>
+                <p className="mr-auto max-w-64 self-center text-xs font-semibold text-amber-800" role="status">
+                  {hostChecking?'Checking the official university link…':
+                    !hostEvidence?.verified?'Approval locked: an official university link must be confirmed above.':
+                    !hostConfirmed?'Check the approval confirmation above to unlock the button.':
+                    'Independent evidence confirmed. Ready for your approval.'}
+                </p>
                 <button type="button" className="btn" disabled={hostChecking||hostApproving}
                   onClick={()=>setVerifySchool(null)}>Close</button>
-                <button type="button" className="btn btn-red"
-                  disabled={!hostEvidence?.verified||!hostConfirmed||hostChecking||hostApproving}
+                {hostEvidence?.verified&&hostConfirmed&&<button type="button" className="btn btn-red"
+                  disabled={hostChecking||hostApproving}
                   onClick={()=>void approveOfficialHost()}>
                   <ShieldCheck size={16}/>{hostApproving?'Approving & rechecking…':'Approve official athletics host'}
-                </button>
+                </button>}
               </>:
             manualMode&&canManualImport?
               <>

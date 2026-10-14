@@ -24,7 +24,7 @@ function host(value:string|null|undefined):string|null{
 function sameUniversityHost(url:string,schoolHost:string){
   return host(url)===schoolHost;
 }
-async function fetchOfficialUniversityPage(url:string,schoolHost:string){
+async function fetchOfficialUniversityPage(url:string,schoolHost:string,athleticsHost:string){
   let current=url;
   for(let redirects=0;redirects<3;redirects++){
     if(!sameUniversityHost(current,schoolHost))throw new Error('Evidence must remain on the university website');
@@ -35,7 +35,19 @@ async function fetchOfficialUniversityPage(url:string,schoolHost:string){
     if(response.status>=300&&response.status<400){
       const next=response.headers.get('location');
       if(!next)throw new Error('Official university page redirected without a destination');
-      current=new URL(next,current).toString();
+      const destination=new URL(next,current).toString();
+      // An official university /athletics page redirecting directly to the
+      // school's proposed athletics host is strong independent evidence.
+      // Do not follow off-site redirects or accept arbitrary open-redirect paths.
+      if(host(destination)===athleticsHost){
+        const path=new URL(current).pathname;
+        if(!new URL(current).search && /(^|\/)(athletics|sports|varsity)(\/|$)/i.test(path))
+          return {url:current,html:'',redirectedAthleticsLink:destination};
+        throw new Error('Cross-domain redirect is not from an athletics path');
+      }
+      if(!sameUniversityHost(destination,schoolHost))
+        throw new Error('University evidence redirected to an unrelated website');
+      current=destination;
       continue;
     }
     if(!response.ok)throw new Error('University evidence page returned HTTP '+response.status);
@@ -80,25 +92,32 @@ async function verifyIndependentEvidence(website:string,sourceUrl:string,optiona
     throw new Error('A separate official university website and athletics domain are required');
   const home=new URL(website).origin+'/';
   const origin=new URL(website).origin;
-  const paths=optionalEvidence?[optionalEvidence]:[home,origin+'/athletics',origin+'/athletics/softball'];
+  // Prefer the canonical university athletics entry point. Some universities
+  // link internally to /athletics/ which redirects to a separately hosted site.
+  const paths=optionalEvidence?[optionalEvidence]:[
+    origin+'/athletics/',home,origin+'/student-life/',origin+'/sports/'
+  ];
   if(optionalEvidence&&!sameUniversityHost(optionalEvidence,schoolHost))
     throw new Error('Evidence URL must be hosted on the school’s saved university website');
   const checked:string[]=[];
   for(const candidate of [...new Set(paths)]){
     try{
-      const page=await fetchOfficialUniversityPage(candidate,schoolHost);
+      const page=await fetchOfficialUniversityPage(candidate,schoolHost,athleticsHost);
       checked.push(page.url);
-      const link=findOfficialAthleticsLink(page.html,page.url,athleticsHost);
+      const link=page.redirectedAthleticsLink||
+        findOfficialAthleticsLink(page.html,page.url,athleticsHost);
       if(link)return {verified:true,school_website:website,athletics_host:athleticsHost,
         evidence_url:page.url,matched_link:link,checked_urls:checked,
-        message:'Official university page directly links to the proposed athletics domain.'} satisfies Evidence;
+        message:page.redirectedAthleticsLink
+          ?'The university’s official Athletics page redirects directly to this athletics domain.'
+          :'The university’s official page directly links to this athletics domain.'} satisfies Evidence;
     }catch{
       checked.push(candidate);
     }
   }
   return {verified:false,school_website:website,athletics_host:athleticsHost,
     evidence_url:null,matched_link:null,checked_urls:checked,
-    message:'No direct athletics link found on the university pages checked. Enter an official university athletics page URL that links to the proposed domain; approval remains blocked until a link is verified.'} satisfies Evidence;
+    message:'No official university link or Athletics-page redirect could be verified. Enter the university Athletics page URL (for example, https://university.edu/athletics/) and check again. Approval remains locked until independent evidence is confirmed.'} satisfies Evidence;
 }
 
 export async function POST(req:NextRequest){
