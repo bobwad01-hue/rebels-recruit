@@ -79,6 +79,7 @@ export default function Page(){
   const [verifyNotes,setVerifyNotes]=useState('');
   const [verifyConfirmed,setVerifyConfirmed]=useState(false);
   const [verifySaving,setVerifySaving]=useState(false);
+  const [verifySaved,setVerifySaved]=useState(false);
   const [verifyError,setVerifyError]=useState('');
   const [verifyResult,setVerifyResult]=useState('');
   const [verifyResultKind,setVerifyResultKind]=useState<'success'|'review'|'queued'>('queued');
@@ -135,12 +136,12 @@ export default function Page(){
     setVerifyOutcome(school.verification?.outcome||'verified');
     setVerifyHead(school.verification?.head_coach_name||'');
     setVerifyNotes(school.verification?.notes||'');
-    setVerifyConfirmed(false);setVerifyError('');setVerifyResult('');
+    setVerifyConfirmed(false);setVerifySaved(false);setVerifyError('');setVerifyResult('');
     setVerifyResultKind('queued');
   }
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
-    if(!verifySchool||verifySaving)return;
+    if(!verifySchool||verifySaving||verifySaved)return;
     if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
       setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
       return;
@@ -160,6 +161,9 @@ export default function Page(){
       });
       const saved=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(saved.error||'Could not save source verification');
+      // A successful POST is persisted even if a subsequent recheck or refresh fails.
+      // Lock the form to prevent accidental duplicate verifications and imports.
+      setVerifySaved(true);
       if(typeof saved.source_url==='string')setVerifyUrl(saved.source_url);
       setVerifyResult((saved.anchor_preserved?'Your # section link was preserved for future navigation. ':'')+
         (saved.message||'Verification saved.'));
@@ -699,7 +703,7 @@ export default function Page(){
             <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
             <p className="mt-1 text-xs text-slate-500">Confirm the school source, not every coach or contact field.</p>
           </div>
-          <button type="button" disabled={verifySaving} aria-label="Close verification"
+          <button type="button" disabled={verifySaving||verifySaved} aria-label="Close verification"
             onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
             <X size={20}/></button>
         </div>
@@ -708,7 +712,7 @@ export default function Page(){
             <label htmlFor="verify-url" className="mb-1 block text-sm font-bold">Official softball coaching page URL</label>
             <input id="verify-url" type="url" autoFocus required={verifyOutcome==='verified'} value={verifyUrl}
               onChange={e=>{setVerifyUrl(e.target.value);setVerifyResult('');}}
-              placeholder="https://schoolathletics.edu/sports/softball/coaches" className="input w-full" disabled={verifySaving}/>
+              placeholder="https://schoolathletics.edu/sports/softball/coaches" className="input w-full" disabled={verifySaving||verifySaved}/>
             <div className="mt-2 flex flex-wrap gap-4 text-xs">
               {verifyUrl.startsWith('https://')&&<a href={verifyUrl} target="_blank" rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 font-semibold text-blue-700 underline">Open entered URL <ExternalLink size={12}/></a>}
@@ -729,25 +733,25 @@ export default function Page(){
               ['inactive_program','Softball program inactive']
             ].map(([value,label])=><label key={value} className={'flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 text-sm '+(verifyOutcome===value?'border-slate-900 bg-slate-50':'border-slate-200')}>
               <input type="radio" name="verification-result" value={value} checked={verifyOutcome===value}
-                onChange={()=>{setVerifyOutcome(value);setVerifyConfirmed(false);setVerifyResult('');}} disabled={verifySaving}/>
+                onChange={()=>{setVerifyOutcome(value);setVerifyConfirmed(false);setVerifyResult('');}} disabled={verifySaving||verifySaved}/>
               <span className="font-medium">{label}</span>
             </label>)}
           </fieldset>
           {verifyOutcome==='verified'&&<div>
             <label htmlFor="verify-head" className="mb-1 block text-sm font-bold">Current head coach <span className="font-normal text-slate-500">(optional)</span></label>
             <input id="verify-head" className="input w-full" value={verifyHead} maxLength={120}
-              onChange={e=>setVerifyHead(e.target.value)} placeholder="First and last name" disabled={verifySaving}/>
+              onChange={e=>setVerifyHead(e.target.value)} placeholder="First and last name" disabled={verifySaving||verifySaved}/>
             <p className="mt-1 text-xs text-slate-500">If entered, the importer must find this head coach on the official page or stop for review.</p>
           </div>}
           <div>
             <label htmlFor="verify-notes" className="mb-1 block text-sm font-bold">Verification notes <span className="font-normal text-slate-500">(optional)</span></label>
-            <textarea id="verify-notes" rows={2} maxLength={1000} value={verifyNotes} disabled={verifySaving}
+            <textarea id="verify-notes" rows={2} maxLength={1000} value={verifyNotes} disabled={verifySaving||verifySaved}
               onChange={e=>setVerifyNotes(e.target.value)} placeholder="For example: Head coach shown in the 2026 staff listing" className="input w-full resize-y"/>
           </div>
           {(verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&<label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-sm">
             <input id="verify-confirmation" type="checkbox" checked={verifyConfirmed}
               onChange={e=>{setVerifyConfirmed(e.target.checked);if(e.target.checked)setVerifyError('');}}
-              disabled={verifySaving} aria-invalid={Boolean(verifyError&&!verifyConfirmed)}
+              disabled={verifySaving||verifySaved} aria-invalid={Boolean(verifyError&&!verifyConfirmed)}
               className="mt-1"/>
             <span>{verifyOutcome==='verified'
               ?'I checked this school’s official athletics or university source and confirm this URL is for its softball coaching staff.'
@@ -764,12 +768,20 @@ export default function Page(){
               verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-900':
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
-            <button type="button" className="btn" disabled={verifySaving} onClick={()=>setVerifySchool(null)}>
-              {verifyResult?'Close':'Cancel'}
-            </button>
-            <button type="submit" className="btn btn-red" disabled={verifySaving}>
-              <ShieldCheck size={16}/>{verifySaving?'Saving / rechecking…':'Save verification'}
-            </button>
+            {verifySaved?
+              <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
+                onClick={()=>setVerifySchool(null)}>
+                {verifyResultKind==='success'&&<ShieldCheck size={16}/>}
+                {verifyResultKind==='success'?'Done':'Close'}
+              </button>:
+              <>
+                <button type="button" className="btn" disabled={verifySaving} onClick={()=>setVerifySchool(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-red" disabled={verifySaving}>
+                  <ShieldCheck size={16}/>{verifySaving?'Saving / rechecking…':'Save verification'}
+                </button>
+              </>}
           </div>
         </form>
       </section>
