@@ -86,38 +86,98 @@ function findOfficialAthleticsLink(html:string,evidenceUrl:string,athleticsHost:
 }
 type Evidence={verified:boolean;school_website:string;athletics_host:string;
   evidence_url:string|null;matched_link:string|null;checked_urls:string[];message:string};
+// Independently located university-side entry points for schools whose official
+// athletics link is not on one of the conventional paths. These are NOT trusted
+// approvals: every page is fetched afresh and must link to the saved athletics
+// host (or redirect to it from an explicit university Athletics path).
+const knownUniversityEvidencePaths:Record<string,string[]>={
+  'deltastate.edu':['/library/departments/archives-museum/baseball-musuem/'],
+  'eu.edu':['/athletics/'],
+  'glenville.edu':['/athletics'],
+  'lynn.edu':['/news/2026/coaching-beyond-the-field'],
+  'obu.edu':['/athletics.php'],
+  'pba.edu':['/about/facts/students/'],
+  'uco.edu':['/about/divisions'],
+  'uiu.edu':['/families/']
+};
+function discoverUniversityPages(html:string,pageUrl:string,schoolHost:string){
+  const matches:string[]=[];
+  // Crawl only pages that are linked from an independently fetched official
+  // university HTML page. Do not trust links or redirects from athletics hosts.
+  for(const m of html.matchAll(/<a\b[^>]*\s+href\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))[^>]*>/gi)){
+    const raw=(m[1]||m[2]||m[3]||'').replace(/&amp;/gi,'&').trim();
+    if(!raw||raw.startsWith('#'))continue;
+    try{
+      const u=new URL(raw,pageUrl);
+      if(!sameUniversityHost(u.toString(),schoolHost)||u.search||u.hash)continue;
+      const label=html.slice((m.index||0)+m[0].length,(m.index||0)+m[0].length+180)
+        .replace(/<[^>]*>/g,' ').replace(/&amp;/gi,'&');
+      if(!/(athletic|sport|student.life|campus.life|divisions|family|families)/i.test(u.pathname+' '+label))continue;
+      if(!matches.includes(u.toString()))matches.push(u.toString());
+      if(matches.length>=8)break;
+    }catch{}
+  }
+  return matches;
+}
 async function verifyIndependentEvidence(website:string,sourceUrl:string,optionalEvidence:string){
   const schoolHost=host(website),athleticsHost=host(sourceUrl);
   if(!schoolHost||!athleticsHost||schoolHost===athleticsHost)
     throw new Error('A separate official university website and athletics domain are required');
-  const home=new URL(website).origin+'/';
   const origin=new URL(website).origin;
-  // Prefer the canonical university athletics entry point. Some universities
-  // link internally to /athletics/ which redirects to a separately hosted site.
-  const paths=optionalEvidence?[optionalEvidence]:[
-    origin+'/athletics/',home,origin+'/student-life/',origin+'/sports/'
-  ];
+  const home=origin+'/';
   if(optionalEvidence&&!sameUniversityHost(optionalEvidence,schoolHost))
     throw new Error('Evidence URL must be hosted on the school’s saved university website');
   const checked:string[]=[];
-  for(const candidate of [...new Set(paths)]){
+  let blocked=0;
+  const inspected:{url:string;html:string}[]=[];
+  async function inspect(candidate:string){
     try{
-      const page=await fetchOfficialUniversityPage(candidate,schoolHost,athleticsHost);
+      const page=await fetchOfficialUniversityPage(candidate,schoolHost!,athleticsHost!);
       checked.push(page.url);
       const link=page.redirectedAthleticsLink||
-        findOfficialAthleticsLink(page.html,page.url,athleticsHost);
-      if(link)return {verified:true,school_website:website,athletics_host:athleticsHost,
+        findOfficialAthleticsLink(page.html,page.url,athleticsHost!);
+      if(link)return {verified:true,school_website:website,athletics_host:athleticsHost!,
         evidence_url:page.url,matched_link:link,checked_urls:checked,
         message:page.redirectedAthleticsLink
           ?'The university’s official Athletics page redirects directly to this athletics domain.'
           :'The university’s official page directly links to this athletics domain.'} satisfies Evidence;
-    }catch{
+      if(page.html)inspected.push({url:page.url,html:page.html});
+    }catch(e){
       checked.push(candidate);
+      if(e instanceof Error&&/HTTP (403|429|503)|fetch failed|timeout|abort/i.test(e.message))blocked++;
     }
+    return null;
+  }
+  // User-supplied evidence is checked on its own, without replacing the saved
+  // coaching source or searching for a different approval basis.
+  if(optionalEvidence){
+    const found=await inspect(optionalEvidence);
+    if(found)return found;
+  }else{
+    // Parallel, bounded checks avoid exhausting the 30-second route budget.
+    const first=[
+      ...(knownUniversityEvidencePaths[schoolHost]||[]).map(path=>origin+path),
+      origin+'/athletics/',origin+'/athletics',origin+'/athletics.php',
+      home,origin+'/student-life/'
+    ];
+    const firstResults=await Promise.all([...new Set(first)].map(inspect));
+    const found=firstResults.find((x):x is Evidence=>x!==null);
+    if(found)return found;
+    const linked=inspected.flatMap(page=>discoverUniversityPages(page.html,page.url,schoolHost));
+    const second=[
+      ...linked,
+      origin+'/sports/',origin+'/about/divisions',origin+'/about/facts/students/',
+      origin+'/families/',origin+'/student-life/athletics/'
+    ].filter(url=>!first.includes(url));
+    const secondResults=await Promise.all([...new Set(second)].slice(0,8).map(inspect));
+    const secondFound=secondResults.find((x):x is Evidence=>x!==null);
+    if(secondFound)return secondFound;
   }
   return {verified:false,school_website:website,athletics_host:athleticsHost,
-    evidence_url:null,matched_link:null,checked_urls:checked,
-    message:'No official university link or Athletics-page redirect could be verified. Enter the university Athletics page URL (for example, https://university.edu/athletics/) and check again. Approval remains locked until independent evidence is confirmed.'} satisfies Evidence;
+    evidence_url:null,matched_link:null,checked_urls:[...new Set(checked)],
+    message:blocked
+      ?'No independent athletics link was confirmed. Some official university pages blocked automated access ('+blocked+' checks). Open an official university page in your browser and paste its exact URL above; approval remains locked until the link can be verified.'
+      :'No independent athletics link was found on the official university pages checked. Paste a specific university page that links directly to the athletics site; approval remains locked until verified.'} satisfies Evidence;
 }
 
 export async function POST(req:NextRequest){
