@@ -105,8 +105,11 @@ function personalXLink(items:{url:string;text:string}[],firstName:string,lastNam
 function badOfficialUrl(url:string){
  try{
   const u=new URL(url), h=u.hostname.toLowerCase(), p=u.pathname.toLowerCase();
-  return /youtube|youtu\.be|facebook|instagram|twitter|x\.com|tiktok|vimeo|armssoftware|ticketmaster|shopify|adobe|imleagues|totalcamps|influxermerch|midcosportsplus|ncaa\.org|thesiac\.com|psacsports\.org|foundation|merch|store/.test(h+" "+p)
-    || /error_page|splash\.aspx|page-not-found|athletic-scholarships|give\//.test(p);
+  // Match blocked providers as full hostnames. An unanchored "x.com" test
+  // incorrectly rejected legitimate *phoenix.com athletics domains.
+  const blockedHost=/(^|\.)(?:youtube\.com|youtu\.be|facebook\.com|instagram\.com|twitter\.com|x\.com|tiktok\.com|vimeo\.com|armssoftware\.com|ticketmaster\.com|shopify\.com|adobe\.com|imleagues\.com|totalcamps\.com|influxermerch\.com|midcosportsplus\.com|ncaa\.org|thesiac\.com|psacsports\.org)$/.test(h);
+  return blockedHost || /foundation|merch|store/.test(h)
+    || /error_page|splash\.aspx|page-not-found|athletic-scholarships|give\/|foundation|merch|store/.test(p);
  }catch{return true}
 }
 
@@ -594,9 +597,13 @@ export async function POST(req:NextRequest){
      next_offset:offset+chosen.length<ordered.length?offset+chosen.length:null,results},
      {headers:{"Cache-Control":"private, no-store"}});
  }
- const profileEnrichment=body.profile_enrichment===true;
+ const recoveryMode=body.contact_recovery===true;
+ const profileEnrichment=body.profile_enrichment===true||recoveryMode;
  if(profileEnrichment){
-   const runId=typeof body.backfill_run_id==="string"?body.backfill_run_id:null;
+   if(recoveryMode&&!ownerOk)
+     return NextResponse.json({error:"Contact exception recovery requires signed-in Super Owner access"},{status:403});
+   const runId=recoveryMode?null:(typeof body.backfill_run_id==="string"?body.backfill_run_id:null);
+   const queueTable=recoveryMode?"college_coach_contact_recovery_queue":"college_coach_profile_enrichment_queue";
    if(runId&&(!ownerOk||!/^[-0-9a-f]{36}$/i.test(runId)))
      return NextResponse.json({error:"Backfill requires signed-in Super Owner access"},{status:403});
    if(runId){
@@ -608,15 +615,18 @@ export async function POST(req:NextRequest){
    }
    // Claim a small batch atomically; 3 parallel bio checks stay within the
    // worker's 60-second execution budget even with slow official sources.
-   const {data:queued,error:qErr}=await supabase.rpc("claim_college_coach_profile_enrichment_batch",{
-     p_limit:Math.min(Math.max(Number(body.limit)||3,1),3),p_run_id:runId
-   });
+   const {data:queued,error:qErr}=recoveryMode
+     ?await supabase.rpc("claim_college_coach_contact_recovery_batch",{
+       p_limit:Math.min(Math.max(Number(body.limit)||2,1),2)
+     })
+     :await supabase.rpc("claim_college_coach_profile_enrichment_batch",{
+       p_limit:Math.min(Math.max(Number(body.limit)||3,1),3),p_run_id:runId
+     });
    if(qErr)throw qErr;
    const ids=(queued||[]).map((x:any)=>x.coach_id);
    if(!ids.length){
-     const {count:pending}=await supabase.from("college_coach_profile_enrichment_queue")
-       .select("*",{count:"exact",head:true}).eq("status","pending")
-       .is("backfill_run_id",runId);
+     const query=supabase.from(queueTable).select("*",{count:"exact",head:true}).eq("status","pending");
+     const {count:pending}=recoveryMode?await query:await query.is("backfill_run_id",runId);
      return NextResponse.json({processed:0,pending:pending||0,results:[]});
    }
    const {data:coachRows,error:cErr}=await supabase.from("college_coaches")
@@ -645,9 +655,10 @@ export async function POST(req:NextRequest){
        let contactSource=p.url,contactHash=hash(p.html);
        // Second-source lookup is allowed only on the same official athletics host,
        // with an exact coach-name match. Never guess email patterns.
-       if(!contact.email){
+       if(!contact.email&&(!recoveryMode||!coach.email)){
          const origin=s.origin;
-         const alternates=[origin+"/staff-directory/department/softball",
+         const alternates=recoveryMode?[origin+"/staff-directory"]:
+           [origin+"/staff-directory/department/softball",
            origin+"/staff-directory/softball-department",origin+"/staff-directory"];
          for(const alt of alternates){
            try{
@@ -667,7 +678,7 @@ export async function POST(req:NextRequest){
        }
        const {data:merged,error:mergeError}=await supabase.rpc("merge_verified_college_coach_contacts",{
          p_coach_id:id,p_email:contact.email,p_phone:contact.phone,
-         p_x_url:runId?null:contact.x_url,p_x_handle:runId?null:contact.x_handle,p_source_url:contactSource
+         p_x_url:runId||recoveryMode?null:contact.x_url,p_x_handle:runId||recoveryMode?null:contact.x_handle,p_source_url:contactSource
        });
        if(mergeError)throw mergeError;
        const addedEmail=merged?.added_email===true,addedPhone=merged?.added_phone===true;
@@ -679,26 +690,27 @@ export async function POST(req:NextRequest){
          confidence:(contact.email||contact.phone)?0.98:0.90,
          verification_status:contact.email||contact.phone?"high_confidence":"review",
          raw_evidence:{official_source:true,parser:"profile-enrichment-v2",profile_enriched:true,
-           contact_backfill:Boolean(runId),added_email:addedEmail,added_phone:addedPhone}
+           contact_backfill:Boolean(runId),contact_recovery:recoveryMode,added_email:addedEmail,added_phone:addedPhone}
        });
        if(snapshotError)throw snapshotError;
-       const status=addedEmail||addedPhone?"enriched":"no_email";
-       const {error:queueError}=await supabase.from("college_coach_profile_enrichment_queue")
-         .update({status,added_email:addedEmail,added_phone:addedPhone,last_error:null,updated_at:new Date().toISOString()})
+       const status=addedEmail||addedPhone?"enriched":(recoveryMode?"checked":"no_email");
+       const {error:queueError}=await supabase.from(queueTable)
+         .update({status,added_email:addedEmail,added_phone:addedPhone,last_error:null,
+           updated_at:new Date().toISOString(),...(recoveryMode?{checked_at:new Date().toISOString()}:{})})
          .eq("coach_id",id);
        if(queueError)throw queueError;
        return {coach_id:id,status,added_email:addedEmail,added_phone:addedPhone};
      }catch(e:any){
        const msg=e?.message||String(e),status=/403|robots/i.test(msg)?"blocked":"error";
-       await supabase.from("college_coach_profile_enrichment_queue")
-         .update({status,last_error:msg.slice(0,500),updated_at:new Date().toISOString()})
+       await supabase.from(queueTable)
+         .update({status,last_error:msg.slice(0,500),updated_at:new Date().toISOString(),
+           ...(recoveryMode?{checked_at:new Date().toISOString()}:{})})
          .eq("coach_id",id);
        return {coach_id:id,status,error:msg};
      }
    }));
-   const query=supabase.from("college_coach_profile_enrichment_queue")
-     .select("*",{count:"exact",head:true}).eq("status","pending");
-   const {count:pending}=runId?await query.eq("backfill_run_id",runId):await query.is("backfill_run_id",null);
+   const query=supabase.from(queueTable).select("*",{count:"exact",head:true}).eq("status","pending");
+   const {count:pending}=recoveryMode?await query:runId?await query.eq("backfill_run_id",runId):await query.is("backfill_run_id",null);
    return NextResponse.json({processed:results.length,pending:pending||0,results},
      {headers:{"Cache-Control":"private, no-store"}});
  }
