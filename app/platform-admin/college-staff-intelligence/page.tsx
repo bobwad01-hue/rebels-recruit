@@ -370,10 +370,10 @@ export default function Page(){
           <h2 className="mt-1 text-xl font-black">Backfill missing coach contacts</h2>
           <p className="mt-1 max-w-3xl text-sm text-slate-600">
             One-time audit of individual official coach bios, including Sidearm pages, across already-imported schools.
-            Only missing email and phone fields are filled from verified sources. Previously checked profiles are not requeued.
+            Only missing email and phone fields are filled from verified sources. Profiles checked with the corrected parser are skipped; older Sidearm checks receive one targeted recheck.
           </p>
         </div>
-        {backfill?.run&&<span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold uppercase text-slate-700">{backfill.run.status}</span>}
+        {backfill?.run&&<span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold uppercase text-slate-700">{backfill.run.status==='running'&&!backfillRunning?'Ready to continue':backfill.run.status==='running'?'Processing':backfill.run.status}</span>}
       </div>
       {backfill&&<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{backfill.run?.queued_count??backfill.preview.eligible}</div>
@@ -414,7 +414,7 @@ export default function Page(){
           <RefreshCw size={16}/>Refresh progress
         </button>
       </div>
-      <p className="mt-3 text-xs text-slate-500">Processing continues automatically in small batches while this page stays open. You can pause, leave, and resume later without losing progress. No new paid background service is required.</p>
+      <p className="mt-3 text-xs text-slate-500">Click Continue Backfill once to process small batches automatically while this page stays open. You can pause, leave, and resume later without losing progress. No new paid background service is required.</p>
       {backfillError&&<p className="mt-3 text-sm text-red-700" role="alert"><AlertCircle size={15} className="mr-2 inline"/>{backfillError}</p>}
     </section>
 
