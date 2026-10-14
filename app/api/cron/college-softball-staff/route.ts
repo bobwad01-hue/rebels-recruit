@@ -674,7 +674,7 @@ export async function POST(req:NextRequest){
          observed_name:`${coach.first_name} ${coach.last_name}`,observed_title:coach.title,
          observed_email:contact.email,observed_phone:contact.phone,observed_x_url:contact.x_url,
          observed_x_handle:contact.x_handle,observed_bio_url:p.url,content_hash:contactHash,
-         confidence:contact.email||contact.phone?.98:.90,
+         confidence:(contact.email||contact.phone)?0.98:0.90,
          verification_status:contact.email||contact.phone?"high_confidence":"review",
          raw_evidence:{official_source:true,parser:"profile-enrichment-v2",profile_enriched:true,
            contact_backfill:Boolean(runId),added_email:addedEmail,added_phone:addedPhone}
