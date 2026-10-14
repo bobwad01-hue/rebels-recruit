@@ -475,6 +475,24 @@ function profileContact(html:string,url:string,firstName:string,lastName:string)
  const x=personalXLink(links(html,url),firstName,lastName);
  return {email,phone,x_url:x?.url||null,x_handle:x?.handle||null};
 }
+// Backfills must not mistake an athletics footer or another coach's contact for
+// this coach. Generic (non-Sidearm) pages require a named profile heading and
+// explicitly labeled contact fields close to that heading.
+function scopedGenericProfileContact(html:string,url:string,firstName:string,lastName:string){
+ const full=(firstName+" "+lastName).toLowerCase();
+ const headings=[...html.matchAll(/<h[1-3]\b[^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
+   .map(m=>clean(m[1]).toLowerCase());
+ const title=clean(html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1]||"").toLowerCase();
+ if(!headings.some(h=>h===full||h.startsWith(full+" "))&&!title.includes(full))return null;
+ const visible=clean(html),at=visible.toLowerCase().indexOf(full);
+ if(at<0)return null;
+ const local=visible.slice(at,at+1400);
+ const email=local.match(/\b(?:E-?MAIL)\s*:?\s*([\w.+-]+@[\w.-]+\.[a-z]{2,})\b/i)?.[1]?.toLowerCase()||null;
+ const phone=local.match(/\b(?:PHONE|TEL(?:EPHONE)?)\s*:?\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
+ const x=personalXLink(links(html,url),firstName,lastName);
+ return {email,phone,x_url:x?.url||null,x_handle:x?.handle||null};
+}
+
 async function enrichCoachProfile(c:any,staffUrl:string){
  if(!c.official_bio_url||!sameHost(c.official_bio_url,staffUrl)) return c;
  try{
@@ -578,86 +596,109 @@ export async function POST(req:NextRequest){
  }
  const profileEnrichment=body.profile_enrichment===true;
  if(profileEnrichment){
-   const batch=Math.min(Math.max(Number(body.limit)||10,1),15);
-   const {data:queued,error:qErr}=await supabase.from("college_coach_profile_enrichment_queue")
-     .select("coach_id,attempts").eq("status","pending").order("updated_at").limit(batch);
-   if(qErr) throw qErr;
+   const runId=typeof body.backfill_run_id==="string"?body.backfill_run_id:null;
+   if(runId&&(!ownerOk||!/^[-0-9a-f]{36}$/i.test(runId)))
+     return NextResponse.json({error:"Backfill requires signed-in Super Owner access"},{status:403});
+   if(runId){
+     const {data:run,error:runError}=await supabase.from("college_coach_contact_backfill_runs")
+       .select("id,status").eq("id",runId).maybeSingle();
+     if(runError)throw runError;
+     if(!run||run.status!=="running")
+       return NextResponse.json({error:"Backfill is paused or has finished"},{status:409});
+   }
+   // Claim a small batch atomically; 3 parallel bio checks stay within the
+   // worker's 60-second execution budget even with slow official sources.
+   const {data:queued,error:qErr}=await supabase.rpc("claim_college_coach_profile_enrichment_batch",{
+     p_limit:Math.min(Math.max(Number(body.limit)||3,1),3),p_run_id:runId
+   });
+   if(qErr)throw qErr;
    const ids=(queued||[]).map((x:any)=>x.coach_id);
-   if(!ids.length) return NextResponse.json({processed:0,pending:0,results:[]});
-   await supabase.from("college_coach_profile_enrichment_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("coach_id",ids);
+   if(!ids.length){
+     const {count:pending}=await supabase.from("college_coach_profile_enrichment_queue")
+       .select("*",{count:"exact",head:true}).eq("status","pending")
+       .is("backfill_run_id",runId);
+     return NextResponse.json({processed:0,pending:pending||0,results:[]});
+   }
    const {data:coachRows,error:cErr}=await supabase.from("college_coaches")
      .select("id,college_id,first_name,last_name,title,email,phone,x_url,x_handle,official_bio_url,official_source_url,source_urls")
      .in("id",ids);
-   if(cErr) throw cErr;
-   const attempts=new Map((queued||[]).map((x:any)=>[x.coach_id,x.attempts||0]));
-   const results:any[]=[];
-   for(const coach of coachRows||[]){
+   if(cErr)throw cErr;
+   const byId=new Map((coachRows||[]).map((x:any)=>[x.id,x]));
+   const results=await Promise.all(ids.map(async(id:string)=>{
+     const coach:any=byId.get(id);
      try{
-       if(!coach.official_bio_url) throw new Error("Official bio URL missing");
-       const p=await get(coach.official_bio_url);
-       if(!sameHost(p.url,coach.official_bio_url))throw new Error("Coach bio redirected off the official athletics host");
-       const sidearm=Boolean(sidearmBioSlug(coach.official_bio_url));
-       const matched=sidearm?sidearmProfileContact(p.html,p.url,coach.first_name,coach.last_name)
-         :profileContact(p.html,p.url,coach.first_name,coach.last_name);
-       let contact=matched||{email:null,phone:null,x_url:null,x_handle:null};
-       let contactSource=p.url, contactHash=hash(p.html);
-       // If the individual bio does not publish email, make a controlled second-source
-       // pass against canonical official athletics staff-directory routes on the same host.
-       if(!contact.email && coach.official_source_url){
-         const origin=new URL(coach.official_source_url).origin;
-         const alternates=[
-           origin+"/staff-directory/department/softball",
-           origin+"/staff-directory/softball-department",
-           origin+"/staff-directory"
-         ];
+       if(!coach||!coach.official_bio_url||!coach.official_source_url)
+         throw new Error("Coach official bio/source missing");
+       const u=new URL(coach.official_bio_url),s=new URL(coach.official_source_url);
+       if(u.protocol!=="https:"||s.protocol!=="https:"||u.username||u.password||u.port||
+          !sameHost(u.href,s.href)||badOfficialUrl(u.href))
+         throw new Error("Coach bio is not on the approved HTTPS athletics host");
+       const p=await get(u.href);
+       if(!p.url.startsWith("https:")||!sameHost(p.url,u.href))
+         throw new Error("Coach bio redirected off the approved HTTPS athletics host");
+       const sidearm=Boolean(sidearmBioSlug(u.href));
+       let contact=sidearm?sidearmProfileContact(p.html,p.url,coach.first_name,coach.last_name)
+         :scopedGenericProfileContact(p.html,p.url,coach.first_name,coach.last_name);
+       if(!contact)contact={email:null,phone:null,x_url:null,x_handle:null};
+       let contactSource=p.url,contactHash=hash(p.html);
+       // Second-source lookup is allowed only on the same official athletics host,
+       // with an exact coach-name match. Never guess email patterns.
+       if(!contact.email){
+         const origin=s.origin;
+         const alternates=[origin+"/staff-directory/department/softball",
+           origin+"/staff-directory/softball-department",origin+"/staff-directory"];
          for(const alt of alternates){
            try{
              const d=await get(alt);
-             if(!sameHost(d.url,coach.official_source_url)) continue;
-             const rows=extract(d.html,d.url);
-             const exact=rows.find((x:any)=>
+             if(!d.url.startsWith("https:")||!sameHost(d.url,s.href))continue;
+             const exact=extract(d.html,d.url).find((x:any)=>
                x.first_name.toLowerCase()===coach.first_name.toLowerCase() &&
-               x.last_name.toLowerCase()===coach.last_name.toLowerCase() &&
-               x.email
+               x.last_name.toLowerCase()===coach.last_name.toLowerCase() && x.email
              );
              if(exact){
-               contact={email:exact.email,phone:exact.phone||contact.phone,x_url:exact.x_url||contact.x_url,x_handle:exact.x_handle||contact.x_handle};
-               contactSource=d.url; contactHash=hash(d.html); break;
+               contact={email:exact.email,phone:exact.phone||contact.phone,
+                 x_url:exact.x_url||contact.x_url,x_handle:exact.x_handle||contact.x_handle};
+               contactSource=d.url;contactHash=hash(d.html);break;
              }
            }catch{}
          }
        }
-       const now=new Date().toISOString();
-       const found=Boolean(contact.email);
-       const sources=[...new Set([...(coach.source_urls||[]),p.url,contactSource])];
-       const patch:any={source_urls:sources,official_source_checked_at:now};
-       if(contact.email&&!coach.email) patch.email=contact.email;
-       if(contact.phone&&!coach.phone) patch.phone=contact.phone;
-       if(contact.x_url&&!coach.x_url){patch.x_url=contact.x_url;patch.x_handle=contact.x_handle}
-       if(found){patch.verification_status="high_confidence";patch.official_source_status="high_confidence";patch.verification_confidence=.98}
-       await supabase.from("college_coaches").update(patch).eq("id",coach.id);
-       await supabase.from("college_coach_source_snapshots").insert({
-         college_id:coach.college_id,coach_id:coach.id,source_url:contactSource,
+       const {data:merged,error:mergeError}=await supabase.rpc("merge_verified_college_coach_contacts",{
+         p_coach_id:id,p_email:contact.email,p_phone:contact.phone,
+         p_x_url:contact.x_url,p_x_handle:contact.x_handle,p_source_url:contactSource
+       });
+       if(mergeError)throw mergeError;
+       const addedEmail=merged?.added_email===true,addedPhone=merged?.added_phone===true;
+       const {error:snapshotError}=await supabase.from("college_coach_source_snapshots").insert({
+         college_id:coach.college_id,coach_id:id,source_url:contactSource,
          observed_name:`${coach.first_name} ${coach.last_name}`,observed_title:coach.title,
          observed_email:contact.email,observed_phone:contact.phone,observed_x_url:contact.x_url,
          observed_x_handle:contact.x_handle,observed_bio_url:p.url,content_hash:contactHash,
-         confidence:found?.98:.90,verification_status:found?"high_confidence":"review",
-         raw_evidence:{official_source:true,parser:"profile-enrichment-v1",profile_enriched:true}
+         confidence:contact.email||contact.phone?.98:.90,
+         verification_status:contact.email||contact.phone?"high_confidence":"review",
+         raw_evidence:{official_source:true,parser:"profile-enrichment-v2",profile_enriched:true,
+           contact_backfill:Boolean(runId),added_email:addedEmail,added_phone:addedPhone}
        });
-       await supabase.from("college_coach_profile_enrichment_queue").update({
-         status:found?"enriched":"no_email",attempts:(attempts.get(coach.id)||0)+1,last_error:null,updated_at:now
-       }).eq("coach_id",coach.id);
-       results.push({coach_id:coach.id,status:found?"enriched":"no_email"});
+       if(snapshotError)throw snapshotError;
+       const status=addedEmail||addedPhone?"enriched":"no_email";
+       const {error:queueError}=await supabase.from("college_coach_profile_enrichment_queue")
+         .update({status,added_email:addedEmail,added_phone:addedPhone,last_error:null,updated_at:new Date().toISOString()})
+         .eq("coach_id",id);
+       if(queueError)throw queueError;
+       return {coach_id:id,status,added_email:addedEmail,added_phone:addedPhone};
      }catch(e:any){
-       const msg=e?.message||String(e);
-       await supabase.from("college_coach_profile_enrichment_queue").update({
-         status:/403|robots/i.test(msg)?"blocked":"error",attempts:(attempts.get(coach.id)||0)+1,last_error:msg,updated_at:new Date().toISOString()
-       }).eq("coach_id",coach.id);
-       results.push({coach_id:coach.id,status:/403|robots/i.test(msg)?"blocked":"error",error:msg});
+       const msg=e?.message||String(e),status=/403|robots/i.test(msg)?"blocked":"error";
+       await supabase.from("college_coach_profile_enrichment_queue")
+         .update({status,last_error:msg.slice(0,500),updated_at:new Date().toISOString()})
+         .eq("coach_id",id);
+       return {coach_id:id,status,error:msg};
      }
-   }
-   const {count:pending}=await supabase.from("college_coach_profile_enrichment_queue").select("*",{count:"exact",head:true}).eq("status","pending");
-   return NextResponse.json({processed:results.length,pending,results});
+   }));
+   const query=supabase.from("college_coach_profile_enrichment_queue")
+     .select("*",{count:"exact",head:true}).eq("status","pending");
+   const {count:pending}=runId?await query.eq("backfill_run_id",runId):await query.is("backfill_run_id",null);
+   return NextResponse.json({processed:results.length,pending:pending||0,results},
+     {headers:{"Cache-Control":"private, no-store"}});
  }
  const bootstrap=body.bootstrap===true;
  // Self-heal abandoned claims before taking more work.
