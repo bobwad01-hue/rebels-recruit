@@ -87,7 +87,7 @@ export default function Page(){
   const [division,setDivision]=useState('NCAA D2');
   const [cleanup,setCleanup]=useState<Cleanup|null>(null);
   const [group,setGroup]=useState('all');
-  const [filter,setFilter]=useState('review');
+  const [filter,setFilter]=useState('auto');
   const [expanded,setExpanded]=useState(false);
   const [running,setRunning]=useState(false);
   const [busy,setBusy]=useState(false);
@@ -100,6 +100,7 @@ export default function Page(){
   const [recovery,setRecovery]=useState<ContactRecovery|null>(null);
   const [recoveryRunning,setRecoveryRunning]=useState(false);
   const [recoveryError,setRecoveryError]=useState('');
+  const [openRecoveryCase,setOpenRecoveryCase]=useState<string|null>(null);
   const recoveryRunningRef=useRef(false);
   const recoveryStop=useRef(false);
   const [message,setMessage]=useState('');
@@ -135,6 +136,7 @@ export default function Page(){
   const [hostConfirmed,setHostConfirmed]=useState(false);
   const [hostEditing,setHostEditing]=useState(false);
   const [hostApprovalComplete,setHostApprovalComplete]=useState(false);
+  const [manualAccessPreparing,setManualAccessPreparing]=useState(false);
 
   const load=useCallback(async()=>{
     try{
@@ -209,7 +211,7 @@ export default function Page(){
     setManualConfirmed(false);setManualError('');
     setHostEvidenceUrl('');setHostEvidence(null);setHostError('');
     setHostChecking(false);setHostApproving(false);setHostConfirmed(false);setHostEditing(false);
-    setHostApprovalComplete(false);
+    setHostApprovalComplete(false);setManualAccessPreparing(false);
   }
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
@@ -225,11 +227,18 @@ export default function Page(){
     }
     setVerifySaving(true);setVerifyError('');setVerifyResult('');
     try{
+      const manualOnly=verifySchool.status==='blocked'&&verifySchool.reason==='blocked'
+        &&verifyOutcome==='verified';
+      const reuseSaved=manualOnly&&verifySchool.verification?.outcome==='verified'
+        &&verifySchool.verification.source_url===verifyUrl
+        &&(verifySchool.verification.head_coach_name||'')===verifyHead
+        &&(verifySchool.verification.notes||'')===verifyNotes;
       const response=await fetch('/api/platform/college-staff-intelligence/verify',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({college_id:verifySchool.college_id,outcome:verifyOutcome,
           source_url:verifyUrl,head_coach_name:verifyOutcome==='verified'?verifyHead:'',
-          notes:verifyNotes,confirmed_official:verifyConfirmed}),cache:'no-store'
+          notes:verifyNotes,confirmed_official:verifyConfirmed,
+          manual_only:manualOnly,reuse_saved:reuseSaved}),cache:'no-store'
       });
       const saved=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(saved.error||'Could not save source verification');
@@ -239,7 +248,12 @@ export default function Page(){
       if(typeof saved.source_url==='string')setVerifyUrl(saved.source_url);
       setVerifyResult((saved.anchor_preserved?'Your # section link was preserved for future navigation. ':'')+
         (saved.message||'Verification saved.'));
-      setVerifyResultKind(saved.recheck_status==='host_review'?'review':'queued');
+      setVerifyResultKind(saved.recheck_status==='host_review'||saved.recheck_status==='needs_review'?'review':'queued');
+      if(saved.recheck_status==='needs_review'&&manualOnly){
+        const fromNotes=staffFromSavedNotes(verifyNotes);
+        if(fromNotes.length)setManualCoaches(fromNotes);
+        setManualMode(true);setManualConfirmed(false);
+      }
       await load();
       if(saved.should_recheck){
         // Process exactly the verified school; never run the entire pending queue.
@@ -338,6 +352,41 @@ export default function Page(){
       await load();
     }catch(e){setHostError(e instanceof Error?e.message:'Official host approval failed');}
     finally{setHostApproving(false);}
+  }
+
+
+  async function continueSavedAccessReview(){
+    if(!verifySchool||manualAccessPreparing||hostApproving||verifySaving)return;
+    const saved=cleanup?.exceptions.find(s=>s.college_id===verifySchool.college_id)?.verification
+      ||verifySchool.verification;
+    if(!saved?.source_url||saved.outcome!=='verified')return;
+    if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
+      setVerifyError('Finish the other pipeline task first.');return;
+    }
+    setManualAccessPreparing(true);setVerifyError('');
+    try{
+      const response=await fetch('/api/platform/college-staff-intelligence/verify',{
+        method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+        body:JSON.stringify({college_id:verifySchool.college_id,outcome:'verified',
+          source_url:saved.source_url,head_coach_name:saved.head_coach_name||'',
+          notes:saved.notes||'',confirmed_official:true,manual_only:true,reuse_saved:true})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Could not open saved staff review');
+      if(data.recheck_status!=='needs_review')
+        throw new Error('Saved source is not ready for manual coaching staff review');
+      const fromNotes=staffFromSavedNotes(saved.notes||'');
+      setManualCoaches(fromNotes.length?fromNotes:[
+        {name:saved.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:''}
+      ]);
+      setVerifyUrl(saved.source_url);setVerifyOutcome('verified');
+      setManualMode(true);setManualConfirmed(false);
+      setHostApprovalComplete(false);setVerifySaved(true);
+      setVerifyResultKind('review');
+      setVerifyResult('The saved official source is ready for manual coaching staff review. Confirm each name, role and any email before importing. No coaches have been changed.');
+      await load();
+    }catch(e){setVerifyError(e instanceof Error?e.message:'Could not open manual review');}
+    finally{setManualAccessPreparing(false);}
   }
 
   async function importManuallyVerifiedStaff(){
@@ -573,11 +622,21 @@ export default function Page(){
   }
   // Selecting a retry issue also filters the review list for human inspection.
   // Filtering alone does not requeue or import anything.
-  const exceptions=(cleanup?.exceptions||[]).filter(x=>
-    (filter==='all'||x.status===filter)&&
-    (filter!=='review'||group==='all'||x.reason===group));
-  const shown=expanded?exceptions:exceptions.slice(0,25);
   const reviewCount=cleanup?.summary.review||0;
+  const blockedCount=cleanup?.summary.blocked||0;
+  const selectedFilter=filter==='auto'?(reviewCount>0?'review':blockedCount>0?'blocked':'review'):filter;
+  const exceptions=(cleanup?.exceptions||[]).filter(x=>
+    (selectedFilter==='all'||x.status===selectedFilter)&&
+    (selectedFilter!=='review'||group==='all'||x.reason===group));
+  const shown=expanded?exceptions:exceptions.slice(0,25);
+  const accessBlockedSchools=(cleanup?.exceptions||[]).filter(x=>
+    x.status==='blocked'&&x.reason==='blocked');
+  const inactiveBlockedSchools=(cleanup?.exceptions||[]).filter(x=>
+    x.status==='blocked'&&x.reason==='inactive_program');
+  const otherBlockedSchools=(cleanup?.exceptions||[]).filter(x=>
+    x.status==='blocked'&&x.reason!=='blocked'&&x.reason!=='inactive_program');
+  const liveVerifySchool=cleanup?.exceptions.find(x=>x.college_id===verifySchool?.college_id)||verifySchool;
+  const liveAccessBlocked=Boolean(liveVerifySchool?.status==='blocked'&&liveVerifySchool.reason==='blocked');
   const timeoutCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'&&x.reason==='timeout').length;
   const retryEligibleCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'
     &&!['inactive_program','staff_conflict','source_access','manual_verification'].includes(x.reason)
@@ -591,10 +650,13 @@ export default function Page(){
     <div className="mt-6 flex flex-wrap items-center gap-3">
       <label htmlFor="division" className="text-xs font-black uppercase text-slate-500">Division</label>
       <select id="division" className="input w-full max-w-52" value={division} disabled={running||busy||diagnosing||verifySaving}
-        onChange={e=>{diagnoseStop.current=true;setDiagnostics([]);setDiagnosticTotal(0);setDiagnosticError('');setDivision(e.target.value);setD(null);setCleanup(null);setExpanded(false);setMessage('');setError('');}}>
+        onChange={e=>{diagnoseStop.current=true;setDiagnostics([]);setDiagnosticTotal(0);setDiagnosticError('');setDivision(e.target.value);setD(null);setCleanup(null);setExpanded(false);setFilter('auto');setGroup('all');setMessage('');setError('');}}>
         {opts.map(([v,l])=><option value={v} key={v}>{l}</option>)}
       </select>
-      {division!=='all'&&<a href="#college-staff-cleanup" className="btn btn-red ml-auto">Continue {opts.find(x=>x[0]===division)?.[1]} cleanup <ArrowRight size={15}/></a>}
+      {division!=='all'&&<a href="#college-staff-cleanup" className="btn btn-red ml-auto">
+        {reviewCount===0&&blockedCount>0?'Review '+(opts.find(x=>x[0]===division)?.[1]||division)+' blocked schools'
+          :'Continue '+(opts.find(x=>x[0]===division)?.[1]||division)+' cleanup'}
+        <ArrowRight size={15}/></a>}
       <button type="button" className="btn" onClick={()=>void load()} aria-label="Refresh status"><RefreshCw size={16}/>Refresh</button>
     </div>
     {!d?<div className="card mt-4 p-6">Loading…</div>:<>
@@ -634,6 +696,17 @@ export default function Page(){
       <p className="mt-4 text-xs text-slate-500">Last ingestion activity: {date(d.lastActivity)} · Refreshes every 15 seconds</p>
     </>}
 
+    
+    {recoveryReview.length>0&&<aside className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4" aria-label="Open coach source reviews">
+      <div>
+        <p className="font-black text-amber-950">{recoveryReview.length} coach source review case{recoveryReview.length===1?'':'s'} still open · all divisions</p>
+        <p className="mt-1 text-sm text-amber-900">
+          {recoveryReview.map(x=>x.coach+' ('+x.school+')').join(' · ')}.
+          These identity and source conflicts are separate from the school import queue and must not be automatically overwritten or dismissed.
+        </p>
+      </div>
+      <a className="btn" href="#contact-source-reviews">Review open cases <ArrowRight size={15}/></a>
+    </aside>}
     <section className="card mt-6 p-5 sm:p-6" aria-label="Coach contact backfill">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -744,8 +817,9 @@ export default function Page(){
         Original coach contacts, source verification states, and backfill history are preserved.
       </p>
       {recoveryError&&<p className="mt-3 text-sm text-red-700" role="alert"><AlertCircle size={15} className="mr-2 inline"/>{recoveryError}</p>}
-      {recoveryReview.length>0&&<div className="mt-5 border-t pt-4">
+      {recoveryReview.length>0&&<div id="contact-source-reviews" className="mt-5 scroll-mt-6 border-t pt-4">
         <h3 className="text-sm font-black">Cases still requiring source review ({recoveryReview.length})</h3>
+        <p className="mt-1 text-xs text-amber-800">Open until a Super Owner verifies the current official coaching staff. A broken biography or a player roster is not sufficient evidence to replace a coach.</p>
         <div className="mt-3 space-y-3">
           {recoveryReview.map(item=><div key={item.coach_id} className="rounded-xl border border-slate-200 p-3 text-sm">
             <div className="flex flex-wrap justify-between gap-2">
@@ -758,7 +832,23 @@ export default function Page(){
                 target="_blank" rel="noopener noreferrer">Original coach bio <ExternalLink size={12} className="inline"/></a>}
               {item.source_candidate_url&&<a className="font-semibold text-blue-700 underline" href={item.source_candidate_url}
                 target="_blank" rel="noopener noreferrer">Official replacement candidate <ExternalLink size={12} className="inline"/></a>}
+              <a className="font-semibold text-blue-700 underline"
+                href={'https://www.google.com/search?q='+encodeURIComponent(item.school+' softball coaches official current staff')}
+                target="_blank" rel="noopener noreferrer">Find current coaching staff <ExternalLink size={12} className="inline"/></a>
             </div>
+            <button type="button" className="mt-3 text-xs font-bold text-slate-800 underline"
+              onClick={()=>setOpenRecoveryCase(v=>v===item.coach_id?null:item.coach_id)}>
+              {openRecoveryCase===item.coach_id?'Hide review checklist':'Show source review checklist'}
+            </button>
+            {openRecoveryCase===item.coach_id&&<div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <p className="font-black">Before changing this coach record:</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-4">
+                <li>Open the current official softball coaching staff directory for {item.school}.</li>
+                <li>Confirm whether {item.coach} is explicitly listed as a current coach, including the role.</li>
+                <li>Check any replacement candidate against that same official staff directory, not an athlete roster or broken biography.</li>
+                <li>Keep this case open until the verified identity and contact correction can be safely applied. No automatic replacements.</li>
+              </ol>
+            </div>}
           </div>)}
         </div>
       </div>}
@@ -768,24 +858,26 @@ export default function Page(){
       <div className="border-b p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><div className="rr-eyebrow">CLEANUP WORKBENCH</div>
-            <h2 className="mt-1 text-xl font-black">{opts.find(x=>x[0]===division)?.[1]} exception recovery</h2>
-            <p className="mt-1 text-sm text-slate-500">Retry review schools by failure pattern, then process the queue without repeating manual approvals. Access-blocked sources remain excluded.</p>
+            <h2 className="mt-1 text-xl font-black">{reviewCount===0&&blockedCount>0?'Blocked Schools Review':(opts.find(x=>x[0]===division)?.[1]||division)+' exception recovery'}</h2>
+            <p className="mt-1 text-sm text-slate-500">{reviewCount===0&&blockedCount>0
+              ?'The review queue is clear. Recover active programs whose official sites block automated access by manually verifying their coaching staff. Inactive programs remain on hold.'
+              :'Retry review schools by failure pattern, then process the queue without repeating manual approvals. Access-blocked schools use the separate manual verification fallback.'}</p>
           </div>
           <span className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold">{reviewCount} review · {cleanup?.summary.blocked||0} blocked</span>
         </div>
         <div className="mt-5 flex flex-wrap items-end gap-3">
-          <div className="min-w-[190px] flex-1 sm:max-w-72">
+          {reviewCount>0&&<div className="min-w-[190px] flex-1 sm:max-w-72">
             <label htmlFor="failure-group" className="mb-1 block text-xs font-bold text-slate-600">Issue group · filter & retry</label>
             <select id="failure-group" className="input w-full" value={group} onChange={e=>{setGroup(e.target.value);setExpanded(false);}} disabled={running||busy||diagnosing||verifySaving}>
               {groups.map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
-          </div>
-          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||!retryEligibleCount} onClick={()=>void requeue()}>
+          </div>}
+          {reviewCount>0&&<button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||!retryEligibleCount} onClick={()=>void requeue()}>
             <Play size={16}/>{busy?'Queuing…':group==='all'?'Retry & process reviews':'Retry up to '+Math.min(10,retryEligibleCount)+' '+(groups.find(x=>x[0]===group)?.[1]||'reviews').toLowerCase()}
-          </button>
-          <button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||!pendingCount} onClick={()=>void runQueue()}>
+          </button>}
+          {(pendingCount>0||reviewCount>0)&&<button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||!pendingCount} onClick={()=>void runQueue()}>
             <Play size={16}/>Process {pendingCount} queued
-          </button>
+          </button>}
           <button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||enriching} onClick={()=>void enrichCoachContacts()}>
             <RefreshCw size={16}/>{enriching?'Checking coach bios…':'Enrich coach contacts'}
           </button>
@@ -793,6 +885,9 @@ export default function Page(){
             <Square size={15}/>Stop after current
           </button>}
         </div>
+        {reviewCount===0&&blockedCount>0&&<p className="mt-3 text-sm font-semibold text-green-800">
+          <CheckCircle2 size={16} className="mr-1 inline"/>No review schools to retry. Use manual official-source review for the access-blocked programs below.
+        </p>}
         {timeoutCount>0&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="text-sm font-semibold text-slate-800">{timeoutCount} timeout school{timeoutCount===1?'':'s'} still need review. Inspect their official pages before retrying.</p>
           <button type="button" className="btn" onClick={()=>{
@@ -832,6 +927,43 @@ export default function Page(){
         {message&&!running&&<div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm" role="status"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/>{message}</div>}
         {error&&<div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert"><AlertCircle size={16} className="mt-0.5 shrink-0"/>{error}</div>}
       </div>
+
+      {accessBlockedSchools.length>0&&<div className="border-b border-blue-200 bg-blue-50 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-black text-slate-950">{accessBlockedSchools.length} official athletics sites blocked automated access</h3>
+            <p className="mt-1 max-w-3xl text-sm text-slate-700">
+              These are not confirmed inactive programs. Open each current official softball coaching page in your browser.
+              RLTNL will save your verification, require independent athletics-host approval when needed, and let you manually
+              verify coaches without repeatedly retrying a 403 website. Coach names, roles and emails still require explicit approval.
+            </p>
+          </div>
+          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||manualSaving||hostApproving}
+            onClick={()=>openVerify(accessBlockedSchools[0])}>
+            Review first blocked school <ArrowRight size={15}/>
+          </button>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {accessBlockedSchools.map(s=><div key={s.college_id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-blue-200 bg-white p-3">
+            <div className="min-w-0">
+              <p className="font-bold text-slate-950">{s.name}</p>
+              <p className="mt-1 text-xs text-slate-500">{s.verification?.outcome==='verified'?'Official source saved · manual staff review needed':'Website denied automated access · human source verification required'}</p>
+            </div>
+            <button type="button" className="btn shrink-0" disabled={running||busy||diagnosing||verifySaving||manualSaving||hostApproving}
+              onClick={()=>openVerify(s)}>Review staff <ArrowRight size={14}/></button>
+          </div>)}
+        </div>
+      </div>}
+      {(inactiveBlockedSchools.length>0||otherBlockedSchools.length>0)&&<div className="border-b p-5 sm:p-6">
+        <h3 className="font-black text-slate-950">Program status holds · {inactiveBlockedSchools.length+otherBlockedSchools.length}</h3>
+        <p className="mt-1 text-sm text-slate-600">These schools are not eligible for the access-blocked manual import shortcut. Confirm active NCAA softball participation independently before reconsidering any program-status hold.</p>
+        <div className="mt-3 space-y-2">{[...inactiveBlockedSchools,...otherBlockedSchools].map(s=>
+          <div key={s.college_id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+            <span className="font-bold">{s.name}</span>
+            <span className="ml-2 text-xs font-bold text-amber-800">ON HOLD · {errorLabel(s.reason)}</span>
+            <p className="mt-1 text-xs text-slate-600">{s.last_error}</p>
+          </div>)}</div>
+      </div>}
       {hostCases.length>0&&<div className="border-b border-blue-200 bg-blue-50 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -852,7 +984,7 @@ export default function Page(){
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-black text-amber-950">{manualCases.length} official source{manualCases.length===1?'':'s'} verified · staff import still needs review</h3>
-            <p className="mt-1 text-sm text-amber-900">Your confirmation was saved. The parser could not safely extract the coaches. Review your saved staff details once and import them manually, with identity and contact safeguards.</p>
+            <p className="mt-1 text-sm text-amber-900">Your official source is saved, but automated extraction could not safely finish (including access-blocked sites). Verify each coach on the official page and import only after identity, role and contact checks pass.</p>
           </div>
           <button type="button" className="btn btn-red" onClick={()=>openVerify(manualCases[0])} disabled={manualSaving||verifySaving}>
             Review saved staff <ArrowRight size={15}/>
@@ -930,12 +1062,12 @@ export default function Page(){
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
         <div id="college-staff-attention"><h3 className="font-black">Schools requiring attention</h3>
           <p className="mt-1 text-xs text-slate-500">Verify the official source beside each school. Source confirmation never approves coach contact details.</p>
-          {filter==='review'&&group!=='all'&&<p className="mt-1 text-xs font-semibold text-blue-800">
+          {selectedFilter==='review'&&group!=='all'&&<p className="mt-1 text-xs font-semibold text-blue-800">
             Showing {exceptions.length} {groups.find(x=>x[0]===group)?.[1]?.toLowerCase()} cases from {reviewCount} review schools.
             <button type="button" className="ml-2 underline" onClick={()=>{setGroup('all');setExpanded(false);}}>Show all review issues</button>
           </p>}
         </div>
-        <select aria-label="Filter exception status" className="input w-44" value={filter} onChange={e=>{setFilter(e.target.value);setExpanded(false)}}>
+        <select aria-label="Filter exception status" className="input w-44" value={selectedFilter} onChange={e=>{setFilter(e.target.value);setExpanded(false)}}>
           <option value="review">Review</option><option value="blocked">Blocked</option>
           <option value="pending">Pending</option><option value="processing">Processing</option><option value="all">All exceptions</option>
         </select>
@@ -954,7 +1086,7 @@ export default function Page(){
                 <button type="button" disabled={running||busy||diagnosing||verifySaving}
                   onClick={()=>openVerify(x)}
                   className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 hover:border-red-300 hover:text-red-700 disabled:opacity-50">
-                  <ShieldCheck size={14}/>{x.verification?.recheck_status==='host_review'?'Approve athletics host':x.verification?'Edit verification':'Verify'}
+                  <ShieldCheck size={14}/>{x.status==='blocked'&&x.reason==='blocked'?'Review official staff':x.verification?.recheck_status==='host_review'?'Approve athletics host':x.status==='blocked'&&x.reason==='inactive_program'?'Review program status':x.verification?'Edit verification':'Verify'}
                 </button>
                 {x.verification&&<span className={'rounded-md px-2 py-1 text-[11px] font-semibold '+
                   (x.verification.recheck_status==='passed'?'bg-green-50 text-green-800':
@@ -1085,6 +1217,13 @@ export default function Page(){
             </button>
           </section>}
           {(!needsHostApproval||hostEditing)&&<>
+          {verifySchool.status==='blocked'&&verifySchool.reason==='blocked'&&
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950">
+              <p className="font-black">Official site blocks automated access (403)</p>
+              <p className="mt-1">Open the school's current softball coaching page yourself. Confirm the source and RLTNL will open a manual staff review rather than retrying the blocked website. Any unfamiliar athletics host still requires independent university-link approval.</p>
+              {verifySchool.verification?.outcome==='verified'&&verifySchool.verification.source_url===verifyUrl&&
+                <p className="mt-2 font-semibold">Your previous source verification is saved. Confirm it is still current and continue without reentering it.</p>}
+            </div>}
           <div>
             <label htmlFor="verify-url" className="mb-1 block text-sm font-bold">Official softball coaching page URL</label>
             <input id="verify-url" type="url" autoFocus required={verifyOutcome==='verified'} value={verifyUrl}
@@ -1147,14 +1286,16 @@ export default function Page(){
           {(verifyOutcome==='verified'||verifyOutcome==='inactive_program')&&!verifyConfirmed&&
             <p className="text-xs text-amber-800">Required: confirm the official school source before saving.</p>}
           {verifyOutcome==='verified'&&<p className="text-xs text-slate-500">
-            Saving a recognized official host starts a targeted recheck. Coach imports still require the existing quality gates; unfamiliar domains are held for review.
+            {verifySchool.status==='blocked'&&verifySchool.reason==='blocked'
+              ?'An access-blocked official source opens manual staff review instead of retrying the 403 page. The same coach identity and contact quality gates still apply. Unfamiliar domains require independent approval.'
+              :'Saving a recognized official host starts a targeted recheck. Coach imports still require the existing quality gates; unfamiliar domains are held for review.'}
           </p>}
 
           </>}
           {canManualImport&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-3 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><h3 className="font-black text-amber-950">Finish this school: verified staff</h3>
-                <p className="mt-1 text-xs text-amber-900">The official source was saved. The parser found unreliable extra rows or no coaches. Your manual review can resolve this exception.</p></div>
+                <p className="mt-1 text-xs text-amber-900">The official source was saved. Automated extraction could not safely finish. Your verified manual review can resolve this exception.</p></div>
               {!manualMode&&<button type="button" className="btn btn-red"
                 onClick={()=>{setManualMode(true);setManualError('');}}>
                 Review coaches <ArrowRight size={14}/></button>}
@@ -1212,10 +1353,17 @@ export default function Page(){
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
             {hostApprovalComplete?
-              <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
-                disabled={hostApproving} onClick={()=>setVerifySchool(null)}>
-                {hostApproving?'Checking coaching staff…':verifyResultKind==='success'?'Done':'Close'}
-              </button>:
+              <>
+                {liveAccessBlocked&&verifyResultKind!=='success'&&<button type="button" className="btn btn-red"
+                  disabled={hostApproving||manualAccessPreparing||verifySaving}
+                  onClick={()=>void continueSavedAccessReview()}>
+                  <ShieldCheck size={16}/>{manualAccessPreparing?'Opening manual review…':'Review blocked staff manually'}
+                </button>}
+                <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
+                  disabled={hostApproving||manualAccessPreparing} onClick={()=>setVerifySchool(null)}>
+                  {hostApproving?'Checking coaching staff…':verifyResultKind==='success'?'Done':'Close'}
+                </button>
+              </>:
             needsHostApproval&&!hostEditing&&!verifySaved?
               <>
                 <p className="mr-auto max-w-64 self-center text-xs font-semibold text-amber-800" role="status">
@@ -1258,7 +1406,9 @@ export default function Page(){
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-red" disabled={verifySaving}>
-                  <ShieldCheck size={16}/>{verifySaving?'Saving / rechecking…':'Save verification'}
+                  <ShieldCheck size={16}/>{verifySaving?'Saving verification…':
+                    verifySchool.status==='blocked'&&verifySchool.reason==='blocked'&&verifyOutcome==='verified'
+                      ?'Save source & review coaches manually':'Save verification'}
                 </button>
               </>}
           </div>

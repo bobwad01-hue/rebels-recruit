@@ -48,6 +48,10 @@ export async function POST(req:NextRequest){
   const body=await req.json().catch(()=>({}));
   const collegeId=typeof body.college_id==='string'?body.college_id:'';
   const outcome=typeof body.outcome==='string'?body.outcome:'';
+  const manualOnly=body.manual_only===true;
+  const reuseSaved=body.reuse_saved===true;
+  if((manualOnly&&outcome!=='verified')||(reuseSaved&&!manualOnly))
+    return NextResponse.json({error:'Manual access review requires a verified official source'},{status:400,headers});
   if(!uuid.test(collegeId)||!outcomes.has(outcome))
     return NextResponse.json({error:'Invalid school or verification result'},{status:400,headers});
   if((outcome==='verified'||outcome==='inactive_program')&&body.confirmed_official!==true)
@@ -67,6 +71,13 @@ export async function POST(req:NextRequest){
       .select('id,name,website,division').eq('id',collegeId).maybeSingle();
     if(schoolError)throw schoolError;
     if(!school)return NextResponse.json({error:'School not found'},{status:404,headers});
+    if(manualOnly){
+      const {data:queue,error:queueError}=await admin.from('college_staff_bootstrap_queue')
+        .select('status,last_error').eq('college_id',collegeId).maybeSingle();
+      if(queueError)throw queueError;
+      if(queue?.status!=='blocked'||!/403|forbidden|robots|access denied/i.test(queue.last_error||''))
+        return NextResponse.json({error:'Manual access recovery is only available for schools blocked by their official website. Refresh the workbench.'},{status:409,headers});
+    }
     const {data:source,error:sourceError}=await admin.from('college_softball_sources')
       .select('athletics_url,softball_url,staff_url').eq('college_id',collegeId).maybeSingle();
     if(sourceError)throw sourceError;
@@ -83,20 +94,28 @@ export async function POST(req:NextRequest){
     // New domains can be saved, but not fetched until separately approved.
     const trusted=Boolean(candidate&&(approvedHost||
       allowedHosts.some(h=>candidate===h||candidate.endsWith('.'+h))));
-    const {data:state,error:saveError}=await admin.rpc('save_college_staff_source_verification',{
-      p_college_id:collegeId,p_user_id:user.id,p_outcome:outcome,
-      p_source_url:url,p_head_coach_name:head,p_notes:notes,p_trusted_host:trusted
-    });
+    const {data:state,error:saveError}=manualOnly
+      ?await admin.rpc('prepare_college_staff_blocked_access_manual_review',{
+        p_college_id:collegeId,p_user_id:user.id,p_source_url:url,
+        p_head_coach_name:head,p_notes:notes,p_trusted_host:trusted,
+        p_reuse_saved:reuseSaved
+      })
+      :await admin.rpc('save_college_staff_source_verification',{
+        p_college_id:collegeId,p_user_id:user.id,p_outcome:outcome,
+        p_source_url:url,p_head_coach_name:head,p_notes:notes,p_trusted_host:trusted
+      });
     if(saveError){
-      if(/only schools needing attention|not in staff import queue|college not found/i.test(saveError.message))
+      if(saveError.code==='P0001'||/only schools needing attention|not in staff import queue|college not found/i.test(saveError.message))
         return NextResponse.json({error:saveError.message},{status:409,headers});
       throw saveError;
     }
     return NextResponse.json({college_id:collegeId,name:school.name,
       verification_status:outcome,recheck_status:state,
       source_url:url,anchor_preserved:typeof url==='string'&&url.includes('#'),
-      should_recheck:state==='pending',
-      message:state==='pending'
+      should_recheck:state==='pending'&&!manualOnly,
+      message:state==='needs_review'&&manualOnly
+        ?'Official source preserved. Automated access is blocked; review each coach on the official page and import only after confirming names, roles and any emails.'
+        :state==='pending'
         ?'Official source saved. Running the existing coaching quality gates next.'
         :state==='host_review'
         ?'Proposed source saved. This new domain needs manual official-host approval before automated fetching.'

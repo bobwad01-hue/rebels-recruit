@@ -70,7 +70,7 @@ export async function POST(req:NextRequest){
     if(!school||!source||!verification||!queue)return NextResponse.json({error:'School verification is missing'},{status:404,headers});
     if(verification.outcome!=='verified'||verification.recheck_status!=='needs_review'
       ||verification.source_url!==sourceUrl||queue.status!=='review'){
-      return NextResponse.json({error:'The official source must already be saved and verified, with an automated quality-gate exception. Refresh before importing.'},{status:409,headers});
+      return NextResponse.json({error:'The official source must be saved and approved for manual staff review. Refresh before importing.'},{status:409,headers});
     }
     const canonical=sourceUrl.split('#')[0];
     if(!host(canonical)||canonical!==source.staff_url)
