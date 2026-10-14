@@ -343,34 +343,69 @@ function extract(html:string,url:string){
 
 
 
+// Browser-only anchors are never sent with HTTP requests. A verified
+// Sidearm coaches anchor can guide extraction only on the matching page.
+// It cannot override identity, head-coach or coach-count quality gates.
+function sidearmCoachAnchor(navigationUrl:string|null|undefined,pageUrl:string){
+ if(!navigationUrl)return "";
+ try{
+   const nav=new URL(navigationUrl),page=new URL(pageUrl);
+   const host=(u:URL)=>u.hostname.toLowerCase().replace(/^www\./,"");
+   if(host(nav)!==host(page)||nav.pathname!==page.pathname||nav.search!==page.search)return "";
+   const anchor=decodeURIComponent(nav.hash.slice(1));
+   return /^sidearm-roster-coaches(?:[-_][a-z0-9]+)*$/i.test(anchor)?anchor:"";
+ }catch{return ""}
+}
+
 // Sidearm softball rosters render coaching cards as "Title Name Full Bio".
 // Only read the explicitly labelled softball coaching section; never scrape
 // generic site-wide cards or athletes as coaching staff.
-function rosterSectionCoaches(html:string,url:string){
+function rosterSectionCoaches(html:string,url:string,anchorId=""){
  const path=new URL(url).pathname;
  if(!/\/sports\/(?:softball|sball)\/(?:roster|coaches)/i.test(path)) return [];
  const flat=clean(html),out:any[]=[];
  const title=String.raw`(?:Assistant AD for Internal Affairs\s*\/\s*Head Softball Coach(?:,\s*\d+(?:st|nd|rd|th) Year)?|Associate Head Softball Coach|Associate Head Coach|Head Softball Coach(?:,\s*\d+(?:st|nd|rd|th) Year)?(?:\s*\/\s*Asst AD for Internal Affairs\s*\/)?(?:\/Assistant Volleyball Coach)?|Head Coach(?:\/Community Connections Designee|\s*-\s*Softball)?|Softball Head Coach|Softball Assistant Coach|Softball Graduate Coaching Assistant|Assistant Softball Coach|Assistant Coach(?:\s*\/\s*Compliance Coordinator)?|Volunteer Assistant Coach|Graduate Assistant Coach|Graduate Assistant)`;
  const name=String.raw`([A-Z][\p{L}.'’-]+(?:\s+\([^)]+\))?(?:\s+[A-Z][\p{L}.'’-]+){1,3})`;
  const re=new RegExp("("+title+")\\s+"+name+"(?:\\s+['’]\\d{2})?\\s+(?:Full Bio|View Full Bio)\\b","gu");
- for(const mark of flat.matchAll(/Softball Coaching Staff/gi)){
-   const section=flat.slice((mark.index||0)+mark[0].length,(mark.index||0)+mark[0].length+2200)
-     .split(/Softball Support Staff|There is no additional information|No\.\s+Name|(?:20\d{2}\s+)?Softball Coaching Staff/i)[0];
+ const readSection=(section:string)=>{
+   const matches:any[]=[];
    for(const m of section.matchAll(re)){
      const full=normalizeCoachName(m[2]);
      if(!plausibleName(full))continue;
      const parts=full.split(/\s+/),rr=role(m[1]);
-     out.push({first_name:parts.shift()!,last_name:parts.join(" "),title:m[1],
+     matches.push({first_name:parts.shift()!,last_name:parts.join(" "),title:m[1],
        email:null,phone:null,x_url:null,x_handle:null,official_bio_url:null,
        role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
    }
+   return [...new Map(matches.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()];
+ };
+ if(anchorId){
+   // Match an actual id attribute, not a site-navigation href="#id".
+   // The bounded slice prevents unrelated sports/footer data from leaking in.
+   for(const tag of html.matchAll(/<[a-z][\w:-]*\b[^>]{0,1600}>/gi)){
+     const id=tag[0].match(/\bid\s*=\s*["']([^"']+)["']/i)?.[1];
+     if(id?.toLowerCase()!==anchorId.toLowerCase())continue;
+     const anchorText=clean(html.slice(tag.index||0,(tag.index||0)+50000))
+       .replace(/^Softball Coaching Staff\s*/i,"")
+       .split(/Softball Support Staff|There is no additional information|No\.\s+Name|(?:20\d{2}\s+)?Softball Coaching Staff/i)[0]
+       .slice(0,5500);
+     const anchorCoaches=readSection(anchorText);
+     if(anchorCoaches.length>0&&anchorCoaches.length<=8&&
+       anchorCoaches.some(x=>x.role_category==="head_coach"))return anchorCoaches;
+     break;
+   }
+ }
+ for(const mark of flat.matchAll(/Softball Coaching Staff/gi)){
+   const section=flat.slice((mark.index||0)+mark[0].length,(mark.index||0)+mark[0].length+2200)
+     .split(/Softball Support Staff|There is no additional information|No\.\s+Name|(?:20\d{2}\s+)?Softball Coaching Staff/i)[0];
+   out.push(...readSection(section));
  }
  return [...new Map(out.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()];
 }
 
-function parseOfficialStaff(html:string,url:string,collegeName:string){
+function parseOfficialStaff(html:string,url:string,collegeName:string,anchorId=""){
  const regular=extract(html,url);
- const scoped=rosterSectionCoaches(html,url);
+ const scoped=rosterSectionCoaches(html,url,anchorId);
  if(scoped.length>0&&scoped.length<=8&&scoped.some((x:any)=>x.role_category==="head_coach")){
    // Keep direct email/bio evidence only when it belongs to the exact same
    // person. Do not include any extra names from contaminated parent elements.
@@ -463,7 +498,7 @@ export async function POST(req:NextRequest){
    const chosen=ordered.slice(offset,offset+limit);
    const chosenIds=chosen.map((x:any)=>x.college_id);
    const {data:sources,error:sourceErr}=chosenIds.length
-     ?await supabase.from("college_softball_sources").select("college_id,staff_url,softball_url").in("college_id",chosenIds)
+     ?await supabase.from("college_softball_sources").select("college_id,staff_url,staff_navigation_url,softball_url").in("college_id",chosenIds)
      :{data:[],error:null};
    if(sourceErr) throw sourceErr;
    const bySource=new Map((sources||[]).map((s:any)=>[s.college_id,s]));
@@ -473,7 +508,8 @@ export async function POST(req:NextRequest){
      if(!url) return {...school,source_url:null,status:"missing_source",issue:"No official coaching-staff source saved",coaches:[],head_count:0};
      try{
        const page=await get(url,8000);
-       let coaches=parseOfficialStaff(page.html,page.url,school.name);
+       let coaches=parseOfficialStaff(page.html,page.url,school.name,
+         sidearmCoachAnchor(source?.staff_navigation_url,page.url));
        if(school.name==="Mars Hill University"||school.name==="University of Tampa"){
          const specific=sourceSpecificExtract(page.html,page.url,school.name);
          if(specific.length>0) coaches=specific;
@@ -485,7 +521,7 @@ export async function POST(req:NextRequest){
          :invalid?"Unreliable name detected"
          :headCount===0?"Head coach not identified on saved page"
          :"Saved page now passes the primary-source quality gate";
-       return {...school,source_url:page.url,status:headCount>0&&coaches.length<=8&&!invalid?"candidate":"review",
+       return {...school,source_url:source?.staff_navigation_url||page.url,status:headCount>0&&coaches.length<=8&&!invalid?"candidate":"review",
          issue,head_count:headCount,coaches:coaches.slice(0,12).map((x:any)=>({name:x.first_name+" "+x.last_name,title:x.title,role:x.role_category,has_email:Boolean(x.email),has_bio:Boolean(x.official_bio_url)}))};
      }catch(e:any){
        return {...school,source_url:url,status:"fetch_error",issue:e?.message||String(e),coaches:[],head_count:0};
@@ -639,7 +675,7 @@ export async function POST(req:NextRequest){
      if(reviewErr)throw reviewErr;
      verification=review;
    }
-   const {data:knownSource}=await supabase.from("college_softball_sources").select("athletics_url,softball_url,staff_url,status").eq("college_id",college.id).maybeSingle();
+   const {data:knownSource}=await supabase.from("college_softball_sources").select("athletics_url,softball_url,staff_url,staff_navigation_url,status").eq("college_id",college.id).maybeSingle();
    let d:any;
    let page:any;
    if(knownSource?.staff_url){
@@ -658,7 +694,8 @@ export async function POST(req:NextRequest){
    }else{
     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
-   let coaches=parseOfficialStaff(page.html,page.url,college.name);
+   let coaches=parseOfficialStaff(page.html,page.url,college.name,
+     sidearmCoachAnchor(knownSource?.staff_navigation_url,page.url));
    if(college.name==="Mars Hill University"||college.name==="University of Tampa"){
      const directoryCoaches=sourceSpecificExtract(page.html,page.url,college.name);
      if(directoryCoaches.length>0 && directoryCoaches.length<=8 && directoryCoaches.some((x:any)=>x.role_category==="head_coach")){
