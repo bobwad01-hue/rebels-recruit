@@ -134,6 +134,7 @@ export default function Page(){
   const [hostError,setHostError]=useState('');
   const [hostConfirmed,setHostConfirmed]=useState(false);
   const [hostEditing,setHostEditing]=useState(false);
+  const [hostApprovalComplete,setHostApprovalComplete]=useState(false);
 
   const load=useCallback(async()=>{
     try{
@@ -208,6 +209,7 @@ export default function Page(){
     setManualConfirmed(false);setManualError('');
     setHostEvidenceUrl('');setHostEvidence(null);setHostError('');
     setHostChecking(false);setHostApproving(false);setHostConfirmed(false);setHostEditing(false);
+    setHostApprovalComplete(false);
   }
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
@@ -305,6 +307,7 @@ export default function Page(){
       });
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||'Official host approval failed');
+      setHostApprovalComplete(true);
       setVerifySaved(true);setVerifyResultKind('queued');
       setVerifyResult('Official athletics domain approved for this school using an independently verified university link. Your saved coaching URL, head coach, and notes are preserved. Running one-school quality recheck…');
       await load();
@@ -1000,13 +1003,33 @@ export default function Page(){
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
           <div><div className="rr-eyebrow">OFFICIAL SOURCE VERIFICATION</div>
             <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
-            <p className="mt-1 text-xs text-slate-500">Confirm the source. If automated parsing fails, review the staff manually without repeating verification.</p>
+            <p className="mt-1 text-xs text-slate-500">{hostApprovalComplete
+              ?'Athletics host approved. Coaching staff quality-check results are below.'
+              :'Confirm the source. If automated parsing fails, review the staff manually without repeating verification.'}</p>
           </div>
           <button type="button" disabled={verifySaving||manualSaving||hostChecking||hostApproving} aria-label="Close verification"
             onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
             <X size={20}/></button>
         </div>
-        <form onSubmit={e=>{if(manualMode||(needsHostApproval&&!hostEditing)){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+        <form onSubmit={e=>{if(hostApprovalComplete||manualMode||(needsHostApproval&&!hostEditing)){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+          {hostApprovalComplete?
+            <section className={'rounded-xl border p-5 text-sm '+
+              (verifyResultKind==='success'?'border-green-200 bg-green-50 text-green-950':
+                verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-950':
+                'border-blue-200 bg-blue-50 text-blue-950')}>
+              <div className="flex items-center gap-2">
+                {verifyResultKind==='success'?<CheckCircle2 size={22}/>:<ShieldCheck size={22}/>}
+                <h3 className="font-black text-base">
+                  {hostApproving?'Athletics domain approved · checking coaching staff':
+                    verifyResultKind==='success'?'Coaching staff imported':
+                    verifyResultKind==='review'?'Athletics domain approved · staff review needed':
+                    'Athletics domain approved · staff recheck queued'}
+                </h3>
+              </div>
+              <p className="mt-2">Your independently verified university link and Super Owner approval are saved. Your coaching source and notes are preserved. You do not need to verify this domain again.</p>
+              {hostApproving&&<p className="mt-3 font-semibold" role="status">Running the one-school quality check. This can take a few moments.</p>}
+            </section>
+          :<>
           {activeVerification?.outcome==='verified'&&<div className={'rounded-xl border p-3 text-sm '+
             (activeVerification.recheck_status==='passed'?'border-green-200 bg-green-50 text-green-900':
               'border-amber-200 bg-amber-50 text-amber-950')}>
@@ -1181,13 +1204,19 @@ export default function Page(){
               {manualError&&<p className="mt-3 text-sm font-semibold text-red-700" role="alert">{manualError}</p>}
             </>}
           </section>}
+          </>}
           {verifyError&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{verifyError}</div>}
           {verifyResult&&<div role="status" className={'rounded-xl border p-3 text-sm '+
             (verifyResultKind==='success'?'border-green-200 bg-green-50 text-green-900':
               verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-900':
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
-            {needsHostApproval&&!hostEditing&&!verifySaved?
+            {hostApprovalComplete?
+              <button type="button" className={verifyResultKind==='success'?'btn btn-red':'btn'}
+                disabled={hostApproving} onClick={()=>setVerifySchool(null)}>
+                {hostApproving?'Checking coaching staff…':verifyResultKind==='success'?'Done':'Close'}
+              </button>:
+            needsHostApproval&&!hostEditing&&!verifySaved?
               <>
                 <p className="mr-auto max-w-64 self-center text-xs font-semibold text-amber-800" role="status">
                   {hostChecking?'Checking the official university link…':
