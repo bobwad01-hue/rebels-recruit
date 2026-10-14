@@ -161,7 +161,7 @@ async function verifyIndependentEvidence(website:string,sourceUrl:string,optiona
       home,origin+'/student-life/'
     ];
     const firstResults=await Promise.all([...new Set(first)].map(inspect));
-    const found=firstResults.find((x):x is Evidence=>x!==null);
+    const found=firstResults.find(x=>x!==null);
     if(found)return found;
     const linked=inspected.flatMap(page=>discoverUniversityPages(page.html,page.url,schoolHost));
     const second=[
@@ -170,7 +170,7 @@ async function verifyIndependentEvidence(website:string,sourceUrl:string,optiona
       origin+'/families/',origin+'/student-life/athletics/'
     ].filter(url=>!first.includes(url));
     const secondResults=await Promise.all([...new Set(second)].slice(0,8).map(inspect));
-    const secondFound=secondResults.find((x):x is Evidence=>x!==null);
+    const secondFound=secondResults.find(x=>x!==null);
     if(secondFound)return secondFound;
   }
   return {verified:false,school_website:website,athletics_host:athleticsHost,
