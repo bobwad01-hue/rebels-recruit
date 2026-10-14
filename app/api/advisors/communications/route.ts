@@ -72,7 +72,7 @@ export async function GET() {
       id: i.id, athleteId: i.athlete_user_id, athleteName: names.get(i.athlete_user_id) || 'Athlete',
       coachId: i.coach_id || g?.coach_id || null, collegeId: i.college_id || g?.college_id || null,
       coachName: coachNames.get(i.coach_id || g?.coach_id || '') || 'College coach', schoolName: schoolNames.get(i.college_id || g?.college_id || '') || 'College program',
-      direction: incoming ? 'received' : 'sent', sentByAdvisor: !incoming && (i.initiated_by === 'Advisor' || i.actor_user_id !== i.athlete_user_id),
+      direction: incoming ? 'received' : 'sent', sentByAdvisor: !incoming && (i.initiated_by === 'Advisor' || (!!i.actor_user_id && i.actor_user_id !== i.athlete_user_id)),
       subject: i.email_subject || g?.subject || (incoming ? 'Coach email' : 'Recruiting email'),
       body: body || null, summary: g?.summary || i.note || null,
       timestamp: g?.received_at || i.created_at || i.date,
