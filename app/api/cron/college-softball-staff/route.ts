@@ -375,7 +375,7 @@ function sidearmBioSlug(url:string){
 // generic site-wide cards or athletes as coaching staff.
 function rosterSectionCoaches(html:string,url:string,anchorId=""){
  const path=new URL(url).pathname;
- if(!/\/sports\/(?:softball|sball)\/(?:roster|coaches)/i.test(path)) return [];
+ if(!/\/sports\/(?:softball|sball|w-softbl)\/(?:roster|coaches)/i.test(path)) return [];
  const flat=clean(html),out:any[]=[];
  // Restrict bio links to the explicitly labeled coaching section. Player
  // roster and support-staff bios must not enter the coach import.
