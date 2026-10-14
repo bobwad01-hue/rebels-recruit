@@ -1,4 +1,207 @@
-import Link from 'next/link';import {ArrowRight,CalendarDays,Check,Compass,Film,Handshake,Mail,MessageSquare,School,Sparkles,Target,Users,Upload,FileSpreadsheet} from 'lucide-react';
-const stages=['Researching','Target School','Contacted','Engaged','Interested','Visit/Camp','Offer','Committed'];
-export default function Home(){return <div className="min-h-screen bg-white text-slate-950"><header className="max-w-6xl mx-auto px-5 py-5 flex justify-between items-center gap-4"><img src="/RLTNL%20Recruiting%20Stacked.png" alt="RLTNL Recruiting" className="block w-[190px] sm:w-[240px] h-auto object-contain object-left -ml-5"/><div className="flex gap-2"><Link href="/login" className="btn">Sign in</Link><Link href="/signup" className="btn btn-red hidden sm:inline-flex">Join a team</Link></div></header><main><section className="max-w-6xl mx-auto px-5 pt-12 pb-20 grid lg:grid-cols-2 gap-12 items-center"><div><div className="pill mb-5 max-w-full text-[11px] sm:text-xs">Manage your recruiting journey every step of the way.</div><h1 className="text-[clamp(2.55rem,11.2vw,3.75rem)] tracking-[-.045em] leading-[.98]"><span className="font-normal whitespace-nowrap">Your recruiting.</span><br/><span className="font-black whitespace-nowrap">Your relationships.</span><br/><span className="font-black text-red-600 whitespace-nowrap">Your next step.</span></h1><p className="text-lg text-slate-600 mt-6 max-w-xl">Find schools that fit you, build coach relationships, keep every conversation and event together, and know what deserves your attention next.</p><p className="mt-3 text-sm font-semibold text-slate-500">Currently available through participating teams and organizations. A team invitation is required to sign up.</p><div className="flex gap-3 mt-8"><Link href="/signup" className="btn btn-red whitespace-nowrap text-xs sm:text-sm">Join with team code <ArrowRight size={17}/></Link><Link href="/login" className="btn whitespace-nowrap">Sign in</Link></div></div><div className="rounded-2xl border bg-slate-50 p-5"><div className="text-xs uppercase tracking-widest font-black text-red-600">Recruiting Pulse</div><h2 className="font-black text-2xl mt-1">See what matters now.</h2><div className="grid grid-cols-2 gap-3 mt-5"><Stat label="Active Connections" value="18"/><Stat label="Upcoming Events" value="3"/><div className="col-span-2 rounded-xl border bg-white p-4"><div className="flex gap-3"><Sparkles className="text-red-600 shrink-0"/><div><b>Recruiting signal</b><p className="text-sm text-slate-500 mt-1">A coach relationship is gaining momentum.</p><div className="font-bold text-sm mt-3">Recommended Next Step → Follow up while the conversation is active.</div></div></div></div></div></div></section><section className="border-y bg-slate-50"><div className="max-w-6xl mx-auto px-5 py-14 grid md:grid-cols-3 gap-8"><Value icon={<Compass/>} title="Find the right schools">Discover options based on distance, academics, cost, campus setting, weather and the preferences that matter to you.</Value><Value icon={<Handshake/>} title="Build real relationships">Keep schools, coaches, email, text, phone, social, camps and notes connected instead of scattered across apps.</Value><Value icon={<Target/>} title="Know what to do next">Combine reminders, advisor-assigned actions and recruiting intelligence into clear Next Steps.</Value></div></section><section className="max-w-6xl mx-auto px-5 py-20"><div className="grid md:grid-cols-2 gap-12 items-center"><div><div className="pill">Bring your history</div><h2 className="text-4xl font-black mt-4">You don’t have to start over.</h2><p className="text-lg text-slate-600 mt-4">Already tracking recruiting in a spreadsheet, CSV, notes, email, or another system? Bring the work you’ve already done with you. RLTNL Recruiting helps organize your existing schools, coaches, conversations, camps and recruiting history so you can pick up where you left off.</p><p className="font-black text-lg mt-5">Bring your history. Keep your momentum.</p><Link href="/signup" className="btn btn-red mt-6">Join your team <ArrowRight size={17}/></Link></div><div className="rounded-2xl border bg-slate-50 p-6"><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3"><div className="rounded-xl border bg-white p-4 text-center"><FileSpreadsheet className="mx-auto"/><div className="font-black mt-3">What you already have</div><div className="muted text-xs mt-1">Schools · Coaches · Activity · Camps</div></div><ArrowRight className="text-red-600"/><div className="rounded-xl border-2 border-red-100 bg-white p-4 text-center"><Upload className="mx-auto text-red-600"/><div className="font-black mt-3">RLTNL Recruiting</div><div className="muted text-xs mt-1">Review · Organize · Keep going</div></div></div><div className="mt-4 text-xs muted">Current guided import supports Excel and CSV recruiting-history files with review before import.</div></div></div></section><section className="max-w-6xl mx-auto px-5 py-20 border-t"><div className="max-w-3xl"><div className="pill">Connections + Journey</div><h2 className="text-4xl font-black mt-4">One relationship.<br/>The whole recruiting story.</h2><p className="text-lg text-slate-600 mt-4">Every school and coach gets a relationship hub. Your Journey preserves the history from first research through commitment without inventing progress from activity alone.</p></div><div className="mt-8 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">{stages.map(s=><div key={s} className="rounded-xl border bg-white px-2 py-2.5 sm:px-3 sm:py-3 text-center text-xs sm:text-sm font-bold leading-tight flex items-center justify-center min-h-12 sm:min-h-14">{s}</div>)}</div></section><section className="bg-slate-950 text-white"><div className="max-w-6xl mx-auto px-5 py-20 grid md:grid-cols-2 gap-12 items-center"><div><div className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-bold">Communication Hub</div><h2 className="text-[2.15rem] sm:text-4xl font-black mt-4 leading-[1.12] tracking-[-.025em] max-w-[13.5em]">Wherever the conversation happens, RLTNL Recruiting keeps the relationship together.</h2><p className="text-slate-300 text-lg mt-4">Use the channels coaches already use. Send from your own Gmail, launch texts and calls, record social or in-person conversations, and keep the context attached to the coach relationship.</p></div><div className="grid grid-cols-2 gap-3">{[['Email',Mail],['Text + Phone',MessageSquare],['Events',CalendarDays],['Recruiting Video',Film]].map(([t,I]:any)=><div key={t} className="rounded-2xl border border-white/15 bg-white/5 p-5"><I/><div className="font-black mt-4">{t}</div></div>)}</div></div></section><section className="max-w-6xl mx-auto px-5 py-20 grid md:grid-cols-2 gap-12"><div><div className="pill">Game Plan</div><h2 className="text-4xl font-black mt-4">Know what to do next.</h2><p className="text-lg text-slate-600 mt-4">Your weekly focus, advisor-assigned Next Steps and relationship-driven recommendations come together so you can see what deserves attention next.</p><div className="mt-6 space-y-3">{['Follow up with an engaged coach','Prepare for Saturday’s prospect camp','Review a new school match','Complete an advisor-assigned Next Step'].map(x=><div key={x} className="flex gap-2 font-semibold"><Check className="text-red-600" size={18}/>{x}</div>)}</div></div><div><div className="pill">Events + Video</div><h2 className="text-4xl font-black mt-4">More than a contact tracker.</h2><p className="text-lg text-slate-600 mt-4">Track camps and visits, mark Going, prepare before the event, capture what happened afterward and follow up while the connection is fresh. Keep a recruiting video library ready to share when you need it.</p></div></section><section className="border-y bg-slate-50"><div className="max-w-6xl mx-auto px-5 py-20"><div className="max-w-3xl"><div className="pill">Built for the recruiting team</div><h2 className="text-4xl font-black mt-4">Similar experience.<br/>The right level of access.</h2><p className="text-lg text-slate-600 mt-4">Athletes stay in control while parents, advisors and organization leaders get the visibility they need to help.</p></div><div className="grid md:grid-cols-4 gap-4 mt-9"><Role title="Athletes" items={['Find Schools','Connections','Game Plan','Events & Journey','Messages & Videos']}/><Role title="Parents / Guardians" items={['Athlete-controlled access','Recruiting overview','Connections & Journey','Events attendance','Read-only support']}/><Role title="Advisors" items={['Player 360°','Next Steps','Message Center','Relationship insights','Fit & event visibility']}/><Role title="Owners / Admins" items={['Organization command center','Recruiting Board','Team-wide visibility','Reports & exports','Outcomes']}/></div></div></section><section className="max-w-4xl mx-auto px-5 py-20 text-center"><School size={34} className="mx-auto text-red-600"/><h2 className="text-4xl font-black mt-4">Recruiting is complicated.<br/>Your system shouldn't be.</h2><p className="text-lg text-slate-600 mt-4">Bring discovery, relationships, communication, events, videos, Next Steps and recruiting progress into one connected place.</p><Link href="/signup" className="btn btn-red mt-7">Join with team code <ArrowRight size={18}/></Link></section></main><footer className="border-t"><div className="max-w-6xl mx-auto px-5 py-8 flex flex-wrap justify-between gap-3 text-sm"><img src="/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" className="block h-7 w-auto object-contain"/><div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-slate-500"><span>Your relationships. Your journey.</span><Link href="/privacy" className="font-semibold hover:text-slate-900">Privacy Policy</Link><Link href="/terms" className="font-semibold hover:text-slate-900">Terms of Service</Link></div></div></footer></div>}
-function Stat({label,value}:{label:string;value:string}){return <div className="rounded-xl border bg-white p-4"><div className="text-sm text-slate-500 leading-5">{label.split(' ').map((word,i)=><span key={`${word}-${i}`} className="block">{word}</span>)}</div><div className="text-3xl font-black mt-1">{value}</div></div>}function Value({icon,title,children}:{icon:any;title:string;children:any}){return <div><div className="text-red-600">{icon}</div><h3 className="font-black text-xl mt-4">{title}</h3><p className="text-slate-600 mt-2">{children}</p></div>}function Role({title,items}:{title:string;items:string[]}){return <div className="rounded-2xl border bg-white p-5"><Users size={20}/><h3 className="font-black text-lg mt-3">{title}</h3><div className="mt-4 space-y-2">{items.map(x=><div key={x} className="text-sm flex gap-2"><Check size={15} className="text-red-600 shrink-0 mt-0.5"/>{x}</div>)}</div></div>}
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import {
+  ArrowRight, ArrowUpRight, CalendarDays, Check, CheckCircle2, ClipboardCheck,
+  Compass, FileSpreadsheet, Handshake, Mail, MessageSquare, School,
+  ShieldCheck, Sparkles, Target, Upload, Users, Video, Building2,
+  Clock3, ListChecks, TrendingUp, UserRoundCheck,
+} from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'RLTNL Recruiting | Recruiting Happens in the Follow-Through',
+  description: 'College softball recruiting is more than getting noticed. RLTNL Recruiting helps athletes, families, advisors and travel organizations manage coach relationships, events, conversations and the next steps that move recruiting forward.',
+};
+
+const inquiry = 'mailto:bobwad01@gmail.com?subject=RLTNL%20Recruiting%20for%20Our%20Organization&body=Hi%2C%0A%0AI%27d%20like%20to%20learn%20more%20about%20bringing%20RLTNL%20Recruiting%20to%20our%20organization.%0A%0AOrganization%3A%0ATeams%2Fage%20groups%3A%0ABest%20way%20to%20reach%20me%3A%0A';
+
+const steps = [
+  { number: '01', title: 'Find your fit', description: 'Build a school list around what matters to the athlete, not just a ranking.', icon: Compass },
+  { number: '02', title: 'Build relationships', description: 'Keep coaches, schools, outreach and relationship history connected.', icon: Handshake },
+  { number: '03', title: 'Show up prepared', description: 'Plan camps and visits, record what happened and capture the next move.', icon: CalendarDays },
+  { number: '04', title: 'Follow through', description: 'See coach replies, outstanding actions and timely follow-ups.', icon: Mail },
+  { number: '05', title: 'Track the journey', description: 'Understand progress from first contact through the recruiting decision.', icon: TrendingUp },
+];
+
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
+  return <p className="text-[11px] font-black uppercase tracking-[.2em] text-red-700">{children}</p>;
+}
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <h2 className="mt-3 max-w-3xl text-[clamp(2rem,4vw,3.25rem)] font-black leading-[1.08] tracking-[-.045em] text-slate-950">{children}</h2>;
+}
+function SectionDescription({ children }: { children: React.ReactNode }) {
+  return <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">{children}</p>;
+}
+
+function PreviewChrome({ children, label }: { children: React.ReactNode; label: string }) {
+  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_22px_65px_-38px_rgba(16,24,40,.35)]">
+    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-4 py-3">
+      <div className="flex items-center gap-1.5" aria-hidden="true"><span className="h-2 w-2 rounded-full bg-slate-300"/><span className="h-2 w-2 rounded-full bg-slate-300"/><span className="h-2 w-2 rounded-full bg-slate-300"/></div>
+      <span className="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">{label}</span>
+      <span className="w-8" />
+    </div>
+    {children}
+  </div>;
+}
+
+function HeroPreview() {
+  return <div className="relative mx-auto w-full max-w-[540px]">
+    <div className="pointer-events-none absolute -right-4 -top-5 h-32 w-32 rounded-full bg-red-100/80 blur-3xl" aria-hidden="true" />
+    <PreviewChrome label="Game Plan · Illustrative preview">
+      <div className="p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-3"><div><div className="text-[11px] font-bold text-red-700">RECRUITING GAME PLAN</div><h3 className="mt-1 text-xl font-black tracking-tight">Know your next move.</h3></div><div className="rounded-xl bg-red-50 p-3 text-red-700"><Target size={23}/></div></div>
+        <div className="mt-5 grid grid-cols-3 gap-2.5">
+          {[['Schools','12'],['Connections','8'],['Next steps','3']].map(([name,value])=><div key={name} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"><p className="text-[10px] font-semibold text-slate-500">{name}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
+        </div>
+        <div className="mt-4 rounded-xl border border-red-100 bg-red-50/70 p-3.5">
+          <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wide text-red-700"><Sparkles size={15}/> Your next best move</div>
+          <p className="mt-2 text-sm font-bold text-slate-900">Follow up after your prospect camp</p>
+          <p className="mt-1 text-xs leading-5 text-slate-600">Capture what you learned and keep the conversation going.</p>
+          <div className="mt-3 inline-flex items-center gap-1 text-xs font-black text-red-700">Open event follow-up <ArrowRight size={13}/></div>
+        </div>
+        <div className="mt-3 space-y-2">
+          <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3"><div className="rounded-lg bg-slate-100 p-2 text-slate-600"><Mail size={17}/></div><div className="min-w-0 flex-1"><p className="text-xs font-bold">Review a coach reply</p><p className="text-[11px] text-slate-500">Keep the relationship moving</p></div><span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800">Review</span></div>
+          <div className="flex items-center gap-3 rounded-lg border border-slate-100 p-3"><div className="rounded-lg bg-slate-100 p-2 text-slate-600"><CalendarDays size={17}/></div><div className="min-w-0 flex-1"><p className="text-xs font-bold">Prepare for an upcoming event</p><p className="text-[11px] text-slate-500">Arrive with a plan</p></div><ArrowRight size={15} className="text-slate-400"/></div>
+        </div>
+      </div>
+    </PreviewChrome>
+    <p className="mt-3 text-center text-xs text-slate-500">Illustrative product preview with sample data, not a live athlete account.</p>
+  </div>;
+}
+
+function RelationshipPreview() {
+  return <PreviewChrome label="Connections · Illustrative preview"><div className="p-4 sm:p-5">
+    <div className="flex items-center justify-between gap-3"><div><div className="text-[10px] font-bold uppercase tracking-wider text-red-700">Relationship history</div><h3 className="mt-1 text-lg font-black">One relationship. Full context.</h3></div><span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-800">Engaged</span></div>
+    <div className="mt-4 space-y-3 border-l-2 border-slate-200 pl-4">
+      {[['01','School added','Start with a school that fits'],['02','First email sent','Introduce the athlete'],['03','Coach replied','Capture the conversation'],['04','Next step identified','Follow through with purpose']].map(([n,title,sub])=><div key={n} className="relative rounded-lg border border-slate-100 bg-slate-50 p-3"><span className="absolute -left-[25px] top-4 h-3 w-3 rounded-full border-[3px] border-white bg-red-600"/><div className="text-xs font-black">{title}</div><p className="mt-1 text-[11px] text-slate-500">{sub}</p></div>)}
+    </div>
+  </div></PreviewChrome>;
+}
+
+function AdvisorPreview() {
+  return <PreviewChrome label="Advisor view · Illustrative preview"><div className="p-4 sm:p-5">
+    <div className="text-[10px] font-bold uppercase tracking-wider text-red-700">Player 360°</div><h3 className="mt-1 text-lg font-black">See who needs support.</h3>
+    <div className="mt-4 grid grid-cols-2 gap-2.5">{[['Assigned athletes','8'],['Next steps due','4']].map(([title,value])=><div key={title} className="rounded-xl border bg-slate-50 p-3"><p className="text-[11px] text-slate-500">{title}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div>
+    <div className="mt-3 space-y-2">
+      {[['Athlete A','Coach response to review','Needs follow-through'],['Athlete B','Prospect camp approaching','Event prep'],['Athlete C','Next step completed','On track']].map(([name,detail,status],i)=><div key={name} className="flex items-center gap-3 rounded-lg border p-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700">{i+1}</div><div className="min-w-0 flex-1"><p className="text-xs font-black">{name}</p><p className="mt-0.5 text-[11px] text-slate-500">{detail}</p></div><span className="hidden text-[10px] font-bold text-slate-600 sm:block">{status}</span></div>)}
+    </div>
+    <p className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-500"><ShieldCheck size={13}/> Advisor visibility follows athlete-approved access.</p>
+  </div></PreviewChrome>;
+}
+
+function RoleCard({ icon: Icon, title, description, items }: { icon: typeof Users; title: string; description: string; items: string[] }) {
+  return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-700"><Icon size={22}/></div><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-2 min-h-0 text-sm leading-6 text-slate-600 lg:min-h-[72px]">{description}</p><ul className="mt-4 space-y-2 border-t border-slate-100 pt-4">{items.map(item=><li key={item} className="flex gap-2 text-xs font-semibold leading-5 text-slate-700"><Check size={15} className="mt-0.5 shrink-0 text-red-700"/>{item}</li>)}</ul></article>;
+}
+
+export default function Home() {
+  return <div className="min-h-screen bg-white text-slate-950">
+    <a href="#main" className="rr-skip-link">Skip to content</a>
+    <header className="relative z-10 border-b border-slate-100 bg-white">
+      <nav aria-label="Main navigation" className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-5 py-4 sm:px-8">
+        <Link href="/" aria-label="RLTNL Recruiting home" className="flex shrink-0 items-center"><img src="/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" className="h-auto w-[170px] object-contain sm:w-[205px]"/></Link>
+        <div className="flex items-center gap-2 sm:gap-3"><Link href="/login" className="btn text-xs sm:text-sm">Sign in</Link><Link href="/signup" className="btn btn-red hidden text-sm sm:inline-flex">Join your team <ArrowRight size={15}/></Link></div>
+      </nav>
+    </header>
+    <main id="main">
+      <section className="relative overflow-hidden bg-gradient-to-br from-white via-white to-slate-50">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-16 pt-14 sm:px-8 sm:pb-24 sm:pt-20 lg:grid-cols-[1.03fr_.97fr] lg:gap-16">
+          <div>
+            <SectionEyebrow>RLTNL Recruiting · Built for college softball</SectionEyebrow>
+            <h1 className="mt-5 max-w-[660px] text-[clamp(2.55rem,6.1vw,5.1rem)] font-black leading-[1.04] tracking-[-.055em]">Recruiting happens in the <span className="text-red-700">follow-through.</span></h1>
+            <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600 sm:text-xl">Getting noticed is only the beginning. Turn school research, coach conversations, camps and recruiting activity into stronger relationships and clear next steps.</p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap"><Link href="/signup" className="btn btn-red w-full justify-center px-5 py-3 text-sm sm:w-auto">Join your team <ArrowRight size={17}/></Link><a href={inquiry} className="btn w-full justify-center px-5 py-3 text-sm sm:w-auto">Bring RLTNL to your organization <ArrowUpRight size={16}/></a></div>
+            <p className="mt-4 max-w-xl text-xs leading-5 text-slate-500">Joining requires an invitation or team signup code. Interested organizations can contact us to learn about access and onboarding.</p>
+            <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600"><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Athletes first</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Advisors connected</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-red-700"/> Organizations informed</span></div>
+          </div>
+          <HeroPreview/>
+        </div>
+      </section>
+
+      <section className="border-y border-slate-200 bg-slate-50/80">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+          <SectionEyebrow>Why RLTNL exists</SectionEyebrow><SectionTitle>Recruiting is more than a profile and a school list.</SectionTitle>
+          <SectionDescription>Finding programs and getting noticed matter. But recruiting also happens between the big moments: after the email, after the camp, after a coach responds. That is where RLTNL Recruiting helps you stay organized and move forward.</SectionDescription>
+          <div className="mt-9 grid gap-4 md:grid-cols-3">
+            {[{icon:Compass,title:'Find schools that fit',description:'Explore options using academics, distance, cost, campus setting and athlete preferences.'},{icon:Handshake,title:'Build real coach relationships',description:'Keep conversations, contacts, events and relationship history in one connected place.'},{icon:Target,title:'Turn activity into next steps',description:'Make follow-ups, reminders and recruiting decisions easier to see and act on.'}].map(({icon:Icon,title,description})=><article key={title} className="rounded-2xl border border-slate-200 bg-white p-6"><Icon size={24} className="text-red-700"/><h3 className="mt-4 text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{description}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
+        <SectionEyebrow>Inside RLTNL Recruiting</SectionEyebrow><SectionTitle>See the whole recruiting picture.</SectionTitle>
+        <SectionDescription>From an athlete's weekly Game Plan to the history behind each coach relationship, the platform connects the work that happens every day.</SectionDescription>
+        <div className="mt-10 grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+          <RelationshipPreview/>
+          <div className="lg:pl-5"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-700"><Handshake size={23}/></div><h3 className="mt-5 text-2xl font-black tracking-tight">One relationship. The whole story.</h3><p className="mt-3 text-base leading-7 text-slate-600">Know when a school was added, who was contacted, what a coach said and which follow-up matters. Your recruiting history stays attached to the relationship, not scattered across inboxes and notes.</p><div className="mt-5 flex flex-wrap gap-2">{['School targets','Coach conversations','Journey milestones'].map(x=><span key={x} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{x}</span>)}</div></div>
+        </div>
+        <div className="mt-14 grid items-center gap-8 lg:grid-cols-2 lg:gap-14">
+          <div className="lg:pr-5"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 text-red-700"><UserRoundCheck size={23}/></div><h3 className="mt-5 text-2xl font-black tracking-tight">Support athletes without losing the details.</h3><p className="mt-3 text-base leading-7 text-slate-600">Advisors can see their assigned athletes, review tracked recruiting communications, and help identify the next move. Athletes control their Advisor assignments and remain responsible for their own recruiting decisions.</p><div className="mt-5 flex flex-wrap gap-2">{['Player 360°','Advisor Communications','Next Steps'].map(x=><span key={x} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">{x}</span>)}</div></div>
+          <AdvisorPreview/>
+        </div>
+        <p className="mt-5 text-center text-xs text-slate-500">Product-style illustrations above use sample information. No real athlete data is shown.</p>
+      </section>
+
+      <section className="bg-slate-950 text-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-20">
+          <p className="text-[11px] font-black uppercase tracking-[.2em] text-red-300">The recruiting lifecycle</p>
+          <h2 className="mt-3 max-w-3xl text-[clamp(2rem,4vw,3.2rem)] font-black leading-[1.08] tracking-[-.04em]">Every step matters. Especially the next one.</h2>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">One connected journey, from exploring schools to making a decision.</p>
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {steps.map(({number,title,description,icon:Icon})=><div key={number} className="rounded-2xl border border-white/15 bg-white/[.055] p-5"><div className="flex items-center justify-between"><span className="text-xs font-black text-red-300">{number}</span><Icon size={21} className="text-slate-300"/></div><h3 className="mt-7 text-lg font-black">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-300">{description}</p></div>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
+        <SectionEyebrow>One platform. Connected roles.</SectionEyebrow><SectionTitle>The right people. The right visibility.</SectionTitle>
+        <SectionDescription>Recruiting works best when everyone understands their part. RLTNL connects athletes and their support teams while respecting role-based and athlete-approved access.</SectionDescription>
+        <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <RoleCard icon={Target} title="Athletes" description="Own the recruiting journey, build relationships and keep moving." items={['Find Schools and Connections','Game Plan and Next Steps','Events, communication and Journey']}/>
+          <RoleCard icon={Users} title="Parents & guardians" description="Stay informed and support progress with athlete-controlled access." items={['Recruiting overview','Schools and event visibility','Appropriate read-only support']}/>
+          <RoleCard icon={UserRoundCheck} title="Advisors" description="Help assigned athletes turn activity into meaningful follow-through." items={['Player 360° and Next Steps','Coach relationship context','Approved recruiting communications']}/>
+          <RoleCard icon={Building2} title="Organization admins" description="Coordinate the recruiting experience across teams and athletes." items={['Organization command center','Recruiting Board and reporting','Team and Advisor management']}/>
+        </div>
+      </section>
+
+      <section className="border-y border-slate-200 bg-slate-50">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-[1fr_.95fr]">
+          <div>
+            <SectionEyebrow>Built for travel and club organizations</SectionEyebrow><SectionTitle>Give your recruiting program a connected system.</SectionTitle>
+            <SectionDescription>Help advisors stay aligned, give athletes a consistent process and see recruiting activity across your organization without managing it all through spreadsheets and group texts.</SectionDescription>
+            <ul className="mt-7 space-y-3">{[['Simpler team onboarding','Invite athletes and families with team signup codes.'],['More consistent advisor coverage','Coordinate assigned athletes, actions and relationships.'],['Organization-wide perspective','See recruiting progress through command-center views and reports.']].map(([title,desc])=><li key={title} className="flex gap-3"><CheckCircle2 size={19} className="mt-1 shrink-0 text-red-700"/><div><p className="text-sm font-black">{title}</p><p className="mt-1 text-sm leading-6 text-slate-600">{desc}</p></div></li>)}</ul>
+            <a href={inquiry} className="btn btn-red mt-8 px-5 py-3">Bring RLTNL to your organization <ArrowUpRight size={17}/></a>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="flex items-center gap-3"><div className="rounded-xl bg-red-50 p-3 text-red-700"><Building2 size={24}/></div><div><p className="text-xs font-black uppercase tracking-wide text-red-700">Organization recruiting</p><h3 className="text-xl font-black">From teams to follow-through.</h3></div></div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              {[{icon:Users,title:'Team onboarding',desc:'Invitations and role-based access'},{icon:ListChecks,title:'Advisor coverage',desc:'Assignments and recruiting support'},{icon:ClipboardCheck,title:'Recruiting Board',desc:'Progress across your athletes'},{icon:School,title:'Reports and outcomes',desc:'Visibility for organization leaders'}].map(({icon:Icon,title,desc})=><div key={title} className="rounded-xl border border-slate-200 bg-slate-50 p-4"><Icon size={20} className="text-red-700"/><h4 className="mt-3 text-sm font-black">{title}</h4><p className="mt-1 text-xs leading-5 text-slate-600">{desc}</p></div>)}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 sm:py-24 lg:grid-cols-2">
+        <div className="order-2 lg:order-1">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-7">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4"><div className="min-w-0 rounded-xl border border-slate-200 bg-white p-3 text-center sm:p-5"><FileSpreadsheet className="mx-auto text-slate-700" size={26}/><p className="mt-3 text-xs font-black sm:text-sm">Your history</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Schools · Coaches · Activity</p></div><ArrowRight size={20} className="text-red-700"/><div className="min-w-0 rounded-xl border border-red-200 bg-white p-3 text-center sm:p-5"><Upload className="mx-auto text-red-700" size={26}/><p className="mt-3 text-xs font-black sm:text-sm">RLTNL Recruiting</p><p className="mt-1 text-[11px] leading-4 text-slate-500">Review · Import · Continue</p></div></div>
+            <p className="mt-4 text-center text-xs leading-5 text-slate-500">Guided recruiting-history import supports Excel and CSV files with review before import.</p>
+          </div>
+        </div>
+        <div className="order-1 lg:order-2">
+          <SectionEyebrow>Bring your recruiting history</SectionEyebrow><SectionTitle>You don't have to start over.</SectionTitle>
+          <SectionDescription>Already using spreadsheets to track schools, coaches and recruiting activity? Bring the work you've done into RLTNL Recruiting and keep your momentum.</SectionDescription>
+          <p className="mt-5 text-base font-black">Your recruiting history should move with you.</p>
+        </div>
+      </section>
+
+      <section className="bg-red-700 text-white">
+        <div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8 sm:py-20">
+          <p className="text-[11px] font-black uppercase tracking-[.2em] text-red-100">Ready for the next step?</p>
+          <h2 className="mx-auto mt-4 max-w-3xl text-[clamp(2rem,4vw,3.3rem)] font-black leading-[1.1] tracking-[-.04em]">Make every recruiting connection count.</h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-red-50">Join through your team, or talk with us about bringing RLTNL Recruiting to your travel organization.</p>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/signup" className="btn w-full border-white bg-white px-6 py-3 text-sm font-black text-slate-950 sm:w-auto">Have a team code? Join now <ArrowRight size={17}/></Link><a href={inquiry} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-sm font-black text-white transition-colors hover:bg-white/10 sm:w-auto">Bring RLTNL to your organization <ArrowUpRight size={17}/></a></div>
+        </div>
+      </section>
+    </main>
+    <footer className="border-t border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8"><img src="/RLTNL%20Recruiting%20Horizontal.png" alt="RLTNL Recruiting" className="h-auto w-[180px] object-contain"/><div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-xs font-semibold text-slate-500"><Link href="/login" className="hover:text-slate-900">Sign in</Link><Link href="/signup" className="hover:text-slate-900">Join your team</Link><Link href="/privacy" className="hover:text-slate-900">Privacy Policy</Link><Link href="/terms" className="hover:text-slate-900">Terms of Service</Link></div></div></footer>
+  </div>;
+}
