@@ -2,13 +2,14 @@ import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
 import {getGoogleAccessToken} from '@/lib/google-workspace';
+import {extractGmailAttachmentMetadata} from '@/lib/gmail-attachment-metadata';
+import type {GmailMimePart} from '@/lib/gmail-attachment-metadata';
 
 type Header={name?:string;value?:string};
-type GmailPart={mimeType?:string;body?:{data?:string};parts?:GmailPart[]};
 function header(headers:Header[]|undefined,name:string){return headers?.find(h=>h.name?.toLowerCase()===name.toLowerCase())?.value||''}
 function emailFrom(value:string){return (value.match(/<([^>]+)>/)?.[1]||value).trim().toLowerCase()}
 function decode(data?:string){if(!data)return '';try{return Buffer.from(data.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8')}catch{return ''}}
-function bodyText(p:GmailPart|undefined):string{if(!p)return '';if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);for(const x of p.parts||[]){const v=bodyText(x);if(v)return v}return ''}
+function bodyText(p:GmailMimePart|undefined):string{if(!p)return '';if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);for(const x of p.parts||[]){const v=bodyText(x);if(v)return v}return ''}
 function cleanMessage(body:string,subject:string){const raw=(body||subject).replace(/\r/g,'');const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];return cut.replace(/\n{3,}/g,'\n\n').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim()}
 function summaryText(v:string){return v.replace(/\s+/g,' ').trim().slice(0,500)}
 function extractUrls(v:string){return [...new Set((v.match(/https?:\/\/[^\s<>]+/gi)||[]).map(x=>x.replace(/[),.;]+$/,'')))]}
@@ -39,10 +40,26 @@ export async function POST(req:NextRequest){
   const list=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=50',{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
   const listing=await list.json() as {messages?:{id:string}[];error?:{message?:string}};
   if(!list.ok)throw new Error(listing.error?.message||'Could not read Gmail.');
-  const admin=createAdminClient(); let logged=0,matched=0;
+  const admin=createAdminClient(); let logged=0,matched=0,backfilled=0;
   for(const item of listing.messages||[]){
-   const existing=await admin.from('gmail_recruiting_messages').select('id').eq('athlete_user_id',userId).eq('gmail_message_id',item.id).maybeSingle();
-   if(existing.data)continue;
+   const existing=await admin.from('gmail_recruiting_messages').select('id,extracted_data').eq('athlete_user_id',userId).eq('gmail_message_id',item.id).maybeSingle();
+   if(existing.data){
+    // Existing emails were synced before attachment metadata was captured.
+    // Backfill a bounded number per sync, preserving prior extracted fields.
+    if(backfilled<8&&existing.data.extracted_data?.attachmentMetadataChecked!==true){
+     const detail=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+encodeURIComponent(item.id)+'?format=full',{headers:{Authorization:'Bearer '+accessToken},cache:'no-store'});
+     if(detail.ok){
+      const oldMessage=await detail.json() as {payload?:GmailMimePart};
+      const meta=extractGmailAttachmentMetadata(oldMessage.payload);
+      if(meta.attachmentMetadataChecked){
+       const prior=existing.data.extracted_data&&typeof existing.data.extracted_data==='object'&&!Array.isArray(existing.data.extracted_data)?existing.data.extracted_data:{};
+       const saved=await admin.from('gmail_recruiting_messages').update({extracted_data:{...prior,...meta}}).eq('id',existing.data.id).eq('athlete_user_id',userId);
+       if(!saved.error)backfilled++;
+      }
+     }
+    }
+    continue;
+   }
    const mr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(item.id)}?format=full`,{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
    if(!mr.ok)continue; const m=await mr.json() as any;
    const from=emailFrom(header(m.payload?.headers,'From')); if(!from)continue;
@@ -53,7 +70,7 @@ export async function POST(req:NextRequest){
    const trackedIds=new Set((tracked.data||[]).map((x:any)=>x.coach_id));
    const coach=coachRes.data.find((x:any)=>trackedIds.has(x.id));
    if(!coach)continue; matched++;
-   const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text);
+   const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text); const meta=extractGmailAttachmentMetadata(m.payload);
    if(/^\s*(fwd|fw):/i.test(subject)||/^\s*-{2,}\s*forwarded message/i.test(text))continue;
    let intel=classify(subject,text); if(!intel.summary)continue;
    // Use the existing relationship history to avoid treating an acknowledgement as a brand-new invitation.
@@ -74,10 +91,10 @@ export async function POST(req:NextRequest){
    const {data:linkedGmail}=existingInteractionIds.length?await admin.from('gmail_recruiting_messages').select('interaction_id').eq('athlete_user_id',userId).in('interaction_id',existingInteractionIds):{data:[] as any[]};
    const linkedIds=new Set((linkedGmail||[]).map((x:any)=>x.interaction_id));
    const target=normalizeForMatch(intel.summary); const normalizedSubject=normalizeForMatch(subject); const duplicate=(sameDay.data||[]).find((x:any)=>{if(linkedIds.has(x.id))return false;const n=normalizeForMatch(x.note||'');const s=normalizeForMatch(x.email_subject||'');return s===normalizedSubject&&n&&target&&(n.includes(target.slice(0,120))||target.includes(n.slice(0,120))) });
-   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls}});continue}
+   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta}});continue}
    const interaction=await admin.from('interactions').insert({athlete_user_id:userId,actor_user_id:userId,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),source:'automatic',email_subject:subject||null,email_type:intel.intent,email_content:cleanMessage(text,subject),note:intel.summary}).select('id').single();
    if(interaction.error)continue;
-   const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls}});
+   const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta}});
    if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
    if(intel.nextAction){
     await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);
@@ -85,6 +102,6 @@ export async function POST(req:NextRequest){
    logged++;
   }
   await admin.from('google_workspace_connections').update({gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);
-  return NextResponse.json({ok:true,matched,logged});
+  return NextResponse.json({ok:true,matched,logged,attachmentMetadataBackfilled:backfilled});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Could not sync incoming Gmail.'},{status:500})}
 }

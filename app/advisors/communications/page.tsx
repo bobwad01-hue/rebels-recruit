@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { ArrowRight, Bell, CheckCircle2, ChevronDown, Clock3, Inbox, Mail, MessageCircleReply, RefreshCw, Search, ShieldCheck, Users } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
+import RecruitingEmailReader from '@/components/RecruitingEmailReader';
 import { groupAdvisorCommunications } from '@/lib/advisor-communication-threads';
 import type { AdvisorMessage } from '@/lib/advisor-communication-threads';
 
@@ -203,10 +204,8 @@ function Communications() {
                   </button>
                   {expanded && <div className="border-t px-3 pb-4 pt-3 sm:px-4">
                     <dl className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-2 text-xs"><dt className="text-slate-500">From</dt><dd className="break-words font-semibold text-slate-800">{m.direction === 'received' ? m.coachName : m.sentByAdvisor ? 'Advisor' : m.athleteName}{m.direction === 'received' && m.senderEmail ? ' (' + m.senderEmail + ')' : ''}</dd><dt className="text-slate-500">To</dt><dd className="font-semibold text-slate-800">{m.direction === 'received' ? m.athleteName : m.coachName}</dd><dt className="text-slate-500">Source</dt><dd className="text-slate-700">{m.source === 'gmail' ? 'Connected Gmail' : m.source === 'rltnl' ? 'Sent through RLTNL' : 'Manually logged'}</dd></dl>
-                    {m.direction === 'received' && m.actionRequired && !resolved && <div className={'mt-3 rounded-lg p-3 text-xs leading-5 ' + (repliedLater ? 'bg-slate-100 text-slate-700' : 'bg-amber-50 text-amber-900')}><b>{repliedLater ? 'A later email was sent · confirm any remaining next step' : m.reviewed ? 'Reviewed by athlete · suggested next step' : 'Awaiting athlete review'}</b><p>{m.nextAction || 'Review and decide the next step.'}</p></div>}
-                    <h4 className="mt-4 text-[11px] font-black uppercase tracking-wide text-slate-500">{m.body ? 'Email message' : 'Recorded summary'}</h4>
-                    {m.body ? <div className="mt-2 max-h-[430px] overflow-auto whitespace-pre-wrap break-words rounded-xl border bg-slate-50 p-4 text-sm leading-6 text-slate-800">{m.body}</div>
-                      : <div className="mt-2 rounded-xl border bg-slate-50 p-4 text-sm leading-6 text-slate-700">{m.summary || 'No message text was recorded for this email.'}<p className="mt-3 text-xs text-slate-500">The full email body was not saved. This is a summary, not the original email.</p></div>}
+                    {m.direction === 'received' && m.actionRequired && !resolved && <div className={'mt-3 rounded-lg p-3 text-xs leading-5 ' + (repliedLater ? 'bg-slate-100 text-slate-700' : 'bg-amber-50 text-amber-900')}><b>{repliedLater ? 'A later email was sent · confirm any remaining next step' : m.reviewed ? 'Reviewed by athlete · suggested next step' : 'Awaiting athlete review'}</b><p>{m.nextAction || 'Review and decide the next step.'}</p><p className="mt-1 text-[11px] font-semibold">Advisor view only · The athlete controls review, replies, and completion.</p></div>}
+                    <RecruitingEmailReader key={m.id} body={m.body} summary={m.summary} attachments={m.attachments} attachmentMetadataChecked={m.attachmentMetadataChecked} />
                   </div>}
                 </article>;
               })}

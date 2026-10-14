@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase-server';
 import type { AdvisorMessage } from '@/lib/advisor-communication-threads';
+import { safeAttachmentMetadata } from '@/lib/recruiting-email-display';
 
 export const dynamic = 'force-dynamic';
 const DEFAULTS = {
@@ -42,7 +43,7 @@ export async function GET() {
       .in('athlete_user_id', ids).in('type', ['Email Sent', 'Email Received'])
       .order('created_at', { ascending: false }).limit(350),
     db.from('gmail_recruiting_messages')
-      .select('id,interaction_id,athlete_user_id,coach_id,college_id,received_at,subject,summary,action_required,next_action,action_state,action_decision,reviewed_at,recruiting_intent,gmail_thread_id,gmail_message_id')
+      .select('id,interaction_id,athlete_user_id,coach_id,college_id,received_at,subject,summary,action_required,next_action,action_state,action_decision,reviewed_at,recruiting_intent,gmail_thread_id,gmail_message_id,extracted_data')
       .in('athlete_user_id', ids).order('received_at', { ascending: false }).limit(350),
   ]);
   if (pr.error || ir.error || gr.error) {
@@ -67,6 +68,7 @@ export async function GET() {
     const g = gmailByInteraction.get(i.id);
     if (g) linked.add(g.id);
     const incoming = i.type === 'Email Received';
+    const metadata = safeAttachmentMetadata(g?.extracted_data);
     const body = (i.email_content || '').slice(0, 20000);
     return {
       id: i.id, athleteId: i.athlete_user_id, athleteName: names.get(i.athlete_user_id) || 'Athlete',
@@ -83,6 +85,7 @@ export async function GET() {
       gmailThreadId: g?.gmail_thread_id || i.gmail_thread_id || null,
       gmailMessageId: g?.gmail_message_id || i.gmail_message_id || null,
       senderEmail: incoming ? i.gmail_sender_email || null : null,
+      attachments: metadata.attachments, attachmentMetadataChecked: metadata.checked,
       source: incoming ? (g || i.gmail_message_id ? 'gmail' : 'manual') : (i.source === 'automatic' ? 'rltnl' : 'manual'),
     };
   });
@@ -91,6 +94,7 @@ export async function GET() {
   // interaction fell outside the activity limit, show a summary-only entry.
   const linkedGmailIds = new Set((ir.data || []).map(i => i.gmail_message_id).filter(Boolean));
   for (const g of gr.data || []) {
+    const metadata = safeAttachmentMetadata(g.extracted_data);
     if (linked.has(g.id) || (g.gmail_message_id && linkedGmailIds.has(g.gmail_message_id))) continue;
     messages.push({
       id: g.id, athleteId: g.athlete_user_id, athleteName: names.get(g.athlete_user_id) || 'Athlete',
@@ -103,6 +107,7 @@ export async function GET() {
       nextAction: g.next_action || null, reviewed: !!g.reviewed_at, source: 'gmail',
       gmailThreadId: g.gmail_thread_id || null, gmailMessageId: g.gmail_message_id || null,
       senderEmail: null,
+      attachments: metadata.attachments, attachmentMetadataChecked: metadata.checked,
     });
   }
   messages.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
