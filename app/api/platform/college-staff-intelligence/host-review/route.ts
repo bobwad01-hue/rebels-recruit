@@ -195,9 +195,9 @@ export async function POST(req:NextRequest){
   const collegeId=typeof body.college_id==='string'?body.college_id:'';
   const action=body.action;
   const evidenceUrl=typeof body.evidence_url==='string'?body.evidence_url.trim():'';
-  if(!uuid.test(collegeId)||!['check','approve'].includes(action)||evidenceUrl.length>1500)
+  if(!uuid.test(collegeId)||!['check','approve','validate_saved'].includes(action)||evidenceUrl.length>1500)
     return NextResponse.json({error:'Invalid official-host review request'},{status:400,headers});
-  if(action==='approve'&&body.confirmed_approval!==true)
+  if(['approve','validate_saved'].includes(action)&&body.confirmed_approval!==true)
     return NextResponse.json({error:'Explicit Super Owner domain approval is required'},{status:400,headers});
   try{
     const [{data:school,error:schoolError},{data:verification,error:verificationError},
@@ -214,6 +214,22 @@ export async function POST(req:NextRequest){
       return NextResponse.json({error:'This school is no longer awaiting official-host approval. Refresh the workbench.'},{status:409,headers});
     if(!host(school.website)||!host(verification.source_url))
       return NextResponse.json({error:'Saved university website or proposed athletics URL is invalid'},{status:409,headers});
+    if(action==='validate_saved'){
+      if(body.source_url!==verification.source_url)
+        return NextResponse.json({error:'The saved coaching URL changed. Refresh and review the exact saved source.'},{status:409,headers});
+      const {data:status,error:validationError}=await admin.rpc(
+        'confirm_college_staff_saved_source_for_validation',{
+          p_college_id:collegeId,p_user_id:user.id,p_source_url:verification.source_url
+        });
+      if(validationError){
+        if(validationError.code==='P0001')
+          return NextResponse.json({error:validationError.message},{status:409,headers});
+        throw validationError;
+      }
+      return NextResponse.json({confirmed:true,recheck_status:status,
+        source_url:verification.source_url,school:school.name,
+        message:'Saved coaching page confirmed for direct one-school validation. No separate university-site search. Coach identities, roles, and contacts must pass the existing quality gates.'},{headers});
+    }
     const evidence=await verifyIndependentEvidence(school.website,verification.source_url,evidenceUrl);
     if(action==='check')return NextResponse.json(evidence,{headers});
     if(!evidence.verified||!evidence.evidence_url||!evidence.matched_link)
