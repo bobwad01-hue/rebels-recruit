@@ -196,7 +196,7 @@ export default function Home() {
       <section className="bg-red-700 text-white">
         <div className="mx-auto max-w-7xl px-5 py-16 text-center sm:px-8 sm:py-20">
           <p className="text-[11px] font-black uppercase tracking-[.2em] text-red-100">Ready for the next step?</p>
-          <h2 className="mx-auto mt-4 max-w-3xl text-[clamp(2rem,4vw,3.3rem)] font-black leading-[1.1] tracking-[-.04em]">Make every recruiting connection count.</h2>
+          <h2 className="mx-auto mt-4 max-w-3xl text-[clamp(2rem,4vw,3.3rem)] font-black leading-[1.1] tracking-[-.04em]"><span className="block">RLTNL.</span><span className="block">Relationships lead to the next level.</span></h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-red-50">Join through your team, or talk with us about bringing RLTNL Recruiting to your travel or club organization or high school team.</p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row"><Link href="/signup" className="btn w-full border-white bg-white px-6 py-3 text-sm font-black text-slate-950 sm:w-auto">Have a team code? Join now <ArrowRight size={17}/></Link><a href={inquiry} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/70 px-6 py-3 text-sm font-black text-white transition-colors hover:bg-white/10 sm:w-auto">Bring RLTNL to your organization <ArrowUpRight size={17}/></a></div>
         </div>
