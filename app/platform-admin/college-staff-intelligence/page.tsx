@@ -482,7 +482,7 @@ export default function Page(){
             <button type="button" className="btn" disabled={verifySaving} onClick={()=>setVerifySchool(null)}>
               {verifyResult?'Close':'Cancel'}
             </button>
-            <button type="submit" className="btn btn-red" disabled={verifySaving||running||busy||diagnosing}>
+            <button type="submit" className="btn btn-red" disabled={verifySaving}>
               <ShieldCheck size={16}/>{verifySaving?'Saving / rechecking…':'Save verification'}
             </button>
           </div>
