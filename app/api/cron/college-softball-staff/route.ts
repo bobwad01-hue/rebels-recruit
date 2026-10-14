@@ -535,7 +535,9 @@ export async function POST(req:NextRequest){
    return NextResponse.json({error:"Targeted source recheck requires Super Owner access"},{status:403});
  const approvedPilotIds=new Set(["1ad3f717-06f1-42ba-8846-d25af5dfe5e0","76ec4683-6660-4f28-9202-8ad95b7fa51d","7807b761-19c4-4985-a037-e0d101b406dd","5f6b8905-b694-4f86-8dd0-13589844610c","780e372c-dcc4-41ea-9984-962e78c27cdf","08cb7422-5392-44c7-9e0e-ecb0dc3ecf01","4fcfa4d1-aee8-4439-a85d-dbc76ca39675","aa8d21bc-9693-4d24-b28f-50aa805cadd3","d0736a10-3714-40ff-9a15-e878a66bde6e","e369965b-0e9a-42c7-afbb-506359ba4c30"]);
  const approvedExpansionIds=new Set(["aa9f860e-1cf3-4259-9af2-b29d2893fb62","3f70500b-0847-4398-8cb3-0e9c93a77cbd","644b79c9-6b52-400d-93d4-f62f03369c9e","6d8b983f-9209-4cdc-9c8d-363d7ea7d112","14adc832-92ce-4771-9ae9-6d06320c7e40","5f863060-16e1-4b29-b67f-e4dcd6dc407d","1d142cd0-9aa7-4354-94bf-ff12c852be4d","699e0f6e-e751-48b1-ab3e-68fddb6ecfbb","30b625a4-cd95-4cd4-a001-cac303ccbc13","818c9f94-30fd-4b0e-a495-ec6858e69c43"]);
- if(!cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true && body.diagnose_quality!==true){
+ // Contact recovery is an explicitly scoped worker action. It is authenticated
+ // again below as Super Owner-only, and cannot enter the general write path.
+ if(!cronOk && !manualOk && body.dry_run!==true && body.bootstrap!==true && body.profile_enrichment!==true && body.diagnose_quality!==true && body.contact_recovery!==true){
    const ids=Array.isArray(body.college_ids)?body.college_ids:[];
    const allowed=body.expansion_write===true?approvedExpansionIds:approvedPilotIds;
    if((body.pilot_write!==true&&body.expansion_write!==true) || ids.length===0 || ids.some((id:string)=>!allowed.has(id))) return NextResponse.json({error:"Controlled write not authorized"},{status:403});
