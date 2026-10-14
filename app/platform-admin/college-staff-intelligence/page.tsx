@@ -36,6 +36,43 @@ type ContactRecovery={
 };
 type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
   head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
+
+type ManualCoach={name:string;title:string;role:string;email:string};
+const manualRoleOptions=[
+  ['head_coach','Head coach'],['associate_head_coach','Associate head coach'],
+  ['assistant_coach','Assistant coach'],['pitching_coach','Pitching coach'],
+  ['hitting_coach','Hitting coach'],['recruiting_coordinator','Recruiting coordinator'],
+  ['graduate_assistant','Graduate assistant'],['volunteer_assistant','Volunteer assistant'],
+  ['other_coaching_staff','Other softball coaching staff']
+];
+function roleFromTitle(title:string){
+  const t=title.toLowerCase();
+  if(/associate.*head/.test(t))return 'associate_head_coach';
+  if(/head.*coach|head.*softball/.test(t))return 'head_coach';
+  if(/graduate/.test(t))return 'graduate_assistant';
+  if(/volunteer/.test(t))return 'volunteer_assistant';
+  if(/pitching/.test(t))return 'pitching_coach';
+  if(/hitting/.test(t))return 'hitting_coach';
+  if(/recruiting/.test(t))return 'recruiting_coordinator';
+  return 'assistant_coach';
+}
+function staffFromSavedNotes(notes:string):ManualCoach[]{
+  const lines=notes.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const out:ManualCoach[]=[];
+  for(let i=0;i+1<lines.length&&out.length<8;i++){
+    const name=lines[i],title=lines[i+1];
+    if(!/^[\p{Lu}][\p{L}.'’\-]+(?:\s+[\p{Lu}][\p{L}.'’\-]+){1,3}$/u.test(name)
+       ||!/softball|coach|assistant|pitching|hitting/i.test(title)
+       ||title.length>120)continue;
+    const next=lines[i+2]||'';
+    const email=/^[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}$/i.test(next)?next:'';
+    if(out.some(c=>c.name.toLowerCase()===name.toLowerCase()))continue;
+    out.push({name,title,role:roleFromTitle(title),email});
+    i+=email?2:1;
+  }
+  return out;
+}
+
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
 const errorLabel=(r:string)=>({
   quality:'Quality gate',timeout:'Timeout',inactive_program:'Program discontinued',staff_conflict:'Staff sources conflict',source_access:'Source access review',staff_discovery:'Staff discovery',
@@ -83,6 +120,11 @@ export default function Page(){
   const [verifyError,setVerifyError]=useState('');
   const [verifyResult,setVerifyResult]=useState('');
   const [verifyResultKind,setVerifyResultKind]=useState<'success'|'review'|'queued'>('queued');
+  const [manualMode,setManualMode]=useState(false);
+  const [manualCoaches,setManualCoaches]=useState<ManualCoach[]>([]);
+  const [manualConfirmed,setManualConfirmed]=useState(false);
+  const [manualSaving,setManualSaving]=useState(false);
+  const [manualError,setManualError]=useState('');
 
   const load=useCallback(async()=>{
     try{
@@ -124,11 +166,11 @@ export default function Page(){
 
   useEffect(()=>{
     if(!verifySchool)return;
-    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!verifySaving)setVerifySchool(null);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!verifySaving&&!manualSaving)setVerifySchool(null);};
     document.addEventListener('keydown',escape);
     const previous=document.body.style.overflow;document.body.style.overflow='hidden';
     return()=>{document.removeEventListener('keydown',escape);document.body.style.overflow=previous;};
-  },[verifySchool,verifySaving]);
+  },[verifySchool,verifySaving,manualSaving]);
 
   function openVerify(school:Exception,suggestion?:QualityDiagnostic){
     setVerifySchool(school);
@@ -139,7 +181,8 @@ export default function Page(){
     const navigation=school.staff_navigation_url;
     const preferred=candidate&&navigation&&candidate.split('#')[0]===navigation.split('#')[0]
       ?navigation:candidate;
-    setVerifyUrl(preferred||school.verification?.source_url||navigation||school.staff_url||school.softball_url||'');
+    // A saved human-reviewed source takes precedence over any stale parser preview.
+    setVerifyUrl(school.verification?.source_url||preferred||navigation||school.staff_url||school.softball_url||'');
     setVerifyOutcome(suggestion?'verified':school.verification?.outcome||'verified');
     const suggestedHeads=suggestion?.coaches.filter(c=>c.role==='head_coach')||[];
     setVerifyHead(school.verification?.head_coach_name||
@@ -147,6 +190,13 @@ export default function Page(){
     setVerifyNotes(school.verification?.notes||'');
     setVerifyConfirmed(false);setVerifySaved(false);setVerifyError('');setVerifyResult('');
     setVerifyResultKind('queued');
+    const needsManual=school.verification?.outcome==='verified'&&school.verification?.recheck_status==='needs_review';
+    setManualMode(Boolean(needsManual));
+    const fromNotes=staffFromSavedNotes(school.verification?.notes||'');
+    setManualCoaches(fromNotes.length?fromNotes:[
+      {name:school.verification?.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:''}
+    ]);
+    setManualConfirmed(false);setManualError('');
   }
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
@@ -192,6 +242,10 @@ export default function Page(){
             setVerifyResult('Source passed the coaching quality gates. '+result.coaches+' coach candidates processed; the school is now imported.');
             setVerifyResultKind('success');
           }else if(result){
+            const fromNotes=staffFromSavedNotes(verifyNotes);
+            if(fromNotes.length)setManualCoaches(fromNotes);
+            setManualMode(true);
+            setManualConfirmed(false);
             setVerifyResult('Source saved, but automated import was stopped for review: '+(result.error||'Quality gate not passed'));
             setVerifyResultKind('review');
           }else{
@@ -207,6 +261,31 @@ export default function Page(){
       }
     }catch(e){setVerifyError(e instanceof Error?e.message:'Could not save verification');}
     finally{setVerifySaving(false);}
+  }
+
+
+  async function importManuallyVerifiedStaff(){
+    if(!verifySchool||!manualConfirmed||manualSaving||!canManualImport)return;
+    if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
+      setManualError('Wait for the other pipeline task to finish.');return;
+    }
+    setManualSaving(true);setManualError('');
+    try{
+      const response=await fetch('/api/platform/college-staff-intelligence/manual-staff',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({college_id:verifySchool.college_id,
+          source_url:verifyUrl,coaches:manualCoaches}),cache:'no-store'
+      });
+      const saved=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(saved.error||'Manual staff import failed');
+      setVerifySaved(true);setManualMode(false);setManualConfirmed(false);
+      setVerifyResultKind('success');
+      setVerifyResult('Your official-source verification was already saved. '+
+        saved.coaches+' manually verified coaches are now imported ('+
+        saved.created+' new, '+saved.updated+' existing). Official-source audit snapshots were recorded.');
+      await load();
+    }catch(e){setManualError(e instanceof Error?e.message:'Manual staff import failed');}
+    finally{setManualSaving(false);}
   }
 
   async function runQueue(){
@@ -381,6 +460,13 @@ export default function Page(){
 
   // Keep the guided verification list in sync with live queue status so schools
   // already imported disappear after the successful targeted recheck.
+  const manualCases=(cleanup?.exceptions||[]).filter(s=>s.status==='review'&&
+    s.verification?.outcome==='verified'&&s.verification.recheck_status==='needs_review');
+  const activeVerification=cleanup?.exceptions.find(s=>s.college_id===verifySchool?.college_id)?.verification
+    ||verifySchool?.verification;
+  const canManualImport=Boolean(verifySchool&&verifyOutcome==='verified'&&
+    activeVerification?.outcome==='verified'&&activeVerification.recheck_status==='needs_review'&&
+    verifyUrl===activeVerification.source_url);
   const activeQuality=diagnostics.filter(x=>(cleanup?.exceptions||[])
     .some(s=>s.college_id===x.college_id&&s.status==='review'));
   const readyQuality=activeQuality.filter(x=>x.status==='candidate'
@@ -640,10 +726,27 @@ export default function Page(){
         {message&&!running&&<div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm" role="status"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/>{message}</div>}
         {error&&<div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert"><AlertCircle size={16} className="mt-0.5 shrink-0"/>{error}</div>}
       </div>
+      {manualCases.length>0&&<div className="border-b border-amber-200 bg-amber-50 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-black text-amber-950">{manualCases.length} official source{manualCases.length===1?'':'s'} verified · staff import still needs review</h3>
+            <p className="mt-1 text-sm text-amber-900">Your confirmation was saved. The parser could not safely extract the coaches. Review your saved staff details once and import them manually, with identity and contact safeguards.</p>
+          </div>
+          <button type="button" className="btn btn-red" onClick={()=>openVerify(manualCases[0])} disabled={manualSaving||verifySaving}>
+            Review saved staff <ArrowRight size={15}/>
+          </button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">{manualCases.map(s=>
+          <button key={s.college_id} type="button" onClick={()=>openVerify(s)}
+            disabled={manualSaving||verifySaving}
+            className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-950 hover:border-red-500">
+            {s.name} · {s.verification?.recheck_message||'Parser review required'}
+          </button>)}</div>
+      </div>}
       {diagnostics.length>0&&<div className="border-b p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h3 className="font-black">Quality gate inspection report</h3>
-            <p className="mt-1 text-xs text-slate-500">Unverified parser preview from the saved official source. A passing preview is not an imported coach.</p>
+            <p className="mt-1 text-xs text-slate-500">Historical read-only parser preview. Status badges update from the live queue; the names below are not a current staff audit.</p>
           </div>
           <button type="button" className="btn" onClick={()=>void navigator.clipboard.writeText(
             diagnostics.map(x=>[x.name,x.status,x.issue,x.source_url||'',x.coaches.map(c=>c.name+' ('+c.title+')').join('; ')].join(' | ')).join('\\n')
@@ -661,20 +764,24 @@ export default function Page(){
             ||a.name.localeCompare(b.name)).map(x=>{
             const school=cleanup?.exceptions.find(s=>s.college_id===x.college_id&&s.status==='review');
             const ready=readyQuality.some(s=>s.college_id===x.college_id);
+            const savedManual=school?.verification?.outcome==='verified'&&school?.verification?.recheck_status==='needs_review';
+            const liveSource=school?.verification?.source_url||school?.staff_navigation_url||school?.staff_url||x.source_url;
             return <article key={x.college_id} className="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <h4 className="font-black text-slate-950">{x.name}</h4>
                 <span className={'rounded-md px-2 py-1 text-[11px] font-bold '+(ready?'bg-green-50 text-green-800':'bg-amber-50 text-amber-900')}>
-                  {ready?'Ready to verify':school?'Needs investigation':'Already imported'}
+                  {ready?'Ready to verify':savedManual?'Source verified · staff import needed':school?'Needs investigation':'Already imported'}
                 </span>
               </div>
-              <p className="mt-2 text-xs text-slate-600">{x.issue} · {x.head_count} head coach candidate{x.head_count===1?'':'s'}</p>
+              <p className="mt-2 text-xs text-slate-600">{savedManual
+                ?school?.verification?.recheck_message||'Automated staff import stopped for review'
+                :x.issue+' · '+x.head_count+' head coach candidate'+(x.head_count===1?'':'s')}</p>
               {x.coaches.length>0?<div className="mt-3 space-y-1.5 text-sm text-slate-800">
                 {x.coaches.map((c,i)=><div key={i}><span className="font-semibold">{c.name}</span> <span className="text-slate-500">· {c.title}</span></div>)}
               </div>:<p className="mt-3 text-sm text-slate-500">No coach candidates. Find a current official coaching page and enter its URL in verification.</p>}
               <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 pt-4 text-xs">
-                {(x.source_url||school?.staff_url)?.startsWith('https://')&&
-                  <a href={x.source_url||school?.staff_url||'#'} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline">
+                {liveSource?.startsWith('https://')&&
+                  <a href={liveSource} target="_blank" rel="noopener noreferrer" className="font-bold text-blue-700 underline">
                     Open official page <ExternalLink size={12} className="inline"/>
                   </a>}
                 <a href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
@@ -685,7 +792,7 @@ export default function Page(){
               {school&&<button type="button" className={'btn mt-3 w-full justify-center '+(ready?'btn-red':'')}
                 disabled={running||busy||diagnosing||verifySaving}
                 onClick={()=>reviewQualitySource(x)}>
-                <ShieldCheck size={15}/>{ready?'Review & verify source':'Update / verify official source'} <ArrowRight size={14}/>
+                <ShieldCheck size={15}/>{savedManual?'Review saved coaches & import':ready?'Review & verify source':'Update / verify official source'} <ArrowRight size={14}/>
               </button>}
             </article>;
           })}
@@ -757,19 +864,29 @@ export default function Page(){
       </div>}
     </section>}
   </main>    {verifySchool&&<div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6"
-      onMouseDown={e=>{if(e.target===e.currentTarget&&!verifySaving)setVerifySchool(null);}}>
+      onMouseDown={e=>{if(e.target===e.currentTarget&&!verifySaving&&!manualSaving)setVerifySchool(null);}}>
       <section role="dialog" aria-modal="true" aria-labelledby="verify-title"
         className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
           <div><div className="rr-eyebrow">OFFICIAL SOURCE VERIFICATION</div>
             <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
-            <p className="mt-1 text-xs text-slate-500">Confirm the school source, not every coach or contact field.</p>
+            <p className="mt-1 text-xs text-slate-500">Confirm the source. If automated parsing fails, review the staff manually without repeating verification.</p>
           </div>
-          <button type="button" disabled={verifySaving} aria-label="Close verification"
+          <button type="button" disabled={verifySaving||manualSaving} aria-label="Close verification"
             onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
             <X size={20}/></button>
         </div>
-        <form onSubmit={e=>void saveVerification(e)} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+        <form onSubmit={e=>{if(manualMode){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+          {activeVerification?.outcome==='verified'&&<div className={'rounded-xl border p-3 text-sm '+
+            (activeVerification.recheck_status==='passed'?'border-green-200 bg-green-50 text-green-900':
+              'border-amber-200 bg-amber-50 text-amber-950')}>
+            <strong>Official source verification saved.</strong>
+            <p className="mt-1">{activeVerification.recheck_status==='needs_review'
+              ?'The automatic importer stopped; it did not reject your research. You can review and import the staff manually below.'
+              :activeVerification.recheck_status==='passed'?'Coaching staff imported.'
+              :'Import status: '+activeVerification.recheck_status.replaceAll('_',' ')}</p>
+            {activeVerification.recheck_message&&<p className="mt-1 text-xs">{activeVerification.recheck_message}</p>}
+          </div>}
           <div>
             <label htmlFor="verify-url" className="mb-1 block text-sm font-bold">Official softball coaching page URL</label>
             <input id="verify-url" type="url" autoFocus required={verifyOutcome==='verified'} value={verifyUrl}
@@ -834,13 +951,76 @@ export default function Page(){
           {verifyOutcome==='verified'&&<p className="text-xs text-slate-500">
             Saving a recognized official host starts a targeted recheck. Coach imports still require the existing quality gates; unfamiliar domains are held for review.
           </p>}
+
+          {canManualImport&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div><h3 className="font-black text-amber-950">Finish this school: verified staff</h3>
+                <p className="mt-1 text-xs text-amber-900">The official source was saved. The parser found unreliable extra rows or no coaches. Your manual review can resolve this exception.</p></div>
+              {!manualMode&&<button type="button" className="btn btn-red"
+                onClick={()=>{setManualMode(true);setManualError('');}}>
+                Review coaches <ArrowRight size={14}/></button>}
+            </div>
+            {manualMode&&<>
+              <p className="mt-3 text-xs text-amber-950">Names and emails found in your saved notes are prefilled for convenience, <strong>not automatically approved</strong>. Check each field on the official page, correct it, and remove any non-coaches.</p>
+              <div className="mt-3 space-y-3">{manualCoaches.map((c,i)=>
+                <div key={i} className="rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-800">Coach {i+1}</span>
+                    <button type="button" className="text-xs font-bold text-red-700 underline"
+                      disabled={manualSaving}
+                      onClick={()=>{setManualCoaches(rows=>rows.filter((_,j)=>j!==i));setManualConfirmed(false);}}>
+                      Remove
+                    </button>
+                  </div>
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div><label className="text-xs font-semibold text-slate-700">Full name</label>
+                      <input className="input w-full" value={c.name} maxLength={120} disabled={manualSaving}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,name:e.target.value}:r));setManualConfirmed(false);}}
+                        placeholder="First Last"/></div>
+                    <div><label className="text-xs font-semibold text-slate-700">Coaching role</label>
+                      <select className="input w-full" value={c.role} disabled={manualSaving}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,role:e.target.value}:r));setManualConfirmed(false);}}>
+                        {manualRoleOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
+                      </select></div>
+                    <div><label className="text-xs font-semibold text-slate-700">Official title</label>
+                      <input className="input w-full" value={c.title} maxLength={120} disabled={manualSaving}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,title:e.target.value}:r));setManualConfirmed(false);}}
+                        placeholder="Assistant Softball Coach"/></div>
+                    <div><label className="text-xs font-semibold text-slate-700">Official email (optional)</label>
+                      <input className="input w-full" type="email" value={c.email} disabled={manualSaving}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,email:e.target.value}:r));setManualConfirmed(false);}}
+                        placeholder="coach@university.edu"/></div>
+                  </div>
+                </div>)}</div>
+              {manualCoaches.length<8&&<button type="button" className="btn mt-3"
+                disabled={manualSaving} onClick={()=>{setManualCoaches(rows=>[...rows,
+                  {name:'',title:'Assistant Softball Coach',role:'assistant_coach',email:''}]);setManualConfirmed(false);}}>
+                Add another coach
+              </button>}
+              <label className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-white p-3 text-sm">
+                <input type="checkbox" checked={manualConfirmed} disabled={manualSaving}
+                  onChange={e=>setManualConfirmed(e.target.checked)} className="mt-1"/>
+                <span>I checked <strong>each coach's name, coaching role, and any email entered</strong> against the official school page. Import these structured records and preserve any existing verified contacts.</span>
+              </label>
+              {manualError&&<p className="mt-3 text-sm font-semibold text-red-700" role="alert">{manualError}</p>}
+            </>}
+          </section>}
           {verifyError&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{verifyError}</div>}
           {verifyResult&&<div role="status" className={'rounded-xl border p-3 text-sm '+
             (verifyResultKind==='success'?'border-green-200 bg-green-50 text-green-900':
               verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-900':
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
-            {verifySaved?
+            {manualMode&&canManualImport?
+              <>
+                <button type="button" className="btn" disabled={manualSaving}
+                  onClick={()=>{setManualMode(false);setManualError('');}}>Back</button>
+                <button type="button" className="btn btn-red" disabled={manualSaving||!manualConfirmed||manualCoaches.length===0}
+                  onClick={()=>void importManuallyVerifiedStaff()}>
+                  <ShieldCheck size={16}/>{manualSaving?'Importing verified coaches…':'Import '+manualCoaches.length+' verified coaches'}
+                </button>
+              </>:
+            verifySaved?
               <>
                 {nextQuality&&
                   <button type="button" className="btn" onClick={()=>reviewQualitySource(nextQuality)}>
