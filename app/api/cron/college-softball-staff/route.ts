@@ -649,7 +649,11 @@ export async function POST(req:NextRequest){
        if(!p.url.startsWith("https:")||!sameHost(p.url,u.href))
          throw new Error("Coach bio redirected off the approved HTTPS athletics host");
        const sidearm=Boolean(sidearmBioSlug(u.href));
-       let contact=sidearm?sidearmProfileContact(p.html,p.url,coach.first_name,coach.last_name)
+       // Old Sidearm coach links sometimes redirect to a named staff-directory
+       // profile. Keep exact-name matching after that same-host redirect.
+       let contact=sidearm
+         ?(sidearmProfileContact(p.html,p.url,coach.first_name,coach.last_name)
+           ||scopedGenericProfileContact(p.html,p.url,coach.first_name,coach.last_name))
          :scopedGenericProfileContact(p.html,p.url,coach.first_name,coach.last_name);
        if(!contact)contact={email:null,phone:null,x_url:null,x_handle:null};
        let contactSource=p.url,contactHash=hash(p.html);
