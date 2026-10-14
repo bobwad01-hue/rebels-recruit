@@ -18,7 +18,7 @@ const names:Record<string,string>={new:'New',contacted:'Contacted',demo_schedule
 const date=(value:string)=>new Date(value).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
 const orgType=(value:string)=>value==='travel_club'?'Travel / club':value==='high_school'?'High school':'Other';
 const teamLabel=(value:string|null)=>value==='1'?'1 team':value?value+' teams':'Not provided';
-const today=()=>new Date().toLocaleDateString('en-CA');
+const today=()=>{const now=new Date();return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10)};
 
 export default function DemoInquiries(){
  const [items,setItems]=useState<Inquiry[]>([]);
