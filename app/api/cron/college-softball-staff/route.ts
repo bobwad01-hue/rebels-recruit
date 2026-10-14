@@ -461,9 +461,9 @@ function sidearmProfileContact(html:string,url:string,firstName:string,lastName:
  while((at=lowerText.indexOf(lowerName,at))!==-1){
    const nearby=text.slice(at,at+2200);
    at+=lowerName.length;
-   if(!/\bTITLE\s*:/i.test(nearby.slice(0,500)))continue;
-   const email=nearby.match(/\bE-?MAIL\s*:\s*([\w.+-]+@[\w.-]+\.[a-z]{2,})\b/i)?.[1]?.toLowerCase()||null;
-   const phone=nearby.match(/\bPHONE\s*:\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
+   if(!/\bTITLE\s*:?\s+/i.test(nearby.slice(0,500)))continue;
+   const email=nearby.match(/\bE-?MAIL\s*:?\s*([\w.+-]+@[\w.-]+\.[a-z]{2,})\b/i)?.[1]?.toLowerCase()||null;
+   const phone=nearby.match(/\bPHONE\s*:?\s*((?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})/i)?.[1]||null;
    if(email||phone)return {email,phone,x_url:null,x_handle:null};
  }
  return null;
@@ -595,7 +595,11 @@ export async function POST(req:NextRequest){
      try{
        if(!coach.official_bio_url) throw new Error("Official bio URL missing");
        const p=await get(coach.official_bio_url);
-       let contact=profileContact(p.html,p.url,coach.first_name,coach.last_name);
+       if(!sameHost(p.url,coach.official_bio_url))throw new Error("Coach bio redirected off the official athletics host");
+       const sidearm=Boolean(sidearmBioSlug(coach.official_bio_url));
+       const matched=sidearm?sidearmProfileContact(p.html,p.url,coach.first_name,coach.last_name)
+         :profileContact(p.html,p.url,coach.first_name,coach.last_name);
+       let contact=matched||{email:null,phone:null,x_url:null,x_handle:null};
        let contactSource=p.url, contactHash=hash(p.html);
        // If the individual bio does not publish email, make a controlled second-source
        // pass against canonical official athletics staff-directory routes on the same host.
@@ -887,6 +891,13 @@ export async function POST(req:NextRequest){
     }:incoming;
     const {data:saved,error:saveErr}=existing?.id?await supabase.from("college_coaches").update(row).eq("id",existing.id).select("id").single():await supabase.from("college_coaches").insert(row).select("id").single();
     if(saveErr) throw saveErr;
+    if(bootstrap && verification?.outcome==="verified" && c.official_bio_url && (!c.email || !c.phone)){
+      // Successful identity import must not silently imply contact enrichment.
+      // A separate, auditable profile-only pass can fill missing details.
+      const {error:enrichQueueError}=await supabase.from("college_coach_profile_enrichment_queue")
+        .upsert({coach_id:saved.id,status:"pending",updated_at:now},{onConflict:"coach_id"});
+      if(enrichQueueError)throw enrichQueueError;
+    }
     await supabase.from("college_coach_source_snapshots").insert({college_id:college.id,coach_id:saved.id,source_url:c.official_bio_url||page.url,observed_name:`${c.first_name} ${c.last_name}`,observed_title:c.title,observed_email:c.email,observed_phone:c.phone,observed_x_url:c.x_url,observed_x_handle:c.x_handle,observed_bio_url:c.official_bio_url,content_hash:c.profile_source_hash||hash(page.html),confidence,verification_status:verificationStatus,raw_evidence:{official_source:true,parser:"conservative-v3-profile-enrichment",staff_source_url:page.url,profile_enriched:Boolean(c.official_bio_url)}});
    }
    if(bootstrap){
