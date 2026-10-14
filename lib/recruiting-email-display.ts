@@ -99,6 +99,7 @@ export function safeAttachmentMetadata(raw: unknown): {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { checked: false, attachments: [] };
   const data = raw as Record<string, unknown>;
   const checked = data.attachmentMetadataChecked === true;
+  if (!checked) return { checked: false, attachments: [] };
   const rows = Array.isArray(data.attachments) ? data.attachments.slice(0, 20) : [];
   const attachments = rows.flatMap(row => {
     if (!row || typeof row !== 'object' || Array.isArray(row)) return [];
