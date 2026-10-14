@@ -83,8 +83,8 @@ async function getConfirmedStaffPage(url:string,timeoutMs=FETCH_TIMEOUT_MS){
    try{
      const u=new URL(value),h=u.hostname.toLowerCase();
      return u.protocol==="https:"&&!u.username&&!u.password&&!u.port
-       &&/^([a-z0-9-]+\\.)+[a-z]{2,}$/.test(h)
-       &&!/(^|\\.)(localhost|local|internal|test|example|invalid)$/.test(h)
+       &&/^([a-z0-9-]+\.)+[a-z]{2,}$/.test(h)
+       &&!/(^|\.)(localhost|local|internal|test|example|invalid)$/.test(h)
        &&!badOfficialUrl(value);
    }catch{return false}
  };
@@ -104,7 +104,7 @@ async function getConfirmedStaffPage(url:string,timeoutMs=FETCH_TIMEOUT_MS){
      continue;
    }
    if(!response.ok)throw new Error(response.status+" "+response.statusText);
-   if(!/text\\/html|application\\/xhtml\\+xml/i.test(response.headers.get("content-type")||""))
+   if(!/text\/html|application\/xhtml\+xml/i.test(response.headers.get("content-type")||""))
      throw new Error("Saved coaching source did not return an HTML page");
    const html=await response.text();
    if(html.length>3500000)throw new Error("Saved coaching page exceeded safe size");
