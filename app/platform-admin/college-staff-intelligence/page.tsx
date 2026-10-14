@@ -177,7 +177,7 @@ export default function Page(){
 
   async function enrichCoachContacts(){
     if(running||busy||diagnosing||verifySaving||enriching)return;
-    setEnriching(true);setError('');setMessage('Checking queued individual coach bios for missing contact details…');
+    setEnriching(true);setBusy(true);setError('');setMessage('Checking queued individual coach bios for missing contact details…');
     try{
       const response=await fetch('/api/cron/college-softball-staff',{
         method:'POST',headers:{'Content-Type':'application/json'},
@@ -194,7 +194,7 @@ export default function Page(){
         :'No coach profiles are currently queued for contact enrichment.');
       await load();
     }catch(e){setError(e instanceof Error?e.message:'Could not enrich coach contacts');}
-    finally{setEnriching(false);}
+    finally{setEnriching(false);setBusy(false);}
   }
 
   async function diagnoseQuality(){
