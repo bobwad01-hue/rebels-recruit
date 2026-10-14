@@ -18,6 +18,12 @@ type Exception={college_id:string;name:string;status:string;reason:string;last_e
   attempts:number;updated_at:string;staff_url:string|null;staff_navigation_url:string|null;
   softball_url:string|null;verification:Verification|null};
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
+type ContactBackfill={
+  run:{id:string;status:'running'|'paused'|'completed';queued_count:number;created_at:string;completed_at:string|null}|null;
+  preview:{eligible:number;schools:number;missing_email:number;missing_phone:number};
+  progress:{total:number;pending:number;processing:number;enriched:number;no_email:number;
+    error:number;blocked:number;added_emails:number;added_phones:number}|null;
+};
 type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
   head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
 const date=(v:string|null)=>v?new Date(v).toLocaleString():'—';
@@ -37,6 +43,11 @@ export default function Page(){
   const [running,setRunning]=useState(false);
   const [busy,setBusy]=useState(false);
   const [enriching,setEnriching]=useState(false);
+  const [backfill,setBackfill]=useState<ContactBackfill|null>(null);
+  const [backfillRunning,setBackfillRunning]=useState(false);
+  const [backfillError,setBackfillError]=useState('');
+  const backfillStop=useRef(false);
+  const backfillRunningRef=useRef(false);
   const [message,setMessage]=useState('');
   const [error,setError]=useState('');
   const [runStats,setRunStats]=useState({processed:0,imported:0,review:0,blocked:0});
@@ -70,6 +81,18 @@ export default function Page(){
     }catch(e){setError(e instanceof Error?e.message:'Could not load status');}
   },[division]);
   useEffect(()=>{void load();const timer=window.setInterval(()=>{void load()},15000);return()=>window.clearInterval(timer)},[load]);
+  const loadBackfill=useCallback(async()=>{
+    const r=await fetch('/api/platform/college-staff-intelligence/contact-backfill',{cache:'no-store'});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(data.error||'Could not load contact backfill');
+    setBackfill(data as ContactBackfill);
+    return data as ContactBackfill;
+  },[]);
+  useEffect(()=>{
+    void loadBackfill().catch(e=>setBackfillError(e instanceof Error?e.message:'Could not load backfill'));
+    const timer=window.setInterval(()=>{void loadBackfill().catch(()=>{})},15000);
+    return()=>window.clearInterval(timer);
+  },[loadBackfill]);
 
   useEffect(()=>{
     if(!verifySchool)return;
@@ -91,7 +114,7 @@ export default function Page(){
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!verifySchool||verifySaving)return;
-    if(running||busy||diagnosing||enriching){
+    if(running||busy||diagnosing||enriching||backfillRunning){
       setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
       return;
     }
@@ -147,6 +170,7 @@ export default function Page(){
   }
 
   async function runQueue(){
+    if(backfillRunning)return;
     setRunning(true);stop.current=false;setError('');setMessage('Processing queued schools, one at a time. Keep this page open.');
     let processed=0,imported=0,review=0,blocked=0;
     try{
@@ -176,7 +200,7 @@ export default function Page(){
 
 
   async function enrichCoachContacts(){
-    if(running||busy||diagnosing||verifySaving||enriching)return;
+    if(running||busy||diagnosing||verifySaving||enriching||backfillRunning)return;
     setEnriching(true);setBusy(true);setError('');setMessage('Checking queued individual coach bios for missing contact details…');
     try{
       const response=await fetch('/api/cron/college-softball-staff',{
@@ -198,7 +222,7 @@ export default function Page(){
   }
 
   async function diagnoseQuality(){
-    if(division==='all'||running||busy||diagnosing)return;
+    if(division==='all'||running||busy||diagnosing||backfillRunning)return;
     diagnoseStop.current=false;
     setDiagnosing(true);setDiagnosticError('');setDiagnostics([]);setDiagnosticTotal(0);
     let offset=0;
@@ -221,7 +245,7 @@ export default function Page(){
     finally{setDiagnosing(false);}
   }
   async function requeue(){
-    if(division==='all'||running||busy||diagnosing)return;
+    if(division==='all'||running||busy||diagnosing||backfillRunning)return;
     setBusy(true);setError('');setMessage('');
     try{
       const response=await fetch('/api/platform/college-staff-intelligence/cleanup',{
@@ -235,6 +259,54 @@ export default function Page(){
       else setMessage('No review schools matched this group.');
     }catch(e){setError(e instanceof Error?e.message:'Could not requeue schools');}
     finally{setBusy(false);}
+  }
+
+  async function contactBackfillAction(action:'start'|'resume'|'pause'){
+    const response=await fetch('/api/platform/college-staff-intelligence/contact-backfill',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action}),cache:'no-store'
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Could not '+action+' contact backfill');
+    setBackfill(data as ContactBackfill);
+    return data as ContactBackfill;
+  }
+
+  async function runContactBackfill(action:'start'|'resume'|'continue'){
+    if(backfillRunningRef.current||running||busy||diagnosing||verifySaving||enriching)return;
+    backfillRunningRef.current=true;backfillStop.current=false;setBackfillRunning(true);setBackfillError('');
+    try{
+      const initial=action==='continue'?await loadBackfill():await contactBackfillAction(action);
+      if(!initial.run||initial.run.status!=='running')return;
+      const runId=initial.run.id;
+      // Requests are bounded to 3 coaches and run sequentially. The progress
+      // survives a page refresh, and the browser can resume without rechecking.
+      for(let i=0;i<1000&&!backfillStop.current;i++){
+        const response=await fetch('/api/cron/college-softball-staff',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({profile_enrichment:true,backfill_run_id:runId,limit:3}),cache:'no-store'
+        });
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Contact batch failed');
+        const current=await loadBackfill();
+        if(current.run?.status!=='running')break;
+        if((current.progress?.pending||0)===0&&(current.progress?.processing||0)===0)break;
+        if(!data.processed){
+          setBackfillError('No coach was claimed in this batch. Processing stopped safely; use Continue Backfill to retry.');
+          break;
+        }
+        if(i%5===0)await load();
+      }
+      await loadBackfill();await load();
+    }catch(e){
+      setBackfillError(e instanceof Error?e.message:'Backfill stopped. Progress was saved; you can continue.');
+    }finally{backfillRunningRef.current=false;setBackfillRunning(false);}
+  }
+
+  async function pauseContactBackfill(){
+    backfillStop.current=true;
+    try{await contactBackfillAction('pause');}
+    catch(e){setBackfillError(e instanceof Error?e.message:'Could not pause backfill');}
   }
 
   const exceptions=(cleanup?.exceptions||[]).filter(x=>filter==='all'||x.status===filter);
@@ -290,6 +362,61 @@ export default function Page(){
       </table></div>}
       <p className="mt-4 text-xs text-slate-500">Last ingestion activity: {date(d.lastActivity)} · Refreshes every 15 seconds</p>
     </>}
+
+    <section className="card mt-6 p-5 sm:p-6" aria-label="Coach contact backfill">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="rr-eyebrow">CONTACT DATA COMPLETENESS · ALL DIVISIONS</div>
+          <h2 className="mt-1 text-xl font-black">Backfill missing coach contacts</h2>
+          <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            One-time audit of individual official coach bios, including Sidearm pages, across already-imported schools.
+            Only missing email and phone fields are filled from verified sources. Previously checked profiles are not requeued.
+          </p>
+        </div>
+        {backfill?.run&&<span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold uppercase text-slate-700">{backfill.run.status}</span>}
+      </div>
+      {backfill&&<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{backfill.run?.queued_count??backfill.preview.eligible}</div>
+          <div className="text-xs text-slate-500">{backfill.run?'Originally queued':'Eligible unreviewed profiles'}</div></div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{backfill.progress?backfill.progress.total-backfill.progress.pending-backfill.progress.processing:0}</div>
+          <div className="text-xs text-slate-500">Checked</div></div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{backfill.progress?.added_emails||0}</div>
+          <div className="text-xs text-slate-500">New verified emails</div></div>
+        <div className="rounded-xl bg-slate-50 p-3"><div className="text-xl font-black">{backfill.progress?.added_phones||0}</div>
+          <div className="text-xs text-slate-500">New verified phones</div></div>
+      </div>}
+      {backfill?.run&&backfill.progress&&<div className="mt-4">
+        <div className="mb-2 flex justify-between text-xs font-semibold text-slate-600">
+          <span>{backfill.progress.total-backfill.progress.pending-backfill.progress.processing} / {backfill.progress.total} checked</span>
+          <span>{backfill.progress.total?Math.round((backfill.progress.total-backfill.progress.pending-backfill.progress.processing)/backfill.progress.total*100):100}%</span>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full bg-slate-950 transition-all" style={{width:(backfill.progress.total?Math.round((backfill.progress.total-backfill.progress.pending-backfill.progress.processing)/backfill.progress.total*100):100)+'%'}}/>
+        </div>
+        <p className="mt-2 text-xs text-slate-600">
+          {backfill.progress.enriched} improved · {backfill.progress.no_email} checked with no new contact · {backfill.progress.error+backfill.progress.blocked} need review · {backfill.progress.pending} waiting
+        </p>
+      </div>}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        {!backfill?.run&&<button type="button" className="btn btn-red"
+          disabled={!backfill||!backfill.preview.eligible||backfillRunning||running||busy||diagnosing||verifySaving||enriching}
+          onClick={()=>void runContactBackfill('start')}><Play size={16}/>Start one-time backfill</button>}
+        {backfill?.run?.status==='paused'&&<button type="button" className="btn btn-red"
+          disabled={backfillRunning||running||busy||diagnosing||verifySaving||enriching}
+          onClick={()=>void runContactBackfill('resume')}><Play size={16}/>Resume backfill</button>}
+        {backfill?.run?.status==='running'&&!backfillRunning&&<button type="button" className="btn btn-red"
+          disabled={running||busy||diagnosing||verifySaving||enriching}
+          onClick={()=>void runContactBackfill('continue')}><Play size={16}/>Continue backfill</button>}
+        {backfillRunning&&<button type="button" className="btn" onClick={()=>void pauseContactBackfill()}>
+          <Square size={16}/>Pause after current batch</button>}
+        {backfill?.run?.status==='completed'&&<span className="flex items-center gap-2 text-sm font-bold text-green-700"><CheckCircle2 size={17}/>One-time backfill complete</span>}
+        <button type="button" className="btn" onClick={()=>void loadBackfill().catch(e=>setBackfillError(String(e)))}>
+          <RefreshCw size={16}/>Refresh progress
+        </button>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">Processing continues automatically in small batches while this page stays open. You can pause, leave, and resume later without losing progress. No new paid background service is required.</p>
+      {backfillError&&<p className="mt-3 text-sm text-red-700" role="alert"><AlertCircle size={15} className="mr-2 inline"/>{backfillError}</p>}
+    </section>
 
     {division!=='all'&&<section className="card mt-6 overflow-hidden">
       <div className="border-b p-5 sm:p-6">
