@@ -15,7 +15,8 @@ type Verification={outcome:'verified'|'incorrect_source'|'unable_to_verify'|'ina
   source_url:string|null;head_coach_name:string|null;notes:string|null;verified_by_user_id:string;
   verified_at:string;recheck_status:string;recheck_message:string|null;rechecked_at:string|null};
 type Exception={college_id:string;name:string;status:string;reason:string;last_error:string|null;
-  attempts:number;updated_at:string;staff_url:string|null;softball_url:string|null;verification:Verification|null};
+  attempts:number;updated_at:string;staff_url:string|null;staff_navigation_url:string|null;
+  softball_url:string|null;verification:Verification|null};
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
 type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
   head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
@@ -79,7 +80,7 @@ export default function Page(){
 
   function openVerify(school:Exception){
     setVerifySchool(school);
-    setVerifyUrl(school.verification?.source_url||school.staff_url||school.softball_url||'');
+    setVerifyUrl(school.verification?.source_url||school.staff_navigation_url||school.staff_url||school.softball_url||'');
     setVerifyOutcome(school.verification?.outcome||'verified');
     setVerifyHead(school.verification?.head_coach_name||'');
     setVerifyNotes(school.verification?.notes||'');
@@ -100,7 +101,7 @@ export default function Page(){
       const saved=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(saved.error||'Could not save source verification');
       if(typeof saved.source_url==='string')setVerifyUrl(saved.source_url);
-      setVerifyResult((saved.anchor_removed?'Page-jump anchor removed automatically. ':'')+
+      setVerifyResult((saved.anchor_preserved?'Your # section link was preserved for future navigation. ':'')+
         (saved.message||'Verification saved.'));
       setVerifyResultKind(saved.recheck_status==='host_review'?'review':'queued');
       await load();
@@ -377,9 +378,9 @@ export default function Page(){
             <td className="px-3 py-3 tabular-nums">{x.attempts}</td>
             <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">{date(x.updated_at)}</td>
             <td className="px-5 py-3"><div className="flex flex-col items-start gap-2">
-              {x.staff_url?.startsWith('https://')?
+              {(x.staff_navigation_url||x.staff_url)?.startsWith('https://')?
                 <a className="inline-flex items-center gap-1 font-semibold text-slate-700 underline hover:text-red-700"
-                  href={x.staff_url} target="_blank" rel="noopener noreferrer">Official source <ExternalLink size={13}/></a>:
+                  href={x.staff_navigation_url||x.staff_url||'#'} target="_blank" rel="noopener noreferrer">Official source <ExternalLink size={13}/></a>:
                 <span className="text-xs text-slate-400">Not discovered</span>}
               <a className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 underline hover:text-blue-900"
                 href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
@@ -422,7 +423,7 @@ export default function Page(){
                 Find official page <ExternalLink size={12}/></a>
             </div>
             {verifyUrl.includes('#')&&<p className="mt-2 text-xs text-slate-600">
-              The # section link is a browser-only jump. RLTNL will automatically remove it when saving the official source URL.
+              RLTNL keeps this # section link for opening the coaching section. The importer fetches the same page without the # anchor.
             </p>}
           </div>
           <fieldset className="space-y-2">
