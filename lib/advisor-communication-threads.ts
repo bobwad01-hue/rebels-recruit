@@ -4,6 +4,8 @@
  * messages; two different Gmail threads are never merged just because their
  * subjects happen to match.
  */
+import type { EmailAttachmentMetadata } from '@/lib/recruiting-email-display';
+
 export type AdvisorMessage = {
   id: string;
   athleteId: string;
@@ -28,6 +30,8 @@ export type AdvisorMessage = {
   gmailThreadId: string | null;
   gmailMessageId: string | null;
   senderEmail: string | null;
+  attachments?: EmailAttachmentMetadata[];
+  attachmentMetadataChecked?: boolean;
 };
 
 export type AdvisorThread = {
