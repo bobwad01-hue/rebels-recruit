@@ -74,6 +74,45 @@ async function get(url:string,timeoutMs=FETCH_TIMEOUT_MS){
  return {html:await r.text(),url:r.url,status:r.status};
 }
 
+// Super Owner-confirmed coaching URLs are fetched exactly as saved.
+// Never follow a redirect to another domain, a private endpoint, or a
+// non-HTML document. A failed fetch remains a one-school manual review.
+async function getConfirmedStaffPage(url:string,timeoutMs=FETCH_TIMEOUT_MS){
+ const initial=new URL(url);
+ const safe=(value:string)=>{
+   try{
+     const u=new URL(value),h=u.hostname.toLowerCase();
+     return u.protocol==="https:"&&!u.username&&!u.password&&!u.port
+       &&/^([a-z0-9-]+\\.)+[a-z]{2,}$/.test(h)
+       &&!/(^|\\.)(localhost|local|internal|test|example|invalid)$/.test(h)
+       &&!badOfficialUrl(value);
+   }catch{return false}
+ };
+ if(!safe(url))throw new Error("Confirmed source URL is not a public HTTPS athletics page");
+ let current=url;
+ for(let redirect=0;redirect<4;redirect++){
+   if(!safe(current)||!sameHost(current,initial.toString()))
+     throw new Error("Saved coaching source redirected to an unapproved host");
+   if(!(await allowedByRobots(current)))throw new Error("Blocked by robots.txt");
+   const response=await fetch(current,{redirect:"manual",signal:AbortSignal.timeout(timeoutMs),
+     headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)",
+       "accept":"text/html,application/xhtml+xml"}});
+   if(response.status>=300&&response.status<400){
+     const location=response.headers.get("location");
+     if(!location)throw new Error("Official coaching source redirected without a destination");
+     current=new URL(location,current).toString();
+     continue;
+   }
+   if(!response.ok)throw new Error(response.status+" "+response.statusText);
+   if(!/text\\/html|application\\/xhtml\\+xml/i.test(response.headers.get("content-type")||""))
+     throw new Error("Saved coaching source did not return an HTML page");
+   const html=await response.text();
+   if(html.length>3500000)throw new Error("Saved coaching page exceeded safe size");
+   return {html,url:current,status:response.status};
+ }
+ throw new Error("Saved coaching source redirected too many times");
+}
+
 function links(html:string,base:string){
  return [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)]
   .map(m=>({url:abs(m[1],base),text:clean(m[2])})).filter(x=>x.url);
@@ -857,7 +896,9 @@ export async function POST(req:NextRequest){
     // problem, not permission to silently replace a verified source with rediscovery.
     // Rediscover only when the canonical URL itself cannot be fetched.
     try{
-     page=await get(knownSource.staff_url);
+     page=await (verification?.outcome==="verified"
+       ?getConfirmedStaffPage(knownSource.staff_url)
+       :get(knownSource.staff_url));
      d={athletics_url:knownSource.athletics_url||new URL(page.url).origin,softball_url:knownSource.softball_url||(/\/sports\/(?:softball|sball)/i.test(new URL(page.url).pathname)?page.url:null),staff_url:page.url};
     }catch(fetchError){
      // Human-verified sources must not silently redirect to a newly discovered
