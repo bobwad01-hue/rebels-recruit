@@ -703,7 +703,7 @@ export default function Page(){
             <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
             <p className="mt-1 text-xs text-slate-500">Confirm the school source, not every coach or contact field.</p>
           </div>
-          <button type="button" disabled={verifySaving||verifySaved} aria-label="Close verification"
+          <button type="button" disabled={verifySaving} aria-label="Close verification"
             onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
             <X size={20}/></button>
         </div>
