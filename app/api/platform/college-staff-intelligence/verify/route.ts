@@ -73,9 +73,16 @@ export async function POST(req:NextRequest){
     const allowedHosts=[school.website,source?.athletics_url,source?.softball_url,source?.staff_url]
       .map(normalizeHost).filter((x):x is string=>Boolean(x));
     const candidate=normalizeHost(url);
-    // New domains can be recorded, but never automatically fetched until the
-    // athletics/university host is approved as belonging to this school.
-    const trusted=Boolean(candidate&&allowedHosts.some(h=>candidate===h||candidate.endsWith('.'+h)));
+    // A school-specific, independently evidenced Super Owner host approval can
+    // be reused for later source corrections. Never trust it for other schools.
+    const {data:approvedHost,error:hostError}=candidate
+      ?await admin.from('college_staff_approved_hosts').select('host')
+        .eq('college_id',collegeId).eq('host',candidate).maybeSingle()
+      :{data:null,error:null};
+    if(hostError)throw hostError;
+    // New domains can be saved, but not fetched until separately approved.
+    const trusted=Boolean(candidate&&(approvedHost||
+      allowedHosts.some(h=>candidate===h||candidate.endsWith('.'+h))));
     const {data:state,error:saveError}=await admin.rpc('save_college_staff_source_verification',{
       p_college_id:collegeId,p_user_id:user.id,p_outcome:outcome,
       p_source_url:url,p_head_coach_name:head,p_notes:notes,p_trusted_host:trusted

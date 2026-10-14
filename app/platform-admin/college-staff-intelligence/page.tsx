@@ -18,6 +18,8 @@ type Exception={college_id:string;name:string;status:string;reason:string;last_e
   attempts:number;updated_at:string;staff_url:string|null;staff_navigation_url:string|null;
   softball_url:string|null;verification:Verification|null};
 type Cleanup={division:string;exceptions:Exception[];summary:Record<string,number>};
+type HostEvidence={verified:boolean;school_website:string;athletics_host:string;
+  evidence_url:string|null;matched_link:string|null;checked_urls:string[];message:string};
 type ContactBackfill={
   run:{id:string;status:'running'|'paused'|'completed';queued_count:number;created_at:string;completed_at:string|null}|null;
   preview:{eligible:number;schools:number;missing_email:number;missing_phone:number};
@@ -125,6 +127,13 @@ export default function Page(){
   const [manualConfirmed,setManualConfirmed]=useState(false);
   const [manualSaving,setManualSaving]=useState(false);
   const [manualError,setManualError]=useState('');
+  const [hostEvidenceUrl,setHostEvidenceUrl]=useState('');
+  const [hostEvidence,setHostEvidence]=useState<HostEvidence|null>(null);
+  const [hostChecking,setHostChecking]=useState(false);
+  const [hostApproving,setHostApproving]=useState(false);
+  const [hostError,setHostError]=useState('');
+  const [hostConfirmed,setHostConfirmed]=useState(false);
+  const [hostEditing,setHostEditing]=useState(false);
 
   const load=useCallback(async()=>{
     try{
@@ -166,11 +175,11 @@ export default function Page(){
 
   useEffect(()=>{
     if(!verifySchool)return;
-    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!verifySaving&&!manualSaving)setVerifySchool(null);};
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!verifySaving&&!manualSaving&&!hostApproving&&!hostChecking)setVerifySchool(null);};
     document.addEventListener('keydown',escape);
     const previous=document.body.style.overflow;document.body.style.overflow='hidden';
     return()=>{document.removeEventListener('keydown',escape);document.body.style.overflow=previous;};
-  },[verifySchool,verifySaving,manualSaving]);
+  },[verifySchool,verifySaving,manualSaving,hostApproving,hostChecking]);
 
   function openVerify(school:Exception,suggestion?:QualityDiagnostic){
     setVerifySchool(school);
@@ -197,6 +206,8 @@ export default function Page(){
       {name:school.verification?.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:''}
     ]);
     setManualConfirmed(false);setManualError('');
+    setHostEvidenceUrl('');setHostEvidence(null);setHostError('');
+    setHostChecking(false);setHostApproving(false);setHostConfirmed(false);setHostEditing(false);
   }
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
@@ -263,6 +274,68 @@ export default function Page(){
     finally{setVerifySaving(false);}
   }
 
+
+
+  async function checkHostEvidence(){
+    if(!verifySchool||hostChecking||hostApproving)return;
+    setHostChecking(true);setHostError('');setHostEvidence(null);setHostConfirmed(false);
+    try{
+      const response=await fetch('/api/platform/college-staff-intelligence/host-review',{
+        method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+        body:JSON.stringify({action:'check',college_id:verifySchool.college_id,
+          evidence_url:hostEvidenceUrl})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Could not check the university link');
+      setHostEvidence(data as HostEvidence);
+    }catch(e){setHostError(e instanceof Error?e.message:'Official university link check failed');}
+    finally{setHostChecking(false);}
+  }
+  async function approveOfficialHost(){
+    if(!verifySchool||!hostEvidence?.verified||!hostConfirmed||hostApproving||hostChecking)return;
+    if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
+      setHostError('Wait for the other pipeline task to finish.');return;
+    }
+    setHostApproving(true);setHostError('');
+    try{
+      const response=await fetch('/api/platform/college-staff-intelligence/host-review',{
+        method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+        body:JSON.stringify({action:'approve',college_id:verifySchool.college_id,
+          evidence_url:hostEvidenceUrl,confirmed_approval:true})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||'Official host approval failed');
+      setVerifySaved(true);setVerifyResultKind('queued');
+      setVerifyResult('Official athletics domain approved for this school using an independently verified university link. Your saved coaching URL, head coach, and notes are preserved. Running one-school quality recheck…');
+      await load();
+      // Only this school, never the full ingestion queue.
+      try{
+        const check=await fetch('/api/cron/college-softball-staff',{
+          method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+          body:JSON.stringify({bootstrap:true,division,college_id:verifySchool.college_id,limit:1})
+        });
+        const checked=await check.json().catch(()=>({}));
+        if(!check.ok)throw new Error(checked.error||'Automatic recheck failed');
+        const result=(checked.results||[])[0];
+        if(result?.status==='ok'){
+          setVerifyResult('Official athletics domain approved. Source passed the coaching quality gates; '+result.coaches+' coaches processed and school imported.');
+          setVerifyResultKind('success');
+        }else if(result){
+          setVerifyResult('Official athletics domain approved and saved. Coaching staff still needs review: '+(result.error||'Quality gate not passed')+'. Use Review Saved Staff to finish without verifying the domain again.');
+          setVerifyResultKind('review');
+        }else{
+          setVerifyResult('Official athletics domain approved. The targeted recheck is pending; Process Queued can finish it.');
+          setVerifyResultKind('queued');
+        }
+      }catch(e){
+        setVerifyResult('Official athletics domain approved and saved. Targeted recheck did not finish: '+
+          (e instanceof Error?e.message:'Unknown error')+'. Use Process Queued; do not reverify the domain.');
+        setVerifyResultKind('review');
+      }
+      await load();
+    }catch(e){setHostError(e instanceof Error?e.message:'Official host approval failed');}
+    finally{setHostApproving(false);}
+  }
 
   async function importManuallyVerifiedStaff(){
     if(!verifySchool||!manualConfirmed||manualSaving||!canManualImport)return;
@@ -460,10 +533,15 @@ export default function Page(){
 
   // Keep the guided verification list in sync with live queue status so schools
   // already imported disappear after the successful targeted recheck.
+  const hostCases=(cleanup?.exceptions||[]).filter(s=>s.status==='review'&&
+    s.verification?.outcome==='verified'&&s.verification.recheck_status==='host_review');
   const manualCases=(cleanup?.exceptions||[]).filter(s=>s.status==='review'&&
     s.verification?.outcome==='verified'&&s.verification.recheck_status==='needs_review');
   const activeVerification=cleanup?.exceptions.find(s=>s.college_id===verifySchool?.college_id)?.verification
     ||verifySchool?.verification;
+  const needsHostApproval=Boolean(activeVerification?.outcome==='verified'
+    &&activeVerification.recheck_status==='host_review'&&
+    verifyUrl===activeVerification.source_url);
   const canManualImport=Boolean(verifySchool&&verifyOutcome==='verified'&&
     activeVerification?.outcome==='verified'&&activeVerification.recheck_status==='needs_review'&&
     verifyUrl===activeVerification.source_url);
@@ -751,6 +829,22 @@ export default function Page(){
         {message&&!running&&<div className="mt-4 flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm" role="status"><CheckCircle2 size={16} className="mt-0.5 shrink-0"/>{message}</div>}
         {error&&<div className="mt-4 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert"><AlertCircle size={16} className="mt-0.5 shrink-0"/>{error}</div>}
       </div>
+      {hostCases.length>0&&<div className="border-b border-blue-200 bg-blue-50 p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-black text-slate-950">{hostCases.length} official coaching source{hostCases.length===1?'':'s'} saved · athletics domain approval needed</h3>
+            <p className="mt-1 text-sm text-slate-700">Your source verification is saved. RLTNL checks for an independent link from the school's university website, then asks you to approve that athletics domain once. No repeat verification or automatic coach approval.</p>
+          </div>
+          <button type="button" className="btn btn-red" disabled={hostChecking||hostApproving||verifySaving}
+            onClick={()=>openVerify(hostCases[0])}>Review first athletics domain <ArrowRight size={15}/></button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">{hostCases.map(s=>
+          <button key={s.college_id} type="button" disabled={hostChecking||hostApproving||verifySaving}
+            onClick={()=>openVerify(s)}
+            className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-slate-900 hover:border-red-400">
+            {s.name} · {s.verification?.source_url?.split('/')[2]||'Unrecognized athletics host'}
+          </button>)}</div>
+      </div>}
       {manualCases.length>0&&<div className="border-b border-amber-200 bg-amber-50 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -857,7 +951,7 @@ export default function Page(){
                 <button type="button" disabled={running||busy||diagnosing||verifySaving}
                   onClick={()=>openVerify(x)}
                   className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 hover:border-red-300 hover:text-red-700 disabled:opacity-50">
-                  <ShieldCheck size={14}/>{x.verification?'Edit verification':'Verify'}
+                  <ShieldCheck size={14}/>{x.verification?.recheck_status==='host_review'?'Approve athletics host':x.verification?'Edit verification':'Verify'}
                 </button>
                 {x.verification&&<span className={'rounded-md px-2 py-1 text-[11px] font-semibold '+
                   (x.verification.recheck_status==='passed'?'bg-green-50 text-green-800':
@@ -881,9 +975,9 @@ export default function Page(){
             <td className="px-3 py-3 tabular-nums">{x.attempts}</td>
             <td className="whitespace-nowrap px-3 py-3 text-xs text-slate-500">{date(x.updated_at)}</td>
             <td className="px-5 py-3"><div className="flex flex-col items-start gap-2">
-              {(x.staff_navigation_url||x.staff_url)?.startsWith('https://')?
+              {(x.verification?.source_url||x.staff_navigation_url||x.staff_url)?.startsWith('https://')?
                 <a className="inline-flex items-center gap-1 font-semibold text-slate-700 underline hover:text-red-700"
-                  href={x.staff_navigation_url||x.staff_url||'#'} target="_blank" rel="noopener noreferrer">Official source <ExternalLink size={13}/></a>:
+                  href={x.verification?.source_url||x.staff_navigation_url||x.staff_url||'#'} target="_blank" rel="noopener noreferrer">{x.verification?.recheck_status==='host_review'?'Saved proposed source':'Official source'} <ExternalLink size={13}/></a>:
                 <span className="text-xs text-slate-400">Not discovered</span>}
               <a className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 underline hover:text-blue-900"
                 href={'https://www.google.com/search?q='+encodeURIComponent(x.name+' softball coaches official athletics')}
@@ -900,7 +994,7 @@ export default function Page(){
       </div>}
     </section>}
   </main>    {verifySchool&&<div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/60 p-3 sm:p-6"
-      onMouseDown={e=>{if(e.target===e.currentTarget&&!verifySaving&&!manualSaving)setVerifySchool(null);}}>
+      onMouseDown={e=>{if(e.target===e.currentTarget&&!verifySaving&&!manualSaving&&!hostChecking&&!hostApproving)setVerifySchool(null);}}>
       <section role="dialog" aria-modal="true" aria-labelledby="verify-title"
         className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
@@ -908,11 +1002,11 @@ export default function Page(){
             <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
             <p className="mt-1 text-xs text-slate-500">Confirm the source. If automated parsing fails, review the staff manually without repeating verification.</p>
           </div>
-          <button type="button" disabled={verifySaving||manualSaving} aria-label="Close verification"
+          <button type="button" disabled={verifySaving||manualSaving||hostChecking||hostApproving} aria-label="Close verification"
             onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
             <X size={20}/></button>
         </div>
-        <form onSubmit={e=>{if(manualMode){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+        <form onSubmit={e=>{if(manualMode||(needsHostApproval&&!hostEditing)){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           {activeVerification?.outcome==='verified'&&<div className={'rounded-xl border p-3 text-sm '+
             (activeVerification.recheck_status==='passed'?'border-green-200 bg-green-50 text-green-900':
               'border-amber-200 bg-amber-50 text-amber-950')}>
@@ -923,6 +1017,51 @@ export default function Page(){
               :'Import status: '+activeVerification.recheck_status.replaceAll('_',' ')}</p>
             {activeVerification.recheck_message&&<p className="mt-1 text-xs">{activeVerification.recheck_message}</p>}
           </div>}
+          {needsHostApproval&&!hostEditing&&<section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
+            <h3 className="font-black text-slate-950">Approve this school's official athletics domain</h3>
+            <p className="mt-1 text-slate-700">You already verified the coaching page. RLTNL now needs independent evidence that this athletics domain belongs to {verifySchool.name}. Your saved verification will not be changed.</p>
+            <div className="mt-3 rounded-lg bg-white p-3">
+              <p className="text-xs font-semibold text-slate-500">Saved coaching page</p>
+              <a className="mt-1 block break-all font-bold text-blue-700 underline" href={activeVerification?.source_url||'#'}
+                target="_blank" rel="noopener noreferrer">{activeVerification?.source_url} <ExternalLink size={12} className="inline"/></a>
+            </div>
+            <div className="mt-3">
+              <label htmlFor="host-evidence-url" className="text-xs font-bold text-slate-900">Official university page linking to this athletics site (optional)</label>
+              <input id="host-evidence-url" type="url" className="input mt-1 w-full" value={hostEvidenceUrl}
+                placeholder="Leave blank to check the university homepage automatically"
+                disabled={hostChecking||hostApproving}
+                onChange={e=>{setHostEvidenceUrl(e.target.value);setHostEvidence(null);setHostConfirmed(false);setHostError('');}}/>
+              <p className="mt-1 text-xs text-slate-600">Must be on the school's existing university website, not the proposed athletics domain. RLTNL requires a direct link on that university page.</p>
+            </div>
+            <button type="button" className="btn mt-3" disabled={hostChecking||hostApproving}
+              onClick={()=>void checkHostEvidence()}>
+              <ShieldCheck size={15}/>{hostChecking?'Checking official university website…':'Check official university link'}
+            </button>
+            {hostEvidence&&<div className={'mt-3 rounded-lg border p-3 '+(hostEvidence.verified
+              ?'border-green-200 bg-green-50 text-green-950':'border-amber-200 bg-amber-50 text-amber-950')} role="status">
+              <p className="font-bold">{hostEvidence.verified?'Independent official link found':'Official link not yet confirmed'}</p>
+              <p className="mt-1 text-xs">{hostEvidence.message}</p>
+              {!hostEvidence.verified&&<p className="mt-2 text-xs">Start at <a href={hostEvidence.school_website}
+                target="_blank" rel="noopener noreferrer" className="font-bold underline">the official university website</a>
+                , find its Athletics page, and paste that university-page URL into the evidence field above.</p>}
+              {hostEvidence.verified&&hostEvidence.evidence_url&&hostEvidence.matched_link&&
+                <div className="mt-2 space-y-1 break-all text-xs">
+                  <p>University evidence: <a href={hostEvidence.evidence_url} target="_blank" rel="noopener noreferrer" className="font-bold underline">{hostEvidence.evidence_url}</a></p>
+                  <p>Linked athletics site: <a href={hostEvidence.matched_link} target="_blank" rel="noopener noreferrer" className="font-bold underline">{hostEvidence.matched_link}</a></p>
+                </div>}
+            </div>}
+            {hostEvidence?.verified&&<label className="mt-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-white p-3 text-sm">
+              <input type="checkbox" className="mt-1" checked={hostConfirmed} disabled={hostApproving}
+                onChange={e=>setHostConfirmed(e.target.checked)}/>
+              <span>I approve <strong>{hostEvidence.athletics_host}</strong> as an official athletics host for <strong>{verifySchool.name}</strong> based on the independent university link. This approves the domain, not any coaching identities or contacts.</span>
+            </label>}
+            {hostError&&<p className="mt-3 text-sm font-semibold text-red-700" role="alert">{hostError}</p>}
+            <button type="button" className="mt-3 text-xs font-semibold text-slate-600 underline"
+              disabled={hostApproving||hostChecking} onClick={()=>{setHostEditing(true);setHostEvidence(null);setHostConfirmed(false);}}>
+              The saved coaching URL is wrong? Edit source instead
+            </button>
+          </section>}
+          {(!needsHostApproval||hostEditing)&&<>
           <div>
             <label htmlFor="verify-url" className="mb-1 block text-sm font-bold">Official softball coaching page URL</label>
             <input id="verify-url" type="url" autoFocus required={verifyOutcome==='verified'} value={verifyUrl}
@@ -988,6 +1127,7 @@ export default function Page(){
             Saving a recognized official host starts a targeted recheck. Coach imports still require the existing quality gates; unfamiliar domains are held for review.
           </p>}
 
+          </>}
           {canManualImport&&<section className="rounded-xl border border-amber-300 bg-amber-50 p-3 sm:p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div><h3 className="font-black text-amber-950">Finish this school: verified staff</h3>
@@ -1047,7 +1187,17 @@ export default function Page(){
               verifyResultKind==='review'?'border-amber-200 bg-amber-50 text-amber-900':
               'border-slate-200 bg-slate-50 text-slate-800')}>{verifyResult}</div>}
           <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap justify-end gap-2 border-t bg-white px-5 py-4 shadow-[0_-6px_12px_rgba(15,23,42,0.05)] sm:-mx-6 sm:px-6">
-            {manualMode&&canManualImport?
+            {needsHostApproval&&!hostEditing&&!verifySaved?
+              <>
+                <button type="button" className="btn" disabled={hostChecking||hostApproving}
+                  onClick={()=>setVerifySchool(null)}>Close</button>
+                <button type="button" className="btn btn-red"
+                  disabled={!hostEvidence?.verified||!hostConfirmed||hostChecking||hostApproving}
+                  onClick={()=>void approveOfficialHost()}>
+                  <ShieldCheck size={16}/>{hostApproving?'Approving & rechecking…':'Approve official athletics host'}
+                </button>
+              </>:
+            manualMode&&canManualImport?
               <>
                 <button type="button" className="btn" disabled={manualSaving}
                   onClick={()=>{setManualMode(false);setManualError('');}}>Back</button>
