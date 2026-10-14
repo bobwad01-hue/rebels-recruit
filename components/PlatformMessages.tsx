@@ -74,6 +74,8 @@ export default function PlatformMessages(){
      <div className="max-h-[420px] min-h-[180px] flex-1 space-y-3 overflow-auto py-4">
       {current.messages.map(m=><div key={m.id} className={`flex ${m.sender_user_id===me?'justify-end':'justify-start'}`}>
        <div className={`max-w-[90%] rounded-2xl px-4 py-3 ${m.sender_user_id===me?'bg-slate-900 text-white':'bg-slate-100'}`}>
+        <p className={`mb-1 text-xs font-black ${m.sender_user_id===me?'text-white/75':'text-slate-600'}`}>{m.sender_user_id===current.recipient_user_id?
+ (m.sender_user_id===me?'You':current.recipient_name||'Submitter'):'RLTNL Support'}</p>
         <p className="whitespace-pre-wrap break-words text-sm">{m.body}</p>
         {m.source_url&&<a className={`mt-2 inline-flex items-center gap-1 break-all text-xs font-bold underline ${m.sender_user_id===me?'text-white':'text-blue-700'}`}
          href={m.source_url} target="_blank" rel="noopener noreferrer">Official source <ExternalLink size={12}/></a>}
