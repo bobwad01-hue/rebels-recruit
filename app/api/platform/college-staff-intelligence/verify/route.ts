@@ -23,10 +23,9 @@ function validatedUrl(value:unknown){
   try{u=new URL(raw)}catch{throw new Error('Enter a complete https:// source URL')}
   if(u.protocol!=='https:'||u.username||u.password||u.port)
     throw new Error('Source must be a public HTTPS URL without credentials or a custom port');
-  // A #fragment is a browser-only jump to a section (common on Sidearm
-  // softball roster pages). It is never sent in an HTTP request, so strip it
-  // before saving/fetching the canonical official source URL.
-  u.hash='';
+  // Keep the complete URL (including #sidearm-roster-coaches) for
+  // navigation and as a bounded parsing hint. The database procedure
+  // stores a separate fragment-free canonical URL for HTTP fetching.
   const host=u.hostname.toLowerCase();
   if(host.length>253||!host.includes('.')||!/^([a-z0-9-]+\.)+[a-z]{2,}$/i.test(host)
     ||host.endsWith('.local')||host.endsWith('.internal')||host.endsWith('.test')
@@ -88,7 +87,7 @@ export async function POST(req:NextRequest){
     }
     return NextResponse.json({college_id:collegeId,name:school.name,
       verification_status:outcome,recheck_status:state,
-      source_url:url,anchor_removed:typeof body.source_url==='string'&&body.source_url.includes('#'),
+      source_url:url,anchor_preserved:typeof url==='string'&&url.includes('#'),
       should_recheck:state==='pending',
       message:state==='pending'
         ?'Official source saved. Running the existing coaching quality gates next.'
