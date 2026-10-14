@@ -28,6 +28,8 @@ export function formatRecruitingEmail(saved: string): EmailDisplay {
 
   // Outlook/plain-text exports often contain "Name<URL>" or
   // "email<mailto:email>". Preserve the useful label and link, not the markup.
+  // Some email exports repeat the same URL in two adjacent angle brackets.
+  value = value.replace(/<(https?:\/\/[^<>\s]{1,2000})><\1>/gi, '<$1>');
   value = value.replace(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})<mailto:\1>/gi, '$1');
   value = value.replace(/<mailto:([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})>/gi, '$1');
   value = value.replace(/([^\s<>])<(https?:\/\/[^<>\s]{1,2000})>/gi, '$1 — $2');
