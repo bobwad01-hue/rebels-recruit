@@ -467,11 +467,19 @@ export default function Page(){
   const canManualImport=Boolean(verifySchool&&verifyOutcome==='verified'&&
     activeVerification?.outcome==='verified'&&activeVerification.recheck_status==='needs_review'&&
     verifyUrl===activeVerification.source_url);
+  // Diagnostics are read-only snapshots. Render only schools still in the
+  // live quality-gate review queue, never imported or blocked history.
   const activeQuality=diagnostics.filter(x=>(cleanup?.exceptions||[])
-    .some(s=>s.college_id===x.college_id&&s.status==='review'));
+    .some(s=>s.college_id===x.college_id&&s.status==='review'&&s.reason==='quality'));
+  const manualQuality=activeQuality.filter(x=>(cleanup?.exceptions||[])
+    .some(s=>s.college_id===x.college_id&&s.verification?.outcome==='verified'
+      &&s.verification.recheck_status==='needs_review'));
   const readyQuality=activeQuality.filter(x=>x.status==='candidate'
+    &&!manualQuality.some(s=>s.college_id===x.college_id)
     &&[x.source_url,cleanup?.exceptions.find(s=>s.college_id===x.college_id)?.staff_url]
       .some(url=>url?.startsWith('https://')));
+  const investigatedQuality=activeQuality.length-readyQuality.length-manualQuality.length;
+  const hiddenQuality=diagnostics.length-activeQuality.length;
   const orderedQuality=[...activeQuality].sort((a,b)=>
     Number(readyQuality.some(x=>x.college_id===b.college_id))
     -Number(readyQuality.some(x=>x.college_id===a.college_id))
@@ -482,9 +490,17 @@ export default function Page(){
     const school=cleanup?.exceptions.find(x=>x.college_id===item.college_id&&x.status==='review');
     if(school)openVerify(school,item);
   }
-  const exceptions=(cleanup?.exceptions||[]).filter(x=>filter==='all'||x.status===filter);
+  // Selecting a retry issue also filters the review list for human inspection.
+  // Filtering alone does not requeue or import anything.
+  const exceptions=(cleanup?.exceptions||[]).filter(x=>
+    (filter==='all'||x.status===filter)&&
+    (filter!=='review'||group==='all'||x.reason===group));
   const shown=expanded?exceptions:exceptions.slice(0,25);
   const reviewCount=cleanup?.summary.review||0;
+  const timeoutCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'&&x.reason==='timeout').length;
+  const retryEligibleCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'
+    &&!['inactive_program','staff_conflict','source_access','manual_verification'].includes(x.reason)
+    &&(group==='all'||x.reason===group)).length;
   const qualityCount=(cleanup?.exceptions||[]).filter(x=>x.status==='review'&&x.reason==='quality').length;
   const pendingCount=cleanup?.summary.pending||0;
   const importedPercent=d?.total?Math.round(d.imported/d.total*100):0;
@@ -678,13 +694,13 @@ export default function Page(){
         </div>
         <div className="mt-5 flex flex-wrap items-end gap-3">
           <div className="min-w-[190px] flex-1 sm:max-w-72">
-            <label htmlFor="failure-group" className="mb-1 block text-xs font-bold text-slate-600">Retry group</label>
-            <select id="failure-group" className="input w-full" value={group} onChange={e=>setGroup(e.target.value)} disabled={running||busy||diagnosing||verifySaving}>
+            <label htmlFor="failure-group" className="mb-1 block text-xs font-bold text-slate-600">Issue group · filter & retry</label>
+            <select id="failure-group" className="input w-full" value={group} onChange={e=>{setGroup(e.target.value);setExpanded(false);}} disabled={running||busy||diagnosing||verifySaving}>
               {groups.map(([value,label])=><option key={value} value={value}>{label}</option>)}
             </select>
           </div>
-          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||!reviewCount} onClick={()=>void requeue()}>
-            <Play size={16}/>{busy?'Queuing…':'Retry & process reviews'}
+          <button type="button" className="btn btn-red" disabled={running||busy||diagnosing||verifySaving||!retryEligibleCount} onClick={()=>void requeue()}>
+            <Play size={16}/>{busy?'Queuing…':group==='all'?'Retry & process reviews':'Retry up to '+Math.min(10,retryEligibleCount)+' '+(groups.find(x=>x[0]===group)?.[1]||'reviews').toLowerCase()}
           </button>
           <button type="button" className="btn" disabled={running||busy||diagnosing||verifySaving||!pendingCount} onClick={()=>void runQueue()}>
             <Play size={16}/>Process {pendingCount} queued
@@ -696,6 +712,15 @@ export default function Page(){
             <Square size={15}/>Stop after current
           </button>}
         </div>
+        {timeoutCount>0&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p className="text-sm font-semibold text-slate-800">{timeoutCount} timeout school{timeoutCount===1?'':'s'} still need review. Inspect their official pages before retrying.</p>
+          <button type="button" className="btn" onClick={()=>{
+            setGroup('timeout');setFilter('review');setExpanded(true);
+            document.getElementById('college-staff-attention')?.scrollIntoView({behavior:'smooth',block:'start'});
+          }}>
+            View {timeoutCount} timeout schools <ArrowRight size={15}/>
+          </button>
+        </div>}
         {qualityCount>0&&<div className="mt-4 border-t pt-4">
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" className="btn" disabled={running||busy||diagnosing} onClick={()=>void diagnoseQuality()}>
@@ -704,9 +729,9 @@ export default function Page(){
             <span className="text-xs text-slate-500">Read-only: checks official pages without importing, changing, or requeuing coach records.</span>
             {diagnosing&&<button type="button" className="btn" onClick={()=>{diagnoseStop.current=true;}}>Stop inspection</button>}
           </div>
-          {(diagnosing||diagnostics.length>0)&&<p className="mt-2 text-xs font-semibold text-slate-600">
+          {(diagnosing||diagnostics.length>0)&&<p className="mt-2 text-xs font-semibold text-slate-600" role="status">
             {diagnosing?'Inspecting':'Inspected'} {diagnostics.length} of {diagnosticTotal||qualityCount} schools.
-            {diagnostics.length>0&&' '+diagnostics.filter(x=>x.status==='candidate').length+' currently pass primary-source parsing.'}
+            {diagnostics.length>0&&' '+activeQuality.length+' still in quality-gate review · '+hiddenQuality+' no longer in quality-gate review.'}
           </p>}
           {diagnostics.length>0&&readyQuality.length>0&&<div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-3 py-3">
             <div className="flex-1 text-sm text-green-950">
@@ -743,25 +768,32 @@ export default function Page(){
             {s.name} · {s.verification?.recheck_message||'Parser review required'}
           </button>)}</div>
       </div>}
-      {diagnostics.length>0&&<div className="border-b p-5 sm:p-6">
+      {diagnostics.length>0&&activeQuality.length===0&&!diagnosing&&<div className="border-b p-5 sm:p-6">
+        <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-950" role="status">
+          <CheckCircle2 size={19} className="mt-0.5 shrink-0"/>
+          <div><strong>No inspected quality-gate cases remain in review.</strong>
+            <p className="mt-1">{hiddenQuality} historical inspection result{hiddenQuality===1?' is':'s are'} hidden.
+              Imported and blocked outcomes remain in the pipeline totals above; other unresolved issues are in Schools requiring attention below.</p>
+          </div>
+        </div>
+      </div>}
+      {activeQuality.length>0&&<div className="border-b p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="font-black">Quality gate inspection report</h3>
-            <p className="mt-1 text-xs text-slate-500">Historical read-only parser preview. Status badges update from the live queue; the names below are not a current staff audit.</p>
+          <div><h3 className="font-black">Quality gate inspection report · {activeQuality.length} open</h3>
+            <p className="mt-1 text-xs text-slate-500">Only current quality-gate reviews are shown. Imported, blocked, or reclassified schools disappear automatically after status refresh. Parser previews are not imported coaches.</p>
           </div>
           <button type="button" className="btn" onClick={()=>void navigator.clipboard.writeText(
-            diagnostics.map(x=>[x.name,x.status,x.issue,x.source_url||'',x.coaches.map(c=>c.name+' ('+c.title+')').join('; ')].join(' | ')).join('\\n')
-          )}>Copy report</button>
+            activeQuality.map(x=>[x.name,x.status,x.issue,x.source_url||'',x.coaches.map(c=>c.name+' ('+c.title+')').join('; ')].join(' | ')).join('\n')
+          )}>Copy open cases</button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-700">
           <span className="rounded-lg bg-green-50 px-3 py-2 text-green-800">{readyQuality.length} ready for source verification</span>
-          <span className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{activeQuality.length-readyQuality.length} need investigation</span>
+          {manualQuality.length>0&&<span className="rounded-lg bg-blue-50 px-3 py-2 text-blue-900">{manualQuality.length} verified source · manual import</span>}
+          <span className="rounded-lg bg-amber-50 px-3 py-2 text-amber-900">{investigatedQuality} need investigation</span>
           <span className="text-slate-500">Reviewable schools first. No coach is imported by inspection.</span>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          {[...diagnostics].sort((a,b)=>
-            Number(readyQuality.some(x=>x.college_id===b.college_id))
-            -Number(readyQuality.some(x=>x.college_id===a.college_id))
-            ||a.name.localeCompare(b.name)).map(x=>{
+          {orderedQuality.map(x=>{
             const school=cleanup?.exceptions.find(s=>s.college_id===x.college_id&&s.status==='review');
             const ready=readyQuality.some(s=>s.college_id===x.college_id);
             const savedManual=school?.verification?.outcome==='verified'&&school?.verification?.recheck_status==='needs_review';
@@ -770,7 +802,7 @@ export default function Page(){
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <h4 className="font-black text-slate-950">{x.name}</h4>
                 <span className={'rounded-md px-2 py-1 text-[11px] font-bold '+(ready?'bg-green-50 text-green-800':'bg-amber-50 text-amber-900')}>
-                  {ready?'Ready to verify':savedManual?'Source verified · staff import needed':school?'Needs investigation':'Already imported'}
+                  {savedManual?'Source verified · staff import needed':ready?'Ready to verify':'Needs investigation'}
                 </span>
               </div>
               <p className="mt-2 text-xs text-slate-600">{savedManual
@@ -799,8 +831,12 @@ export default function Page(){
         </div>
       </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
-        <div><h3 className="font-black">Schools requiring attention</h3>
+        <div id="college-staff-attention"><h3 className="font-black">Schools requiring attention</h3>
           <p className="mt-1 text-xs text-slate-500">Verify the official source beside each school. Source confirmation never approves coach contact details.</p>
+          {filter==='review'&&group!=='all'&&<p className="mt-1 text-xs font-semibold text-blue-800">
+            Showing {exceptions.length} {groups.find(x=>x[0]===group)?.[1]?.toLowerCase()} cases from {reviewCount} review schools.
+            <button type="button" className="ml-2 underline" onClick={()=>{setGroup('all');setExpanded(false);}}>Show all review issues</button>
+          </p>}
         </div>
         <select aria-label="Filter exception status" className="input w-44" value={filter} onChange={e=>{setFilter(e.target.value);setExpanded(false)}}>
           <option value="review">Review</option><option value="blocked">Blocked</option>
