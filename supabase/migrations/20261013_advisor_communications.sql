@@ -14,7 +14,7 @@ begin
   -- are pushed; all tracked replies remain visible in Advisor Communications.
   if new.received_at is null or new.received_at < now() - interval '24 hours'
      or not (coalesce(new.action_required, false)
-       or new.recruiting_intent in ('offer_related','camp_invitation','visit_invitation','call_request','information_request'))
+       or coalesce(new.recruiting_intent in ('offer_related','camp_invitation','visit_invitation','call_request','information_request'), false))
   then return new; end if;
 
   insert into public.notifications (user_id, title, body, kind, url, data, dedupe_key)
