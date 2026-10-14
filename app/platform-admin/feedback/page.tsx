@@ -4,7 +4,7 @@ import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
 import {CheckCircle2,Inbox,MessageSquareText,RotateCcw,Clock3} from 'lucide-react';
 import AppShell from '@/components/AppShell';
-import PageHeader from '@/components/PageHeader';
+import PageHeader from '@/components/PageHeader';import PlatformReplyComposer from '@/components/PlatformReplyComposer';
 
 type Participant={full_name:string|null;email:string|null};
 type FeedbackEvent={
@@ -104,7 +104,7 @@ export default function PlatformFeedback(){
       <div className="flex min-w-0 items-start gap-3">
        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-700"><MessageSquareText size={20}/></div>
        <div><div className="text-xs font-black uppercase tracking-wider text-red-700">{categories[row.feedback_type]||'Feedback'}</div>
-        <h2 className="mt-1 font-black">{row.reporter?.full_name||row.reporter?.email||'RLTNL user'}</h2>
+        <h2 className="mt-1 font-black">{row.reporter?.full_name||row.reporter?.email||'RLTNL user'}</h2>{row.reporter?.email&&row.reporter?.full_name&&<p className="mt-0.5 text-xs text-slate-600">{row.reporter.email}</p>}
         <div className="mt-1 text-xs text-slate-500">{when(row.created_at)} · {row.diagnostic_snapshot?.role||'User'}{row.diagnostic_snapshot?.account_role&&row.diagnostic_snapshot.account_role!==row.diagnostic_snapshot.role?' ('+row.diagnostic_snapshot.account_role+' account)':''} · {row.diagnostic_snapshot?.page||'Unknown page'}</div>
        </div>
       </div>
@@ -133,6 +133,7 @@ export default function PlatformFeedback(){
         <button type="button" className="btn text-sm" disabled={busy===row.id} onClick={()=>void update(row,'open')}><RotateCcw size={15}/> Reopen</button>
        </div>
       </div>}
+     <div className="mt-4 border-t border-slate-200 pt-3"><PlatformReplyComposer sourceType="feedback" sourceId={row.id} recipientName={personName(row.reporter)} context="This sends a separate, user-visible reply. Internal resolution notes remain private."/></div>
      {row.history?.length>0&&<details className="mt-5 border-t border-slate-200 pt-4">
       <summary className="cursor-pointer select-none text-sm font-bold text-slate-700 hover:text-slate-950">Activity history ({row.history.length})</summary>
       <ol className="mt-4 space-y-3 border-l-2 border-slate-200 pl-4">
