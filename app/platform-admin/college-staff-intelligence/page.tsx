@@ -970,11 +970,11 @@ export default function Page(){
       {hostCases.length>0&&<div className="border-b border-blue-200 bg-blue-50 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="font-black text-slate-950">{hostCases.length} official coaching source{hostCases.length===1?'':'s'} saved · athletics domain approval needed</h3>
-            <p className="mt-1 text-sm text-slate-700">Your source verification is saved. RLTNL checks for an independent link from the school's university website, then asks you to approve that athletics domain once. No repeat verification or automatic coach approval.</p>
+            <h3 className="font-black text-slate-950">{hostCases.length} official coaching source{hostCases.length===1?'':'s'} ready for staff validation</h3>
+            <p className="mt-1 text-sm text-slate-700">Your saved coaching pages are ready for direct softball staff validation. RLTNL will use each exact URL, verify coach names and roles, and flag any contacts or identities that cannot be confirmed.</p>
           </div>
           <button type="button" className="btn btn-red" disabled={hostChecking||hostApproving||verifySaving}
-            onClick={()=>openVerify(hostCases[0])}>Review first athletics domain <ArrowRight size={15}/></button>
+            onClick={()=>openVerify(hostCases[0])}>Validate first saved coaching page <ArrowRight size={15}/></button>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">{hostCases.map(s=>
           <button key={s.college_id} type="button" disabled={hostChecking||hostApproving||verifySaving}
@@ -1100,7 +1100,7 @@ export default function Page(){
                     x.verification.outcome==='unable_to_verify'?'Unable to verify':
                     x.verification.recheck_status==='passed'?'Source checked · imported':
                     x.verification.recheck_status==='pending'?'Source verified · queued':
-                    x.verification.recheck_status==='host_review'?'New host review':
+                    x.verification.recheck_status==='host_review'?'Saved source · validate coaches':
                     'Source verified · needs review'}
                 </span>}
               </div>
@@ -1139,7 +1139,7 @@ export default function Page(){
           <div><div className="rr-eyebrow">OFFICIAL SOURCE VERIFICATION</div>
             <h2 id="verify-title" className="mt-1 text-xl font-black text-slate-950">{verifySchool.name}</h2>
             <p className="mt-1 text-xs text-slate-500">{hostApprovalComplete
-              ?'Athletics host approved. Coaching staff quality-check results are below.'
+              ?'Saved coaching URL checked. Coaching staff quality-check results are below.'
               :'Confirm the source. If automated parsing fails, review the staff manually without repeating verification.'}</p>
           </div>
           <button type="button" disabled={verifySaving||manualSaving||hostChecking||hostApproving} aria-label="Close verification"
