@@ -57,6 +57,7 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
    if(sourceUrl.trim()&&!/^https:\/\/[^\s]+$/i.test(sourceUrl.trim()))return setError('Use a valid HTTPS URL for the official source.');
   }
   setBusy(true);setError('');
+  let decisionWasSaved=reviewSaved;
   try{
    if(!reviewSaved){
     const response=await fetch('/api/platform/coach-data-review',{
@@ -66,6 +67,7 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||'The review decision could not be saved.');
     setReviewSaved(true);
+    decisionWasSaved=true;
     onReviewed();
    }
    if(notify){
@@ -82,7 +84,7 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
    onFinished(`${accepting?'Coach update verified and applied':'Coach update rejected'}.${notify?' Message sent to '+recipient+'.':''}`);
   }catch(e){
    const reason=e instanceof Error?e.message:'Something went wrong.';
-   setError(reviewSaved?`Decision saved, but the message was not sent: ${reason}`:
+   setError(decisionWasSaved?`Decision saved, but the message was not sent: ${reason}`:
     reason);
   }finally{setBusy(false)}
  }
@@ -159,7 +161,7 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
     <button type="button" className={`btn ${accepting?'btn-red':'bg-slate-900 text-white hover:bg-slate-800'}`}
      disabled={busy} onClick={()=>void confirm()}>
      {busy?(reviewSaved?'Sending…':'Saving decision…'):
-      reviewSaved?'Retry Sending Message':notify?
+      reviewSaved?(notify?'Retry Sending Message':'Close Review'):notify?
        <><Send size={16}/>{accepting?'Verify, Apply & Message':'Reject & Message'}</>:
        accepting?'Confirm Verify & Apply':'Confirm Reject'}
     </button>
