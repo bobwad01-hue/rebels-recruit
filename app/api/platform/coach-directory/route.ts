@@ -10,4 +10,4 @@ const {data,error}=await admin.rpc('platform_manual_edit_college_coach',{
  p_coach_id:b.id,p_patch:patch,p_reason:reason,p_evidence_url:evidence||null,
  p_expected_updated_at:b.expected_updated_at||null
 });
-return error?NextResponse.json({error:error.message},{status:400}):NextResponse.json(data)}}
+return error?NextResponse.json({error:error.message},{status:400}):NextResponse.json(data)}
