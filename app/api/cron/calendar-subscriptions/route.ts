@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {createAdminClient} from '@/lib/supabase-admin';
 import {syncCalendarSubscription} from '@/lib/calendar-subscriptions';
+import {sendAdvisorCommunicationDigests} from '@/lib/advisor-communications-digest';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 export async function GET(req:NextRequest){
@@ -8,6 +9,8 @@ export async function GET(req:NextRequest){
  if(!secret||req.headers.get('authorization')!==`Bearer ${secret}`)return NextResponse.json({error:'Unauthorized'},{status:401});
  const db=createAdminClient(),{data,error}=await db.from('calendar_subscriptions').select('*').eq('enabled',true).order('last_synced_at',{ascending:true,nullsFirst:true}).limit(25);
  if(error)return NextResponse.json({error:'Could not load subscriptions.'},{status:500});
+ const digestPromise=sendAdvisorCommunicationDigests().catch(error=>({error:error instanceof Error?error.message:'Advisor digest failed'}));
  const results=[];for(const sub of data||[]){const r=await syncCalendarSubscription(sub);results.push({id:sub.id,...r});}
- return NextResponse.json({checked:results.length,successful:results.filter(r=>r.ok).length,failed:results.filter(r=>!r.ok).length,results});
+ const advisorDigest=await digestPromise;
+ return NextResponse.json({checked:results.length,successful:results.filter(r=>r.ok).length,failed:results.filter(r=>!r.ok).length,results,advisorDigest});
 }
