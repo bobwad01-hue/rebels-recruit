@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { CheckCircle2, Mail, MessageSquareReply, ArrowUpRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import RecruitingEmailReader from '@/components/RecruitingEmailReader';
 
 type Email = {
   id: string;
   subject: string | null;
   received_at: string;
   summary: string | null;
+  body?: string | null;
   reviewed_at: string | null;
   interaction_id: string | null;
   recruiting_intent: string | null;
@@ -83,7 +85,9 @@ export default function CoachEmailReview({
           <p className="mt-1 text-xs font-medium text-slate-500">
             {coachName} · {collegeName} · {new Date(email.received_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
           </p>
-          {email.summary && <p className="mt-3 break-words text-sm text-slate-700">{email.summary}</p>}
+          <div className="mt-4 border-t border-slate-100 pt-1">
+            <RecruitingEmailReader body={email.body || null} summary={email.summary} />
+          </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {email.interaction_id && <Link href={'/activity/' + email.interaction_id} className="btn text-sm">View details <ArrowUpRight size={15} /></Link>}
             <Link href={replyHref} className="btn text-sm"><MessageSquareReply size={15} /> Reply in thread</Link>
