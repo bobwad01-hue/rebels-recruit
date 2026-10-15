@@ -251,12 +251,24 @@ export default function CoachActionBar({
     }
   }
   async function loadSchoolCoaches() {
-    const { data } = await c
-      .from("college_coaches")
-      .select("id,first_name,last_name,title,email")
-      .eq("college_id", collegeId)
-      .order("last_name");
-    setSchoolCoaches((data || []).filter((x: any) => x.id !== coachId));
+    const {data,error}=await c.from("college_coaches")
+      .select("id,first_name,last_name,title,email,contact_verification_needed,lifecycle_status")
+      .eq("college_id",collegeId).order("last_name");
+    if(error){setSchoolCoaches([]);return;}
+    const others=(data||[]).filter((x:any)=>x.id!==coachId);
+    if(staffMode){setSchoolCoaches(others);return;}
+    const eligible=others.filter((x:any)=>x.email&&x.lifecycle_status==='active'&&!x.contact_verification_needed);
+    if(!eligible.length){setSchoolCoaches([]);setCcCoachIds([]);return;}
+    const ctx=await context();
+    if(!ctx){setSchoolCoaches([]);setCcCoachIds([]);return;}
+    const {data:linked,error:linkError}=await c.from('athlete_coaches')
+      .select('coach_id').eq('athlete_user_id',ctx.athlete)
+      .in('coach_id',eligible.map((x:any)=>x.id)).is('archived_at',null);
+    if(linkError){setSchoolCoaches([]);setCcCoachIds([]);return;}
+    const saved=new Set((linked||[]).map((x:any)=>x.coach_id));
+    const choices=eligible.filter((x:any)=>saved.has(x.id));
+    setSchoolCoaches(choices);
+    setCcCoachIds(current=>current.filter(id=>saved.has(id)));
   }
   async function checkGmailConnection() {
     const ctx = await context();
@@ -851,7 +863,7 @@ export default function CoachActionBar({
                           <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
                         </summary>
                         <div className="border-t px-4 pb-4 pt-3">
-                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.</p>
+                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.{!staffMode&&' Only coaches already in My Contacts are available here.'}</p>
                           <div className="mt-3 space-y-2">
                             {schoolCoaches.map((co) => (
                               <label key={co.id} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${co.email ? "cursor-pointer hover:bg-slate-50" : "opacity-55"}`}>
