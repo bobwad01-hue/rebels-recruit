@@ -251,11 +251,11 @@ export default function EmailTemplateManager() {
                     onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
                 </label>
               </div>
-              <label className="block text-xs font-bold mt-4">Subject (optional)
-                <input className="input mt-1 w-full" placeholder="Leave blank for the standard personalized subject"
+              <label className="block text-xs font-bold mt-4">Subject Topic (optional)
+                <input className="input mt-1 w-full" placeholder="Leave blank to use the template name as the topic"
                   value={form.subjectTemplate} onChange={(e) => setForm({ ...form, subjectTemplate: e.target.value })} />
               </label>
-              <p className="text-xs text-slate-500 mt-1">Personalize with {"{{name}}"}, {"{{college}}"}, {"{{grad}}"}, {"{{positions}}"}, or {"{{travelTeam}}"}.</p>
+              <p className="text-xs text-slate-500 mt-1">The topic appears first, followed automatically by the athlete’s name, graduation year, positions/batting style and GPA. You can personalize the topic with {"{{name}}"}, {"{{college}}"}, {"{{grad}}"}, {"{{positions}}"}, or {"{{travelTeam}}"}.</p>
               <label className="block text-xs font-bold mt-4">Guidance for the athlete
                 <textarea className="input mt-1 w-full min-h-20" value={form.guidance}
                   onChange={(e) => setForm({ ...form, guidance: e.target.value })} />
