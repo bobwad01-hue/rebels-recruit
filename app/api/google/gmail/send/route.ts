@@ -9,7 +9,7 @@ type Attachment={name:string;type:string;data:string;size?:number};
 function encodeMessage(to:string,cc:string[],subject:string,body:string,bodyHtml?:string,attachments:Attachment[]=[],reply?:{messageId:string;references?:string}){const mixed=`rebels_mixed_${Date.now()}_${Math.random().toString(36).slice(2)}`,alt=`rebels_alt_${Date.now()}_${Math.random().toString(36).slice(2)}`;const html=renderEmailHtml(body,bodyHtml);const headers=[`To: ${cleanHeader(to)}`];if(reply?.messageId){headers.push(`In-Reply-To: ${cleanHeader(reply.messageId)}`);headers.push(`References: ${cleanHeader(reply.references||reply.messageId)}`)}if(cc.length)headers.push(`Cc: ${cc.map(cleanHeader).join(', ')}`);const parts=[...headers,`Subject: ${cleanHeader(subject)}`,'MIME-Version: 1.0',`Content-Type: multipart/mixed; boundary="${mixed}"`,'',`--${mixed}`,`Content-Type: multipart/alternative; boundary="${alt}"`,'',`--${alt}`,'Content-Type: text/plain; charset="UTF-8"','Content-Transfer-Encoding: 8bit','',body,`--${alt}`,'Content-Type: text/html; charset="UTF-8"','Content-Transfer-Encoding: 8bit','',`<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;white-space:pre-wrap">${html}</div>`,`--${alt}--`];for(const a of attachments){const safeName=cleanHeader(a.name).replace(/["\\]/g,'_');parts.push(`--${mixed}`,`Content-Type: ${cleanHeader(a.type||'application/octet-stream')}; name="${safeName}"`,'Content-Transfer-Encoding: base64',`Content-Disposition: attachment; filename="${safeName}"`,'',b64Lines(a.data))}parts.push(`--${mixed}--`,'');return Buffer.from(parts.join('\r\n'),'utf8').toString('base64url')}
 
 // Sending is only permitted to coaches already saved in the athlete's active
-// My Contacts. A successful Gmail send updates outreach history, but never
+// Coach Connections. A successful Gmail send updates outreach history, but never
 // silently creates/restores a coach contact.
 async function updateEmailedCoachContact(c:any,athleteUserId:string,coachId:string,emailOverride?:string|null){
  const today=new Date().toISOString().slice(0,10);
@@ -38,13 +38,13 @@ if(!staffMode){
  const {data:relationships,error:relationshipError}=await c.from('athlete_coaches')
   .select('id,coach_id,email_override').eq('athlete_user_id',athleteUserId)
   .in('coach_id',requiredCoachIds).is('archived_at',null);
- if(relationshipError)return NextResponse.json({error:'Could not check My Contacts. Please try again.'},{status:500});
+ if(relationshipError)return NextResponse.json({error:'Could not check Coach Connections. Please try again.'},{status:500});
  const linked=new Map((relationships||[]).map((row:any)=>[row.coach_id,row]));
  if(!linked.has(coachId))return NextResponse.json({
-  error:'Add this coach to My Contacts before emailing. Adding a coach does not mark them as contacted.'
+  error:'Add this coach to My Coach Connections before emailing. Adding a connection does not mark them as contacted.'
  },{status:409});
  if(ccCoachIds.some(id=>!linked.has(id)))return NextResponse.json({
-  error:'Add each CC coach to My Contacts before including them in an email.'
+  error:'Add each CC coach to My Coach Connections before including them in an email.'
  },{status:409});
  manualRelationship=linked.get(coachId);
 }

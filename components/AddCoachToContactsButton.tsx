@@ -6,9 +6,9 @@ import {Plus} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {emitDataChanged} from '@/lib/data-events';
 
-type Props={athleteId:string;coachId:string;collegeId:string;coachName:string};
+type Props={athleteId:string;coachId:string;collegeId:string;coachName:string;compact?:boolean};
 
-export default function AddCoachToContactsButton({athleteId,coachId,collegeId,coachName}:Props){
+export default function AddCoachToContactsButton({athleteId,coachId,collegeId,coachName,compact=false}:Props){
  const router=useRouter();
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
@@ -36,14 +36,17 @@ export default function AddCoachToContactsButton({athleteId,coachId,collegeId,co
    setError(e?.message||'Could not add this coach. Please try again.');
   }finally{setBusy(false)}
  }
+ if(compact)return <div className="flex flex-col items-start gap-1.5"><button type="button" disabled={busy} onClick={()=>void add()}
+  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50"><Plus size={14}/>{busy?'Adding…':'Add Connection'}</button>
+  {error&&<p role="alert" className="text-xs font-semibold text-red-700">{error}</p>}</div>;
  return <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-  <div className="text-sm font-black text-slate-900">Add {coachName} to My Contacts</div>
+  <div className="text-sm font-black text-slate-900">Add {coachName} to My Coach Connections</div>
   <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
-   Save this coach to your recruiting contacts before emailing them. Adding a contact does not mean you have contacted them.
+   Save this coach as a connection before emailing. Adding a connection does not mean you've contacted the coach.
   </p>
   <button type="button" disabled={busy} onClick={()=>void add()}
    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-slate-800 disabled:opacity-50">
-   <Plus size={16}/>{busy?'Adding…':'Add to My Contacts'}
+   <Plus size={16}/>{busy?'Adding…':'Add Connection'}
   </button>
   {error&&<p role="alert" className="mt-3 text-xs font-semibold text-red-700">{error}</p>}
  </div>;

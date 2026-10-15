@@ -1,7 +1,9 @@
 import AppShell from '@/components/AppShell';
 import ConnectionsBoard from '@/components/ConnectionsBoard';
 import PageHeader from '@/components/PageHeader';
-import {EmptyState,PageFrame,StatePanel} from '@/components/ProductUI';
+import {PageFrame,StatePanel} from '@/components/ProductUI';
+import Link from 'next/link';
+import {Search} from 'lucide-react';
 import {createClient} from '@/lib/supabase-server';
 import {resolveOwnerPreview} from '@/lib/owner-preview';
 import {contactedCoachIdsFromInteractions} from '@/lib/coach-contact-status';
@@ -41,6 +43,6 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
  const initialContactedCoachIds=contactedCoachIdsFromInteractions(contactInteractions.data||[]);
  const orgId=memberships.data?.[0]?.organization_id||'';const classYear=Number(athleteProfile.data?.class_year||0);const yearsAway=classYear?classYear-new Date().getFullYear():null;const recruitingStage=yearsAway===null?'build':yearsAway>=4?'explore':yearsAway===3?'build':yearsAway===2?'recruit':'decide';
  const noRelationships=(colleges.data||[]).length===0&&(coaches.data||[]).length===0;
- if(noRelationships)return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Keep the schools you are pursuing and the coaches you know in one place."/><div className="mt-5"><EmptyState title="Start with one school" description="Add the first school you want to pursue. Once it is in Connections, you can add coaches, log conversations, and see what to do next." href="/colleges/new" actionLabel="Add Your First School"/></div></PageFrame></AppShell>;
- return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Track target schools, save individual coach contacts, and see which coaches you have actually contacted."/><div className="mt-5"><ConnectionsBoard athleteId={athleteId} initialColleges={colleges.data||[]} initialCoaches={coaches.data||[]} initialAvailableCoaches={availableStaff.data||[]} initialActions={actions.data||[]} initialContactedCoachIds={initialContactedCoachIds} initialSearch={initialSearch} recruitingStage={recruitingStage}/></div></PageFrame></AppShell>;
+ if(noRelationships)return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Keep your recruiting schools and coach connections in one place."/><div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm sm:p-8"><h2 className="text-xl font-black">Start building your connections</h2><p className="mt-2 text-sm text-slate-600">Find a school to pursue or add an individual coach connection. You can do either one first.</p><div className="mt-5 flex flex-col gap-3 sm:flex-row"><Link href="/colleges/new" className="btn btn-red inline-flex items-center justify-center gap-2"><Search size={16}/>Find Schools</Link><Link href="/coaches/find" className="btn inline-flex items-center justify-center gap-2"><Search size={16}/>Find Coaches</Link></div><p className="mt-4 text-xs text-slate-500">Adding a coach does not add the school to your recruiting targets or mark the coach as contacted.</p></div></PageFrame></AppShell>;
+ return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Track target schools, add individual coach connections, and see which coaches you have actually contacted."/><div className="mt-5"><ConnectionsBoard athleteId={athleteId} initialColleges={colleges.data||[]} initialCoaches={coaches.data||[]} initialAvailableCoaches={availableStaff.data||[]} initialActions={actions.data||[]} initialContactedCoachIds={initialContactedCoachIds} initialSearch={initialSearch} recruitingStage={recruitingStage}/></div></PageFrame></AppShell>;
 }

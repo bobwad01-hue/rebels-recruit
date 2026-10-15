@@ -407,21 +407,21 @@ export default function CoachActionBar({
     const ctx=await context();
     if(!ctx){setRecipientSavedNotice('Please sign in again.');return;}
     const existing=await c.from('athlete_coaches').select('id')
-      .eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId).maybeSingle();
-    if(existing.error){setRecipientSavedNotice('Could not check My Contacts. Please try again.');return;}
-    const values={college_id:collegeId,email_override:address,
-      email_override_updated_at:new Date().toISOString(),archived_at:null,archived_reason:null};
-    let result=existing.data
-      ?await c.from('athlete_coaches').update(values).eq('id',existing.data.id).eq('athlete_user_id',ctx.athlete)
-      :await c.from('athlete_coaches').insert({athlete_user_id:ctx.athlete,coach_id:coachId,...values});
-    if(result.error?.code==='23505'){
-      result=await c.from('athlete_coaches').update(values).eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId);
-    }
-    if(result.error){
-      setRecipientSavedNotice('Could not save the address to My Contacts. Please try again.');
+      .eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId)
+      .is('archived_at',null).maybeSingle();
+    if(existing.error){setRecipientSavedNotice('Could not check Coach Connections. Please try again.');return;}
+    if(!existing.data){
+      setRecipientSavedNotice('Add this coach to My Coach Connections before saving an email address.');
       return;
     }
-    emitDataChanged('athlete_coaches',existing.data?'update':'create',coachId);
+    const result=await c.from('athlete_coaches').update({
+      email_override:address,email_override_updated_at:new Date().toISOString()
+    }).eq('id',existing.data.id).eq('athlete_user_id',ctx.athlete).is('archived_at',null);
+    if(result.error){
+      setRecipientSavedNotice('Could not save the address to this Coach Connection. Please try again.');
+      return;
+    }
+    emitDataChanged('athlete_coaches','update',coachId);
     const pending=await c.from('college_coach_update_suggestions').select('id')
       .eq('coach_id',coachId).eq('submitted_by_user_id',ctx.user.id)
       .eq('proposed_email',address).eq('status','pending').limit(1);
@@ -433,7 +433,7 @@ export default function CoachActionBar({
       });
       if(suggestion.error)console.warn('Could not queue coach email verification',suggestion.error.code);
     }
-    setRecipientSavedNotice('Email address saved for this coach in My Contacts. This does not count as outreach. RLTNL has not verified this address.');
+    setRecipientSavedNotice('Email address saved for this Coach Connection. This does not count as outreach. RLTNL has not verified this address.');
   }
   async function sendEmail() {
     const ctx = await context();
@@ -511,7 +511,7 @@ export default function CoachActionBar({
       setDraftNotice("");
       setMessage(
         d.contactSaved === false
-          ? "Email sent through Gmail, but your coach contact status could not be updated. Please refresh and check My Contacts."
+          ? "Email sent through Gmail, but your connection's contact status could not be updated. Please refresh and check Coach Connections."
           : !email && d.recipientSaved === false
             ? "Email sent through Gmail, but the email address could not be saved for future use."
             : d.logged
@@ -863,7 +863,7 @@ export default function CoachActionBar({
                           <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
                         </summary>
                         <div className="border-t px-4 pb-4 pt-3">
-                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.{!staffMode&&' Only coaches already in My Contacts are available here.'}</p>
+                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.{!staffMode&&' Only coaches already in My Coach Connections are available here.'}</p>
                           <div className="mt-3 space-y-2">
                             {schoolCoaches.map((co) => (
                               <label key={co.id} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${co.email ? "cursor-pointer hover:bg-slate-50" : "opacity-55"}`}>
