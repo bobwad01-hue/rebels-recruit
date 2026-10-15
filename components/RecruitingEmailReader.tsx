@@ -22,12 +22,13 @@ function humanSize(size: number | null) {
 }
 
 export default function RecruitingEmailReader({
-  body, summary, attachments, attachmentMetadataChecked,
+  body, summary, attachments, attachmentMetadataChecked, compact = false,
 }: {
   body: string | null;
   summary: string | null;
   attachments?: EmailAttachmentMetadata[];
   attachmentMetadataChecked?: boolean;
+  compact?: boolean;
 }) {
   const [showSaved, setShowSaved] = useState(false);
   const formatted = useMemo(() => formatRecruitingEmail(body || ''), [body]);
@@ -43,7 +44,7 @@ export default function RecruitingEmailReader({
         {showSaved ? 'Show clean view' : 'View saved text'}
       </button>}
     </div>
-    {body ? <div className="mt-2 max-h-[460px] overflow-auto rounded-xl border bg-slate-50 p-4">
+    {body ? <div className={compact ? "mt-2 max-h-[260px] overflow-auto rounded-xl border bg-slate-50 p-3 sm:max-h-[320px] sm:p-4" : "mt-2 max-h-[460px] overflow-auto rounded-xl border bg-slate-50 p-4"}>
       {showSaved ? <>
         <p className="mb-3 text-xs text-slate-500">Text as stored by RLTNL. This is not the original Gmail HTML or MIME message.</p>
         <div className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-slate-700">{body}</div>
