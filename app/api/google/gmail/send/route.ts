@@ -20,7 +20,7 @@ if(!coach.email&&!staffMode){
  manualRelationship=relation;
 }
 const recipient=coach.email||(!staffMode?(suppliedRecipient||manualRelationship?.email_override||''):'');
-const validEmail=(value:string)=>value.length<=254&&/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value);
+const validEmail=(value:string)=>value.length<=254&&/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
 if(!validEmail(recipient))return NextResponse.json({error:'Enter a valid coach email address before sending.'},{status:400});let ccCoaches:any[]=[];if(ccCoachIds.length){const {data,error}=await c.from('college_coaches').select('id,email,contact_verification_needed,lifecycle_status,first_name,last_name,college_id').in('id',ccCoachIds);if(error)return NextResponse.json({error:'Could not load the additional coaches.'},{status:400});ccCoaches=(data||[]).filter((x:any)=>x.college_id===coach.college_id&&x.email&&!x.contact_verification_needed&&x.lifecycle_status==='active');if(ccCoaches.length!==ccCoachIds.length)return NextResponse.json({error:'One or more additional coaches are unavailable or belong to another school.'},{status:400})}try{const {accessToken}=await getGoogleAccessToken(user.id,'gmail');let replyMeta:{threadId:string;messageId:string;references?:string;subject:string}|null=null;let replyRecord:any=null;
 if(recruitingInteractionId||recruitingMessageId){
   if(athleteUserId!==user.id)return NextResponse.json({error:'Replies to an existing Gmail thread must be sent from the athlete’s connected Gmail account.'},{status:403});
