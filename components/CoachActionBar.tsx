@@ -31,6 +31,7 @@ import RichEmailEditor, {
 } from "@/components/RichEmailEditor";
 import EmailVideoPicker from "@/components/EmailVideoPicker";
 import RecruitingEmailReader from "@/components/RecruitingEmailReader";
+import { buildRecruitingEmailSubject, formatDraftSignaturePhones, formatEmailPhone } from "@/lib/recruiting-email-format";
 type PrimaryAction = "email" | "text" | "call" | "log" | "reminder" | null;
 type Props = {
   coachId: string;
@@ -150,7 +151,7 @@ export default function CoachActionBar({
       travelTeam: s.travelTeamName || a.travel_team || "",
       academic: majors,
       college: collegeName || "your program",
-      mobile: pr.phone || "",
+      mobile: formatEmailPhone(pr.phone),
       email: pr.email || "",
       twitter: s.xTwitter || a.twitter || a.twitter_handle || "",
       sports:
@@ -159,11 +160,11 @@ export default function CoachActionBar({
         a.sports_recruits_url ||
         "",
       travelCoach: s.travelTeamCoachName || "",
-      travelCoachPhone: s.travelTeamCoachPhone || "",
+      travelCoachPhone: formatEmailPhone(s.travelTeamCoachPhone),
       hsCity: s.highSchoolCity || "",
       hsState: s.highSchoolState || a.primary_state || "",
       hsCoach: s.highSchoolCoachName || "",
-      hsCoachPhone: s.highSchoolCoachPhone || "",
+      hsCoachPhone: formatEmailPhone(s.highSchoolCoachPhone),
       throwBat: s.throwBat || a.throw_bat || "",
       ncaa: s.ncaaNumber || a.ncaa_number || "",
     };
@@ -210,16 +211,14 @@ export default function CoachActionBar({
       lastName = coachName.trim().split(/\s+/).slice(-1)[0] || coachName;
     setBodyHtml("");
     if (id === "custom") {
-      setSubject(originalReplySubject() || "");
+      setSubject(originalReplySubject() || (staffMode ? "" : buildRecruitingEmailSubject("Recruiting Update", v)));
       setBody(sig ? `\n\n${sig}` : "");
       return;
     }
-    setSubject(
-      originalReplySubject() ||
-      (s.subjectTemplate
-        ? fill(s.subjectTemplate, p)
-        : `${s.purpose} | ${v.name || "[Your Name]"} | ${v.grad || "[Grad Year]"} | ${v.positions || "[POS]"} | ${v.gpa || "[GPA]"} | #${v.jersey || "[Jersey]"}`),
-    );
+    // The template label is the topic (e.g. "Upcoming Weekend"), not its internal purpose.
+    // Admin subject overrides supply a custom topic; the recruiting details remain consistent.
+    const topic = s.subjectTemplate ? fill(s.subjectTemplate, p).split("|")[0].trim() : s.label;
+    setSubject(originalReplySubject() || buildRecruitingEmailSubject(topic, v));
     const opening = fill(
         s.openings[index]?.text || s.openings[0]?.text || "",
         p,
@@ -320,8 +319,22 @@ export default function CoachActionBar({
     try {
       const saved = JSON.parse(localStorage.getItem(draftKey) || "null");
       if (saved?.subject && saved?.body) {
-        setSubject(String(saved.subject));
-        setBody(String(saved.body));
+        const p = profile || (await loadProfile());
+        const v = values(p);
+        const savedStarter = starterById(String(saved.starter || id), templates);
+        const oldAutoSubject = savedStarter.subjectTemplate
+          ? fill(savedStarter.subjectTemplate, p)
+          : `${savedStarter.purpose} | ${v.name || "[Your Name]"} | ${v.grad || "[Grad Year]"} | ${v.positions || "[POS]"} | ${v.gpa || "[GPA]"} | #${v.jersey || "[Jersey]"}`;
+        const savedSubject = String(saved.subject);
+        // Upgrade only a recognizable generated subject; never overwrite an edited subject or a reply.
+        const shouldUpdateSubject = !contextualReply && !staffMode && saved.starter !== "custom" && savedSubject === oldAutoSubject;
+        const topic = savedStarter.subjectTemplate ? fill(savedStarter.subjectTemplate, p).split("|")[0].trim() : savedStarter.label;
+        const nextSubject = shouldUpdateSubject ? buildRecruitingEmailSubject(topic, v) : savedSubject;
+        const nextBody = formatDraftSignaturePhones(String(saved.body), v.name, [
+          p?.profile?.phone, p?.signature?.travelTeamCoachPhone, p?.signature?.highSchoolCoachPhone,
+        ]);
+        setSubject(nextSubject);
+        setBody(nextBody);
         setBodyHtml(String(saved.bodyHtml || ""));
         setStarter(
           templates.some((item) => item.id === saved.starter)
