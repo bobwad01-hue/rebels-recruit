@@ -47,9 +47,14 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
    (result[coach.college_id]||=[]).push(coach);
   }
   for(const list of Object.values(result))list.sort((a:any,b:any)=>{
-   const rank=(coach:any)=>coach.role_category==='head_coach'?0:
-    coach.role_category==='associate_head_coach'?1:
-    coach.role_category==='assistant_coach'?2:3;
+   const rank=(coach:any)=>{
+    const role=String(coach.role_category||'').toLowerCase();
+    const title=String(coach.title||'').toLowerCase();
+    if(role==='head_coach'||(title.includes('head')&&!title.includes('associate')&&!title.includes('assistant')))return 0;
+    if(role==='associate_head_coach'||title.includes('associate head'))return 1;
+    if(role==='assistant_coach'||title.includes('assistant')||title.includes('asst'))return 2;
+    return 3;
+   };
    return rank(a)-rank(b)||(a.staff_sort_order??999)-(b.staff_sort_order??999)||
     String(a.last_name).localeCompare(String(b.last_name));
   });
