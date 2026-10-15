@@ -19,6 +19,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase-browser";
+import {emitDataChanged} from "@/lib/data-events";
 import {
   EMAIL_STARTERS,
   mergeEmailStarters,
@@ -393,25 +394,34 @@ export default function CoachActionBar({
     }
     const ctx=await context();
     if(!ctx){setRecipientSavedNotice('Please sign in again.');return;}
-    const result=await c.from('athlete_coaches').update({
-      email_override:address,email_override_updated_at:new Date().toISOString()
-    }).eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId).is('archived_at',null).select('id').maybeSingle();
-    if(!result.error&&result.data){
-      const pending=await c.from('college_coach_update_suggestions').select('id')
-        .eq('coach_id',coachId).eq('submitted_by_user_id',ctx.user.id)
-        .eq('proposed_email',address).eq('status','pending').limit(1);
-      if(!pending.error&&!(pending.data||[]).length){
-        const suggestion=await c.from('college_coach_update_suggestions').insert({
-          coach_id:coachId,submitted_by_user_id:ctx.user.id,suggestion_type:'contact_update',
-          proposed_email:address,
-          details:'Athlete-supplied email for personal outreach; requires independent verification before global publication.'
-        });
-        if(suggestion.error)console.warn('Could not queue coach email verification',suggestion.error.code);
-      }
+    const existing=await c.from('athlete_coaches').select('id')
+      .eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId).maybeSingle();
+    if(existing.error){setRecipientSavedNotice('Could not check My Contacts. Please try again.');return;}
+    const values={college_id:collegeId,email_override:address,
+      email_override_updated_at:new Date().toISOString(),archived_at:null,archived_reason:null};
+    let result=existing.data
+      ?await c.from('athlete_coaches').update(values).eq('id',existing.data.id).eq('athlete_user_id',ctx.athlete)
+      :await c.from('athlete_coaches').insert({athlete_user_id:ctx.athlete,coach_id:coachId,...values});
+    if(result.error?.code==='23505'){
+      result=await c.from('athlete_coaches').update(values).eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId);
     }
-    setRecipientSavedNotice(result.error||!result.data
-      ?'Could not save the address to your Connections. Please try again.'
-      :'Saved for your recruiting relationship. RLTNL has not verified this address.');
+    if(result.error){
+      setRecipientSavedNotice('Could not save the address to My Contacts. Please try again.');
+      return;
+    }
+    emitDataChanged('athlete_coaches',existing.data?'update':'create',coachId);
+    const pending=await c.from('college_coach_update_suggestions').select('id')
+      .eq('coach_id',coachId).eq('submitted_by_user_id',ctx.user.id)
+      .eq('proposed_email',address).eq('status','pending').limit(1);
+    if(!pending.error&&!(pending.data||[]).length){
+      const suggestion=await c.from('college_coach_update_suggestions').insert({
+        coach_id:coachId,submitted_by_user_id:ctx.user.id,suggestion_type:'contact_update',
+        proposed_email:address,
+        details:'Athlete-supplied email for personal outreach; requires independent verification before global publication.'
+      });
+      if(suggestion.error)console.warn('Could not queue coach email verification',suggestion.error.code);
+    }
+    setRecipientSavedNotice('Saved to My Contacts as Not Contacted. This address is private to your recruiting relationship and not yet verified by RLTNL.');
   }
   async function sendEmail() {
     const ctx = await context();
@@ -481,17 +491,20 @@ export default function CoachActionBar({
         return;
       }
       setEmailStatus("success");
+      if(!staffMode){emitDataChanged('athlete_coaches','create',coachId);emitDataChanged('interaction','create',coachId)}
       window.dispatchEvent(new CustomEvent('rltnl:coach-emails-updated', { detail: { emailId: d.repliedToEmailId || null } }));
       try {
         localStorage.removeItem(draftKey);
       } catch {}
       setDraftNotice("");
       setMessage(
-        !email && d.recipientSaved === false
-          ? "Email sent through Gmail, but the address could not be saved for future use."
-          : d.logged
-            ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""} and logged in Activity.`
-            : "Email sent through Gmail, but Activity could not be updated.",
+        d.contactSaved === false
+          ? "Email sent through Gmail, but the coach could not be saved to My Contacts. Refresh and try adding them manually."
+          : !email && d.recipientSaved === false
+            ? "Email sent through Gmail and the coach was added to My Contacts, but the address could not be saved for future use."
+            : d.logged
+              ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""}, logged in Activity, and coach contacts updated.`
+              : "Email sent through Gmail and coach contacts updated, but Activity could not be updated.",
       );
       if (onEmailSent) await onEmailSent(d);
     } catch {
@@ -808,7 +821,7 @@ export default function CoachActionBar({
                           aria-label="Coach email address" placeholder="Enter coach email address"
                           className="input w-full" value={recipientEmail} maxLength={254} disabled={busy}
                           onChange={e=>{setRecipientEmail(e.target.value);setRecipientSavedNotice('')}}/>
-                        <p className="text-xs text-slate-600">RLTNL doesn't have a confirmed email for this coach. You can send using an address you know. It stays with your recruiting relationship, not the shared directory.</p>
+                        <p className="text-xs text-slate-600">RLTNL doesn't have a confirmed email for this coach. Enter an address you know. Saving it adds the coach to My Contacts as Not Contacted; sending an email adds the coach automatically as Contacted. Your address stays private until verified.</p>
                         <button type="button" className="text-xs font-black text-red-700 hover:underline disabled:opacity-50"
                           disabled={busy||!validRecipient(recipientEmail)} onClick={()=>void saveRecipient()}>Save this address for later</button>
                         {recipientSavedNotice&&<p role="status" className="text-xs font-semibold text-slate-700">{recipientSavedNotice}</p>}
