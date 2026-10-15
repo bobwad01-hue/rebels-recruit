@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import OrganizationRatingBadge from '@/components/OrganizationRatingBadge';
-import {useEffect,useMemo,useState} from 'react';
+import {useCallback,useEffect,useMemo,useState} from 'react';
 import {Archive,Plus,Mail,School,Search,Users,ChevronDown,ChevronUp,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {RECRUITING_JOURNEY,normalizeJourneyStage} from '@/lib/recruiting-journey';
@@ -122,7 +122,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
   void refreshReviews();
   return()=>{active=false};
  },[athleteId,schoolReviewKey,coachReviewKey,reviewRevision]);
- const reviewClosed=()=>setReviewRevision(v=>v+1);
+ const reviewClosed=useCallback(()=>setReviewRevision(v=>v+1),[]);
  const q=search.trim().toLowerCase();
  const divisionLabel=(v?:string|null)=>String(v||'').trim().toUpperCase()==='JC'?'JUCO':v;
  const visibleColleges=useMemo(()=>colleges.filter(r=>{if(mode==='current'&&r.archived_at)return false;const x=one(r.colleges)||{},stage=normalizeJourneyStage(r.status),d=String(x.division||'').toLowerCase().replace(/[^a-z0-9]/g,'');const coachText=[...coaches.filter(cr=>cr.college_id===x.id||one(cr.colleges)?.id===x.id).map(cr=>one(cr.college_coaches)||{}),...(availableBySchool[x.id]||[])].map(p=>[p.first_name,p.last_name,p.title,p.email].join(' ')).join(' ');if(q&&![x.name,divisionLabel(x.division),x.state,x.city,x.conference,stage,coachText].filter(Boolean).join(' ').toLowerCase().includes(q))return false;if(filter==='d1'&&!(d.includes('d1')||d.includes('division1')))return false;if(filter==='d2'&&!(d.includes('d2')||d.includes('division2')))return false;if(filter==='d3'&&!(d.includes('d3')||d.includes('division3')))return false;if(filter==='naia'&&!d.includes('naia'))return false;if(filter==='juco'&&!(d.includes('juco')||d.includes('njcaa')||d==='jc'))return false;if(['Target School','Engaged','Interested','Offer','Committed'].includes(filter)&&stage!==filter)return false;if(filter==='needs'){const last=coaches.filter(cr=>cr.college_id===x.id||one(cr.colleges)?.id===x.id).map(cr=>cr.last_contact_date).filter(Boolean).sort().slice(-1)[0];if(last&&Date.now()-new Date(last+'T12:00:00').getTime()<=30*86400000)return false}return true}),[colleges,coaches,availableBySchool,mode,q,filter]);
