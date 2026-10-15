@@ -9,9 +9,10 @@ import {announceSuccess,DATA_CHANGED_EVENT} from '@/lib/feedback';
 import {emitDataChanged} from '@/lib/data-events';
 import {contactedCoachIdsFromInteractions} from '@/lib/coach-contact-status';
 import TargetRanking from '@/components/TargetRanking';
+import ConnectionsReviewAction,{type ConnectionReviewSummary} from '@/components/ConnectionsReviewAction';
 import {CollegeLogo} from '@/components/RebelsRecruitUI';
 const one=(v:any)=>Array.isArray(v)?v[0]:v;
-const coachRowClass='flex w-full min-w-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between';
+const coachRowClass='flex w-full max-w-[700px] min-w-0 flex-col gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between';
 const coachInitials=(first?:string|null,last?:string|null)=>[String(first||'').charAt(0),String(last||'').charAt(0)].join('').toUpperCase()||'C';
 const fmt=(d?:string|null)=>d?new Date(`${String(d).slice(0,10)}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
 // Connections UI intentionally defaults to a compact school preview; the full list expands on demand.
@@ -19,7 +20,7 @@ type Props={athleteId:string;initialColleges:any[];initialCoaches:any[];initialA
 type PendingArchive={kind:'college'|'coach';row:any;name:string}|null;
 export default function ConnectionsBoard({athleteId,initialColleges,initialCoaches,initialAvailableCoaches=[],initialActivity={},initialActions=[],initialContactedCoachIds=[],initialSearch='',recruitingStage='build'}:Props){
  const c=createClient();const guided=recruitingStage==='explore'||recruitingStage==='build';const[colleges,setColleges]=useState(initialColleges),[coaches,setCoaches]=useState(initialCoaches),[availableStaff,setAvailableStaff]=useState<any[]>(initialAvailableCoaches),[activity,setActivity]=useState<Record<string,string>>(initialActivity),[actions,setActions]=useState<any[]>(initialActions),[mode,setMode]=useState<'current'|'all'>('current'),[search,setSearch]=useState(initialSearch),[busy,setBusy]=useState(''),[pending,setPending]=useState<PendingArchive>(null),[error,setError]=useState(''),[sort,setSort]=useState('strength'),[filter,setFilter]=useState('all'),[showSchools,setShowSchools]=useState(false),[lastConnected,setLastConnected]=useState<{id:string;name:string;created:boolean;archivedAt:string|null;archivedReason:string|null}|null>(null),[contactedCoachIds,setContactedCoachIds]=useState<string[]>(initialContactedCoachIds);
- useEffect(()=>{let active=true;async function sync(){if(!athleteId||!active)return;const[schools,staff,acts,recruitingActions]=await Promise.all([c.from('athlete_colleges').select('id,college_id,status,archived_at,archived_reason,created_at,colleges(id,name,division,state,city,conference,website,logo_url)').eq('athlete_user_id',athleteId),c.from('athlete_coaches').select('id,coach_id,college_id,archived_at,archived_reason,last_contact_date,next_step,relationship_rating,colleges(id,name,website,logo_url),college_coaches(id,first_name,last_name,title,email,contact_verification_needed)').eq('athlete_user_id',athleteId),c.from('interactions').select('college_id,coach_id,type,date,created_at,interaction_recipients(coach_id)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false}).limit(2000),c.from('gmail_recruiting_messages').select('interaction_id,coach_id,college_id,recruiting_intent,next_action,action_due_date,action_state,action_required,action_updated_at,received_at').eq('athlete_user_id',athleteId).eq('action_required',true).order('received_at',{ascending:false})]);if(!active)return;if(!schools.error)setColleges(schools.data||[]);if(!staff.error)setCoaches(staff.data||[]);if(!acts.error){setContactedCoachIds(contactedCoachIdsFromInteractions(acts.data||[]));const m:Record<string,string>={};for(const a of acts.data||[]){if(a.college_id&&!m[a.college_id])m[a.college_id]=a.date||a.created_at}setActivity(m)};if(!recruitingActions.error)setActions(recruitingActions.data||[])}function changed(e:Event){const d=(e as CustomEvent).detail||{};if(['connection','coach','athlete_colleges','athlete_coaches','interaction'].includes(d.entity))void sync()}window.addEventListener(DATA_CHANGED_EVENT,changed);return()=>{active=false;window.removeEventListener(DATA_CHANGED_EVENT,changed)}},[athleteId]);
+ useEffect(()=>{let active=true;async function sync(){if(!athleteId||!active)return;const[schools,staff,acts,recruitingActions]=await Promise.all([c.from('athlete_colleges').select('id,college_id,status,archived_at,archived_reason,created_at,colleges(id,name,division,state,city,conference,website,logo_url)').eq('athlete_user_id',athleteId),c.from('athlete_coaches').select('id,coach_id,college_id,archived_at,archived_reason,last_contact_date,next_step,relationship_rating,colleges(id,name,website,logo_url),college_coaches(id,college_id,first_name,last_name,title,email,contact_verification_needed)').eq('athlete_user_id',athleteId),c.from('interactions').select('college_id,coach_id,type,date,created_at,interaction_recipients(coach_id)').eq('athlete_user_id',athleteId).order('created_at',{ascending:false}).limit(2000),c.from('gmail_recruiting_messages').select('interaction_id,coach_id,college_id,recruiting_intent,next_action,action_due_date,action_state,action_required,action_updated_at,received_at').eq('athlete_user_id',athleteId).eq('action_required',true).order('received_at',{ascending:false})]);if(!active)return;if(!schools.error)setColleges(schools.data||[]);if(!staff.error)setCoaches(staff.data||[]);if(!acts.error){setContactedCoachIds(contactedCoachIdsFromInteractions(acts.data||[]));const m:Record<string,string>={};for(const a of acts.data||[]){if(a.college_id&&!m[a.college_id])m[a.college_id]=a.date||a.created_at}setActivity(m)};if(!recruitingActions.error)setActions(recruitingActions.data||[])}function changed(e:Event){const d=(e as CustomEvent).detail||{};if(['connection','coach','athlete_colleges','athlete_coaches','interaction'].includes(d.entity))void sync()}window.addEventListener(DATA_CHANGED_EVENT,changed);return()=>{active=false;window.removeEventListener(DATA_CHANGED_EVENT,changed)}},[athleteId]);
  // Shared canonical coaching staff is informational until the athlete
  // explicitly adds a coach relationship. Do not populate athlete_coaches here.
  useEffect(()=>{
@@ -61,6 +62,67 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
   });
   return result;
  },[availableStaff]);
+ const [schoolReviewStats,setSchoolReviewStats]=useState<Record<string,ConnectionReviewSummary>>({});
+ const [coachReviewStats,setCoachReviewStats]=useState<Record<string,ConnectionReviewSummary>>({});
+ const [reviewRevision,setReviewRevision]=useState(0);
+ const [canReview,setCanReview]=useState(false);
+ const reviewSchoolIds=useMemo(()=>[...new Set(colleges.map((row:any)=>one(row.colleges)?.id).filter(Boolean))] as string[],[colleges]);
+ const reviewCoachIds=useMemo(()=>[...new Set(coaches.map((row:any)=>one(row.college_coaches)?.id).filter(Boolean))] as string[],[coaches]);
+ const schoolReviewKey=[...reviewSchoolIds].sort().join(',');
+ const coachReviewKey=[...reviewCoachIds].sort().join(',');
+ useEffect(()=>{
+  let active=true;
+  async function refreshReviews(){
+   const viewer=await c.auth.getUser();
+   if(!active)return;
+   const allowed=!!viewer.data.user&&viewer.data.user.id===athleteId;
+   setCanReview(allowed);
+   const schoolIds=schoolReviewKey?schoolReviewKey.split(','):[];
+   const coachIds=coachReviewKey?coachReviewKey.split(','):[];
+   const empty={data:[],error:null};
+   const [schoolSummary,coachSummary,schoolMine,coachMine]=await Promise.all([
+    schoolIds.length
+     ?c.from('athlete_recruiting_experience_summary').select('college_id,response_count,overall_experience')
+       .eq('subject_type','program').is('coach_id',null).in('college_id',schoolIds)
+     :Promise.resolve(empty),
+    coachIds.length
+     ?c.from('athlete_recruiting_experience_summary').select('coach_id,response_count,overall_experience')
+       .eq('subject_type','coach').in('coach_id',coachIds)
+     :Promise.resolve(empty),
+    allowed&&schoolIds.length
+     ?c.from('athlete_recruiting_experiences').select('college_id,core_completed_at')
+       .eq('athlete_user_id',athleteId).eq('subject_type','program').is('coach_id',null).in('college_id',schoolIds)
+     :Promise.resolve(empty),
+    allowed&&coachIds.length
+     ?c.from('athlete_recruiting_experiences').select('coach_id,core_completed_at')
+       .eq('athlete_user_id',athleteId).eq('subject_type','coach').in('coach_id',coachIds)
+     :Promise.resolve(empty)
+   ]);
+   if(!active)return;
+   if(schoolSummary.error||coachSummary.error||schoolMine.error||coachMine.error){
+    console.warn('Connections review summary could not fully load',schoolSummary.error||coachSummary.error||schoolMine.error||coachMine.error);
+   }
+   const ownSchools=new Set((schoolMine.data||[]).filter((r:any)=>r.core_completed_at).map((r:any)=>r.college_id));
+   const ownCoaches=new Set((coachMine.data||[]).filter((r:any)=>r.core_completed_at).map((r:any)=>r.coach_id));
+   const schools:Record<string,ConnectionReviewSummary>={};
+   for(const row of schoolSummary.data||[]){
+    if(!row.college_id)continue;
+    schools[row.college_id]={count:Number(row.response_count||0),score:row.overall_experience!=null?Number(row.overall_experience):null,mine:ownSchools.has(row.college_id)};
+   }
+   for(const id of ownSchools){if(!schools[String(id)])schools[String(id)]={count:0,score:null,mine:true};else schools[String(id)].mine=true}
+   const coachRows:Record<string,ConnectionReviewSummary>={};
+   for(const row of coachSummary.data||[]){
+    if(!row.coach_id)continue;
+    coachRows[row.coach_id]={count:Number(row.response_count||0),score:row.overall_experience!=null?Number(row.overall_experience):null,mine:ownCoaches.has(row.coach_id)};
+   }
+   for(const id of ownCoaches){if(!coachRows[String(id)])coachRows[String(id)]={count:0,score:null,mine:true};else coachRows[String(id)].mine=true}
+   setSchoolReviewStats(schools);
+   setCoachReviewStats(coachRows);
+  }
+  void refreshReviews();
+  return()=>{active=false};
+ },[athleteId,schoolReviewKey,coachReviewKey,reviewRevision]);
+ const reviewClosed=()=>setReviewRevision(v=>v+1);
  const q=search.trim().toLowerCase();
  const divisionLabel=(v?:string|null)=>String(v||'').trim().toUpperCase()==='JC'?'JUCO':v;
  const visibleColleges=useMemo(()=>colleges.filter(r=>{if(mode==='current'&&r.archived_at)return false;const x=one(r.colleges)||{},stage=normalizeJourneyStage(r.status),d=String(x.division||'').toLowerCase().replace(/[^a-z0-9]/g,'');const coachText=[...coaches.filter(cr=>cr.college_id===x.id||one(cr.colleges)?.id===x.id).map(cr=>one(cr.college_coaches)||{}),...(availableBySchool[x.id]||[])].map(p=>[p.first_name,p.last_name,p.title,p.email].join(' ')).join(' ');if(q&&![x.name,divisionLabel(x.division),x.state,x.city,x.conference,stage,coachText].filter(Boolean).join(' ').toLowerCase().includes(q))return false;if(filter==='d1'&&!(d.includes('d1')||d.includes('division1')))return false;if(filter==='d2'&&!(d.includes('d2')||d.includes('division2')))return false;if(filter==='d3'&&!(d.includes('d3')||d.includes('division3')))return false;if(filter==='naia'&&!d.includes('naia'))return false;if(filter==='juco'&&!(d.includes('juco')||d.includes('njcaa')||d==='jc'))return false;if(['Target School','Engaged','Interested','Offer','Committed'].includes(filter)&&stage!==filter)return false;if(filter==='needs'){const last=coaches.filter(cr=>cr.college_id===x.id||one(cr.colleges)?.id===x.id).map(cr=>cr.last_contact_date).filter(Boolean).sort().slice(-1)[0];if(last&&Date.now()-new Date(last+'T12:00:00').getTime()<=30*86400000)return false}return true}),[colleges,coaches,availableBySchool,mode,q,filter]);
@@ -98,7 +160,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
     }else id=inserted.data.id;
    }
    const loaded=await c.from('athlete_coaches')
-    .select('id,coach_id,college_id,archived_at,archived_reason,last_contact_date,next_step,relationship_rating,colleges(id,name,website,logo_url),college_coaches(id,first_name,last_name,title,email,contact_verification_needed)')
+    .select('id,coach_id,college_id,archived_at,archived_reason,last_contact_date,next_step,relationship_rating,colleges(id,name,website,logo_url),college_coaches(id,college_id,first_name,last_name,title,email,contact_verification_needed)')
     .eq('id',id!).eq('athlete_user_id',athleteId).single();
    if(loaded.error)throw loaded.error;
    setCoaches(rows=>[...rows.filter(row=>row.id!==id),loaded.data]);
@@ -129,12 +191,12 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
  async function restore(kind:'college'|'coach',row:any){setBusy(`${kind}-${row.id}`);setError('');const setter=kind==='college'?setColleges:setCoaches;setter((p:any[])=>p.map(x=>x.id===row.id?{...x,archived_at:null,archived_reason:null}:x));try{const table=kind==='college'?'athlete_colleges':'athlete_coaches';const r=await c.from(table).update({archived_at:null,archived_reason:null}).eq('id',row.id);if(r.error)throw r.error;if(kind==='coach'&&row.college_id){const school=colleges.find(x=>x.college_id===row.college_id||one(x.colleges)?.id===row.college_id);if(school?.archived_at){const s=await c.from('athlete_colleges').update({archived_at:null,archived_reason:null}).eq('id',school.id);if(s.error){await c.from('athlete_coaches').update({archived_at:row.archived_at,archived_reason:row.archived_reason}).eq('id',row.id);throw s.error}setColleges(p=>p.map(x=>x.id===school.id?{...x,archived_at:null,archived_reason:null}:x))}}emitDataChanged(table,'restore',row.id);announceSuccess(kind==='college'?'School restored to Current Pipeline.':'Coach restored to Current Pipeline.')}catch{setter((p:any[])=>p.map(x=>x.id===row.id?row:x));setError('Could not restore this relationship. Your previous state was restored.')}finally{setBusy('')}}
  return <><div className="rr-toolbar mb-6"><div className="inline-flex rounded-xl bg-slate-100 p-1 self-start"><button className={`px-4 py-2 rounded-lg text-sm font-black ${mode==='current'?'bg-slate-900 text-white':''}`} onClick={()=>setMode('current')}>Current <span className="opacity-70 ml-1">{colleges.filter(x=>!x.archived_at).length}</span></button><button className={`px-4 py-2 rounded-lg text-sm font-black ${mode==='all'?'bg-slate-900 text-white':''}`} onClick={()=>setMode('all')}>All-Time <span className="opacity-70 ml-1">{colleges.length}</span></button></div><div className="flex-1 flex items-center gap-3 rounded-xl bg-slate-50 px-3"><Search size={18}/><input type="text" aria-label="Search schools, coaches or journey stage" className="w-full min-w-0 py-3 bg-transparent outline-none" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search schools, coaches or journey stage"/>{q&&<button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch('')} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-950"><X size={16}/></button>}</div><Link href="/colleges/new" className="btn btn-red"><Search size={16}/>Find Schools</Link><Link href="/coaches/find" className="btn"><Search size={16}/>Find Coaches</Link></div>{!guided&&<div className="mb-6 rounded-2xl border bg-white p-4"><div className="flex gap-2 flex-wrap">{[['all','All'],['d1','D1'],['d2','D2'],['d3','D3'],['naia','NAIA'],['juco','JUCO'],['Target School','Target School'],['Engaged','Engaged'],['Interested','Interested'],['Offer','Offer'],['Committed','Committed'],['needs','Needs Contact']].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} className={`px-3 py-2 rounded-full border text-sm font-bold ${filter===k?'bg-slate-900 text-white border-slate-900':'bg-white hover:bg-slate-50'}`}>{l}</button>)}</div></div>}{mode==='current'&&!guided&&<div className={q ? 'hidden' : ''}><TargetRanking fallbackColleges={colleges.filter(r=>!r.archived_at)}/></div>} {error&&<div role="alert" className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}{lastConnected&&<div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm"><span><b>{lastConnected.name}</b> added to My Coach Connections. Existing outreach history is preserved.</span><button type="button" disabled={!!busy} onClick={()=>void undoConnect()} className="font-black text-green-900 underline underline-offset-2">Undo</button></div>}
 
- <section><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 rounded-xl bg-slate-50 px-3 py-2"><div className="flex items-center gap-2"><School size={20}/><h2 className="text-xl font-black">{q ? 'Matching School Relationships' : guided ? 'Your Schools' : 'School Relationships'} ({visibleColleges.length})</h2></div>{!guided&&<label className="text-xs font-bold muted">Sort by<select className="input mt-1 py-2 text-sm min-w-52" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recent Activity</option><option value="strength">Relationship Strength</option><option value="division">Division</option><option value="school">School A–Z</option><option value="journey">Journey Stage</option></select></label>}</div><div className="grid gap-3">{[...visibleColleges].sort((a,b)=>{const ax=one(a.colleges),bx=one(b.colleges);if(sort==='school')return (ax?.name||'').localeCompare(bx?.name||'');if(sort==='division'){const rank=(v:string='')=>{const s=v.toUpperCase();return s.includes('D1')||s.includes('DIVISION I')?1:s.includes('D2')||s.includes('DIVISION II')?2:s.includes('D3')||s.includes('DIVISION III')?3:s.includes('NAIA')?4:s.includes('NJCAA')?5:9};return rank(ax?.division)-rank(bx?.division)||(ax?.name||'').localeCompare(bx?.name||'')}if(sort==='journey')return normalizeJourneyStage(a.status).localeCompare(normalizeJourneyStage(b.status))||(ax?.name||'').localeCompare(bx?.name||'');const activityTime=(r:any)=>{const sid=one(r.colleges)?.id;const interaction=activity[sid]?new Date(activity[sid]).getTime():0;const coachContact=visibleCoaches.filter(cr=>cr.college_id===sid||one(cr.colleges)?.id===sid).reduce((m,cr)=>Math.max(m,cr.last_contact_date?new Date(cr.last_contact_date).getTime():0),0);return Math.max(interaction,coachContact)};if(sort==='strength'){const strength=(r:any)=>{const sid=one(r.colleges)?.id;return visibleCoaches.filter(cr=>cr.college_id===sid||one(cr.colleges)?.id===sid).reduce((n,cr)=>n+(cr.last_contact_date?1:0)+(cr.next_step?1:0),0)};return strength(b)-strength(a)||(ax?.name||'').localeCompare(bx?.name||'')}return activityTime(b)-activityTime(a)||new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime()}).slice(0,showSchools||!!q?undefined:5).map(row=>{const x=one(row.colleges),stage=normalizeJourneyStage(row.status),schoolId=x?.id;const activeCoaches=visibleCoaches.filter(cr=>!cr.archived_at&&(cr.college_id===schoolId||one(cr.colleges)?.id===schoolId));const linkedCoachIds=new Set(coaches.filter(cr=>!cr.archived_at&&(cr.college_id===schoolId||one(cr.colleges)?.id===schoolId)).map(cr=>one(cr.college_coaches)?.id));const otherStaff=(availableBySchool[schoolId]||[]).filter((coach:any)=>!linkedCoachIds.has(coach.id));const last=activeCoaches.map(cr=>cr.last_contact_date).filter(Boolean).sort().slice(-1)[0];return <div key={row.id} className={`rounded-2xl border bg-white p-5 shadow-sm ${row.archived_at?'opacity-70':''}`}><div className="flex flex-col lg:flex-row lg:items-center gap-3"><div className="min-w-0 flex-1"><div className="flex items-start gap-3"><CollegeLogo name={x?.name||'School'} logoUrl={x?.logo_url} website={x?.website} size="lg"/><div className="min-w-0 flex-1"><Link href={`/colleges/${schoolId}`} className="font-black text-lg hover:text-red-700">{x?.name||'School'}</Link><div className="text-sm mt-2 space-y-1"><div><span className="muted">Division: </span>{divisionLabel(x?.division)||'Not listed'}</div><div><span className="muted">Location: </span>{[x?.city,x?.state].filter(Boolean).join(', ')||'Not listed'}</div>{!guided&&<><div><span className="muted">Conference: </span>{x?.conference||'Not listed'}</div><div><span className="muted">Last contact: </span>{last?fmt(last):'None yet'}</div></>}</div></div></div>{activeCoaches.length>0&&<section className="mt-5">
+ <section className="mx-auto max-w-[1000px]"><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 rounded-xl bg-slate-50 px-3 py-2"><div className="flex items-center gap-2"><School size={20}/><h2 className="text-xl font-black">{q ? 'Matching School Relationships' : guided ? 'Your Schools' : 'School Relationships'} ({visibleColleges.length})</h2></div>{!guided&&<label className="text-xs font-bold muted">Sort by<select className="input mt-1 py-2 text-sm min-w-52" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recent Activity</option><option value="strength">Relationship Strength</option><option value="division">Division</option><option value="school">School A–Z</option><option value="journey">Journey Stage</option></select></label>}</div><div className="grid gap-3">{[...visibleColleges].sort((a,b)=>{const ax=one(a.colleges),bx=one(b.colleges);if(sort==='school')return (ax?.name||'').localeCompare(bx?.name||'');if(sort==='division'){const rank=(v:string='')=>{const s=v.toUpperCase();return s.includes('D1')||s.includes('DIVISION I')?1:s.includes('D2')||s.includes('DIVISION II')?2:s.includes('D3')||s.includes('DIVISION III')?3:s.includes('NAIA')?4:s.includes('NJCAA')?5:9};return rank(ax?.division)-rank(bx?.division)||(ax?.name||'').localeCompare(bx?.name||'')}if(sort==='journey')return normalizeJourneyStage(a.status).localeCompare(normalizeJourneyStage(b.status))||(ax?.name||'').localeCompare(bx?.name||'');const activityTime=(r:any)=>{const sid=one(r.colleges)?.id;const interaction=activity[sid]?new Date(activity[sid]).getTime():0;const coachContact=visibleCoaches.filter(cr=>cr.college_id===sid||one(cr.colleges)?.id===sid).reduce((m,cr)=>Math.max(m,cr.last_contact_date?new Date(cr.last_contact_date).getTime():0),0);return Math.max(interaction,coachContact)};if(sort==='strength'){const strength=(r:any)=>{const sid=one(r.colleges)?.id;return visibleCoaches.filter(cr=>cr.college_id===sid||one(cr.colleges)?.id===sid).reduce((n,cr)=>n+(cr.last_contact_date?1:0)+(cr.next_step?1:0),0)};return strength(b)-strength(a)||(ax?.name||'').localeCompare(bx?.name||'')}return activityTime(b)-activityTime(a)||new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime()}).slice(0,showSchools||!!q?undefined:5).map(row=>{const x=one(row.colleges),stage=normalizeJourneyStage(row.status),schoolId=x?.id;const activeCoaches=visibleCoaches.filter(cr=>!cr.archived_at&&(cr.college_id===schoolId||one(cr.colleges)?.id===schoolId));const linkedCoachIds=new Set(coaches.filter(cr=>!cr.archived_at&&(cr.college_id===schoolId||one(cr.colleges)?.id===schoolId)).map(cr=>one(cr.college_coaches)?.id));const otherStaff=(availableBySchool[schoolId]||[]).filter((coach:any)=>!linkedCoachIds.has(coach.id));const last=activeCoaches.map(cr=>cr.last_contact_date).filter(Boolean).sort().slice(-1)[0];return <div key={row.id} className={`rounded-2xl border bg-white p-4 shadow-sm ${row.archived_at?'opacity-70':''}`}><div className="flex flex-col lg:flex-row lg:items-center gap-3"><div className="min-w-0 flex-1"><div className="flex items-start gap-3"><CollegeLogo name={x?.name||'School'} logoUrl={x?.logo_url} website={x?.website} size="lg"/><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-3 gap-y-1"><Link href={`/colleges/${schoolId}`} className="font-black text-lg hover:text-red-700">{x?.name||'School'}</Link>{schoolId&&<ConnectionsReviewAction kind="school" targetId={schoolId} name={x?.name||'School'} summary={schoolReviewStats[schoolId]} canReview={canReview} onClose={reviewClosed}/>}</div><div className="text-sm mt-1.5 space-y-1"><div><span className="muted">Division: </span>{divisionLabel(x?.division)||'Not listed'}</div><div><span className="muted">Location: </span>{[x?.city,x?.state].filter(Boolean).join(', ')||'Not listed'}</div>{!guided&&<><div><span className="muted">Conference: </span>{x?.conference||'Not listed'}</div><div><span className="muted">Last contact: </span>{last?fmt(last):'None yet'}</div></>}</div></div></div>{activeCoaches.length>0&&<section className="mt-4 max-w-[700px]">
  <div className="flex items-center justify-between gap-3">
   <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">My Coach Connections</h3>
   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{activeCoaches.length} saved</span>
  </div>
- <div className="mt-3 space-y-2">
+ <div className="mt-2 space-y-1.5">
   {[...activeCoaches].sort((a,b)=>{
    const rank=(r:any)=>{const t=String(one(r.college_coaches)?.title||'').toLowerCase();return t.includes('head')&&!t.includes('associate')&&!t.includes('assistant')?0:t.includes('associate')?1:t.includes('assistant')||t.includes('asst')?2:3};
    return rank(a)-rank(b);
@@ -143,33 +205,33 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
    const contacted=hasContact(cr);
    return <div key={cr.id} className={coachRowClass}>
     <div className="flex min-w-0 flex-1 items-center gap-3">
-     <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-black text-slate-700">{coachInitials(coach?.first_name,coach?.last_name)}</span>
+     <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-black text-slate-700">{coachInitials(coach?.first_name,coach?.last_name)}</span>
      <div className="min-w-0">
       <Link href={`/coaches/${coach?.id}`} className="text-sm font-black text-slate-900 hover:text-red-700 hover:underline">{name}</Link>
-      <p className="mt-0.5 text-xs text-slate-600">{coach?.title||'Softball Coach'}</p>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5"><span className="text-xs text-slate-600">{coach?.title||'Softball Coach'}</span>{coach?.id&&<ConnectionsReviewAction kind="coach" targetId={coach.id} name={name} collegeId={schoolId} summary={coachReviewStats[coach.id]} canReview={canReview} onClose={reviewClosed}/>}</div>
      </div>
     </div>
     <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
      <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${contacted?'bg-green-50 text-green-800':'bg-slate-100 text-slate-600'}`}>{contacted?'Contacted':'Not Contacted'}</span>
      {coach?.contact_verification_needed
       ?<span className="text-xs font-semibold text-amber-700">Email under review</span>
-      :<Link href={`/coaches/${coach?.id}?emailStarter=custom`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 sm:flex-none"><Mail size={14}/>Email Coach</Link>}
+      :<Link href={`/coaches/${coach?.id}?emailStarter=custom`} className="inline-flex min-h-8 flex-1 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 sm:flex-none"><Mail size={14}/>Email Coach</Link>}
     </div>
    </div>;
   })}
  </div>
 </section>}
-{!row.archived_at&&otherStaff.length>0&&<section className="mt-5">
+{!row.archived_at&&otherStaff.length>0&&<section className="mt-4 max-w-[700px]">
  <div className="flex items-center justify-between gap-3">
   <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">Available Coaches</h3>
   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{otherStaff.length} available</span>
  </div>
- <div className="mt-3 space-y-2">
+ <div className="mt-2 space-y-1.5">
   {otherStaff.map((staff:any)=>{
    const name=[staff.first_name,staff.last_name].filter(Boolean).join(' ')||'Coach';
    return <div key={staff.id} className={coachRowClass}>
     <div className="flex min-w-0 flex-1 items-center gap-3">
-     <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-black text-slate-700">{coachInitials(staff.first_name,staff.last_name)}</span>
+     <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-black text-slate-700">{coachInitials(staff.first_name,staff.last_name)}</span>
      <div className="min-w-0">
       <Link href={`/coaches/${staff.id}`} className="text-sm font-black text-slate-900 hover:text-red-700 hover:underline">{name}</Link>
       <p className="mt-0.5 text-xs text-slate-600">{staff.title||'Softball Coach'}</p>
@@ -177,14 +239,14 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
      </div>
     </div>
     <button type="button" disabled={!!busy} onClick={()=>void connectExistingCoach(staff,schoolId)}
-     className="inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 disabled:opacity-50 sm:w-auto">
+     className="inline-flex min-h-8 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 disabled:opacity-50 sm:w-auto">
      <Plus size={14}/>{busy==='connect-'+staff.id?'Adding…':'Add Connection'}
     </button>
    </div>;
   })}
  </div>
 </section>}
-{!row.archived_at&&activeCoaches.length===0&&otherStaff.length===0&&<section className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
+{!row.archived_at&&activeCoaches.length===0&&otherStaff.length===0&&<section className="mt-4 max-w-[700px] rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-4">
  <div className="flex items-start gap-3">
   <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500"><Users size={18}/></span>
   <div className="min-w-0">
@@ -195,7 +257,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
   </div>
  </div>
 </section>}
-{!row.archived_at&&(activeCoaches.length>0||otherStaff.length>0)&&<Link href={`/coaches/new?college=${schoolId}&returnTo=%2Fconnections`} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-red-700"><Plus size={13}/>Coach not listed? Add one</Link>}</div><div className="flex flex-wrap items-end gap-3 self-start">{!guided&&<div><label className="text-xs font-bold muted">Recruiting Journey<select className="input mt-1 py-2 text-sm min-w-48" value={stage} disabled={busy===`stage-${row.id}`} onChange={e=>changeStage(row,e.target.value)}>{RECRUITING_JOURNEY.map(s=><option key={s}>{s}</option>)}</select></label></div>}<button disabled={!!busy} onClick={()=>row.archived_at?restore('college',row):setPending({kind:'college',row,name:x?.name||'this school'})} className={`py-2.5 text-sm font-black ${row.archived_at?'text-green-700':'text-red-700'}`}>{row.archived_at?'Restore to Current':'Stop Pursuing'}</button></div></div></div>})}</div>{q&&visibleColleges.length===0&&<p className="rounded-xl border bg-white p-5 text-sm text-slate-600">No school relationships match this search. Try another name.</p>}{visibleColleges.length>5&&!q&&<button type="button" onClick={()=>setShowSchools(v=>!v)} className="mt-3 w-full rounded-xl border bg-white px-4 py-3 text-sm font-black hover:bg-slate-50 flex items-center justify-center gap-2">{showSchools?<><ChevronUp size={16}/>View Less</>:<><ChevronDown size={16}/>View All {visibleColleges.length} Schools</>}</button>}</section>
+{!row.archived_at&&(activeCoaches.length>0||otherStaff.length>0)&&<Link href={`/coaches/new?college=${schoolId}&returnTo=%2Fconnections`} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-red-700"><Plus size={13}/>Coach not listed? Add one</Link>}</div><div className="flex flex-wrap items-end gap-3 self-start">{!guided&&<div><label className="text-xs font-bold muted">Recruiting Journey<select className="input mt-1 py-2 text-sm min-w-48" value={stage} disabled={busy===`stage-${row.id}`} onChange={e=>changeStage(row,e.target.value)}>{RECRUITING_JOURNEY.map(s=><option key={s}>{s}</option>)}</select></label></div>}<button disabled={!!busy} onClick={()=>row.archived_at?restore('college',row):setPending({kind:'college',row,name:x?.name||'this school'})} className={`py-2.5 text-sm font-black ${row.archived_at?'text-green-700':'text-red-700'}`}>{row.archived_at?'Restore to Current':'Stop Pursuing'}</button></div></div></div>})}</div>{q&&visibleColleges.length===0&&<p className="rounded-xl border bg-white p-5 text-sm text-slate-600">No school relationships match this search. Try another name.</p>}{visibleColleges.length>5&&!q&&<button type="button" onClick={()=>setShowSchools(v=>!v)} className="mt-3 w-full rounded-xl border bg-white px-4 py-3 text-sm font-black hover:bg-slate-50 flex items-center justify-center gap-2">{showSchools?<><ChevronUp size={16}/>View Less</>:<><ChevronDown size={16}/>View All {visibleColleges.length} Schools</>}</button>}</section>
  {(()=>{
   const schoolIds=new Set(colleges.filter(r=>mode==='all'||!r.archived_at).map(r=>one(r.colleges)?.id).filter(Boolean));
   const other=[...visibleCoaches].filter(r=>!schoolIds.has(r.college_id||one(r.colleges)?.id))
@@ -208,7 +270,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
     return <div key={row.id} className="flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm sm:flex-row sm:items-center">
      <div className="min-w-0 flex-1">
       <Link href={`/coaches/${coach?.id}`} className="text-lg font-black hover:text-red-700">{name}</Link>
-      <div className="muted mt-1 text-sm">{[coach?.title,x?.name,row.last_contact_date?`Last contact ${fmt(row.last_contact_date)}`:'Last contact never'].filter(Boolean).join(' · ')}</div>
+      <div className="muted mt-1 text-sm">{[coach?.title,x?.name,row.last_contact_date?`Last contact ${fmt(row.last_contact_date)}`:'Last contact never'].filter(Boolean).join(' · ')}</div>{coach?.id&&<ConnectionsReviewAction kind="coach" targetId={coach.id} name={name} collegeId={row.college_id||x?.id||coach?.college_id||''} summary={coachReviewStats[coach.id]} canReview={canReview} onClose={reviewClosed}/>} 
       <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-bold ${hasContact(row)?'bg-green-50 text-green-800':'bg-slate-100 text-slate-600'}`}>{hasContact(row)?'Contacted':'Not Contacted'}</span>
       {row.next_step&&<div className="mt-2 text-sm"><span className="font-black">Next:</span> {row.next_step}</div>}
      </div>
