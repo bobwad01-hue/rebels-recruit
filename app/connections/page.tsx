@@ -29,7 +29,7 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
  }).filter((id):id is string=>Boolean(id)))];
  const availableStaff=trackedSchoolIds.length
   ?await supabase.from('college_coaches')
-    .select('id,college_id,first_name,last_name,title,email,role_category,staff_sort_order')
+    .select('id,college_id,first_name,last_name,title,email,verification_status,role_category,staff_sort_order')
     .in('college_id',trackedSchoolIds).eq('lifecycle_status','active')
     .order('last_name',{ascending:true}).limit(1000)
   :{data:[],error:null};
