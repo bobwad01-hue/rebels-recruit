@@ -21,7 +21,8 @@ type TargetRow = {
   status?: string;
   rank: number;
 };
-type Props = { fallbackColleges?: any[]; compact?: boolean };
+type RankItem = {collegeId:string|null;rank:number};
+type Props = { fallbackColleges?: any[]; compact?: boolean; onRanksChange?: (ranks:RankItem[])=>void };
 const one = (v: any) => (Array.isArray(v) ? v[0] : v);
 const lower = (v: any) => String(v || "").toLowerCase();
 const SchoolName = ({
@@ -45,6 +46,7 @@ const SchoolName = ({
 export default function TargetRanking({
   fallbackColleges = [],
   compact = false,
+  onRanksChange,
 }: Props) {
   const c = createClient();
   const [rows, setRows] = useState<TargetRow[]>([]),
@@ -53,7 +55,7 @@ export default function TargetRanking({
     [loadError, setLoadError] = useState(""),
     [dragged, setDragged] = useState<string | null>(null),
     [interactions, setInteractions] = useState<any[]>([]),
-    [expanded, setExpanded] = useState(false);
+    [rankView, setRankView] = useState<'top3'|'top5'|'all'>('top3');
   async function load() {
     setLoadError("");
     fetch("/api/targets", { cache: "no-store" })
@@ -62,26 +64,25 @@ export default function TargetRanking({
         return await r.json();
       })
       .then((d) => {
-        if (d.targets?.length) setRows(d.targets);
-        else if (fallbackColleges.length)
-          setRows(
-            fallbackColleges
-              .filter((r: any) => !r.archived_at)
-              .map((r: any, i: number) => {
-                const col = one(r.colleges) || {};
-                return {
-                  relationshipId: r.id,
-                  athleteUserId: r.athlete_user_id || "",
-                  collegeId: col.id || null,
-                  name: col.name || "School",
-                  division: col.division || null,
-                  state: col.state || null,
-                  conference: col.conference || null,
-                  status: r.status || "Researching",
-                  rank: i + 1,
-                };
-              }),
-          );
+        if (d.targets?.length) {
+          setRows(d.targets);
+          onRanksChange?.(d.targets.map((r:TargetRow)=>({collegeId:r.collegeId,rank:r.rank})));
+        } else if (fallbackColleges.length) {
+          const fallback=fallbackColleges
+            .filter((r:any)=>!r.archived_at)
+            .map((r:any,i:number)=>{
+              const col=one(r.colleges)||{};
+              return {relationshipId:r.id,athleteUserId:r.athlete_user_id||"",
+                collegeId:col.id||null,name:col.name||"School",
+                division:col.division||null,state:col.state||null,
+                conference:col.conference||null,status:r.status||"Researching",rank:i+1};
+            });
+          setRows(fallback);
+          onRanksChange?.(fallback.map(r=>({collegeId:r.collegeId,rank:r.rank})));
+        } else {
+          setRows([]);
+          onRanksChange?.([]);
+        }
       })
       .catch(() =>
         setLoadError(
@@ -108,15 +109,17 @@ export default function TargetRanking({
   }
   useEffect(() => {
     load();
-  }, [fallbackColleges]);
+  }, [fallbackColleges,onRanksChange]);
   const ordered = useMemo(
     () =>
       [...rows].sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)),
     [rows],
   );
-  const visibleRows = expanded ? ordered : ordered.slice(0, 5);
+  const visibleRows = rankView==='all' ? ordered : ordered.slice(0,rankView==='top5'?5:3);
   async function save(next: TargetRow[]) {
-    setRows(next.map((r, i) => ({ ...r, rank: i + 1 })));
+    const previous=ordered;
+    const updated=next.map((r,i)=>({...r,rank:i+1}));
+    setRows(updated);
     setBusy(true);
     setMsg("");
     try {
@@ -127,12 +130,15 @@ export default function TargetRanking({
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
+        setRows(previous);
         setMsg(d.error || "Could not save target order.");
       } else {
+        onRanksChange?.(updated.map(r=>({collegeId:r.collegeId,rank:r.rank})));
         setMsg("Saved");
         setTimeout(() => setMsg(""), 1800);
       }
     } catch {
+      setRows(previous);
       setMsg("Could not save target order.");
     } finally {
       setBusy(false);
@@ -222,7 +228,7 @@ export default function TargetRanking({
             {busy ? "Saving..." : msg || "Changes save automatically"}
           </div>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-3 space-y-1.5">
           {visibleRows.map((r) => {
             const i = ordered.findIndex(
               (x) => x.relationshipId === r.relationshipId,
@@ -234,14 +240,14 @@ export default function TargetRanking({
                 onDragStart={() => setDragged(r.relationshipId)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => drop(r.relationshipId)}
-                className={`border rounded-xl bg-white p-3 flex items-center gap-3 ${dragged === r.relationshipId ? "opacity-50" : ""}`}
+                className={`border rounded-lg bg-white px-3 py-2 flex items-center gap-2.5 ${dragged === r.relationshipId ? "opacity-50" : ""}`}
               >
                 <GripVertical
                   size={18}
                   className="muted cursor-grab hidden sm:block"
                 />
                 <div
-                  className={`h-9 w-9 rounded-full flex items-center justify-center font-black ${r.rank <= 5 ? "bg-red-50 text-red-700" : "bg-slate-100"}`}
+                  className={`h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-sm font-black ${r.rank <= 5 ? "bg-red-50 text-red-700" : "bg-slate-100"}`}
                 >
                   #{r.rank}
                 </div>
@@ -268,7 +274,7 @@ export default function TargetRanking({
                     aria-label="Move up"
                     disabled={busy || i === 0}
                     onClick={() => move(r.relationshipId, -1)}
-                    className="h-9 w-9 rounded-lg border flex items-center justify-center disabled:opacity-30"
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-30"
                   >
                     <ChevronUp size={16} />
                   </button>
@@ -276,7 +282,7 @@ export default function TargetRanking({
                     aria-label="Move down"
                     disabled={busy || i === ordered.length - 1}
                     onClick={() => move(r.relationshipId, 1)}
-                    className="h-9 w-9 rounded-lg border flex items-center justify-center disabled:opacity-30"
+                    className="h-8 w-8 rounded-lg border flex items-center justify-center disabled:opacity-30"
                   >
                     <ChevronDown size={16} />
                   </button>
@@ -290,25 +296,24 @@ export default function TargetRanking({
             </div>
           )}
         </div>
-        {ordered.length > 5 && (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="mt-3 w-full min-h-11 rounded-xl border bg-slate-50 px-4 py-2.5 text-sm font-black flex items-center justify-center gap-2 hover:bg-slate-100"
-            aria-expanded={expanded}
-          >
-            {expanded ? (
-              <>
-                <ChevronUp size={16} />
-                Show Top 5
-              </>
-            ) : (
-              <>
-                <ChevronDown size={16} />
-                Show All {ordered.length} Targets
-              </>
-            )}
-          </button>
+        {ordered.length>3&&(
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+            <span className="text-xs font-medium text-slate-500">Showing {visibleRows.length} of {ordered.length} ranked schools</span>
+            <div className="flex flex-wrap items-center gap-2">
+              {rankView!=='top3'&&<button type="button" onClick={()=>setRankView('top3')}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                <ChevronUp size={14}/>Top 3
+              </button>}
+              {ordered.length>3&&rankView!=='top5'&&<button type="button" onClick={()=>setRankView('top5')}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                Show Top {Math.min(5,ordered.length)}
+              </button>}
+              {ordered.length>5&&rankView!=='all'&&<button type="button" onClick={()=>setRankView('all')}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                <ChevronDown size={14}/>Show All {ordered.length}
+              </button>}
+            </div>
+          </div>
         )}
         {msg === "Saved" && (
           <div className="mt-3 text-xs font-bold text-green-700 inline-flex items-center gap-1">

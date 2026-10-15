@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useRef,useState} from 'react';
-import {X} from 'lucide-react';
+import {MessageSquareText,X} from 'lucide-react';
 import AthleteReviews from '@/components/AthleteReviews';
 import CoachAthleteReviews from '@/components/CoachAthleteReviews';
 
@@ -55,8 +55,8 @@ export default function ConnectionsReviewAction({kind,targetId,name,collegeId=''
    {count>0&&<span aria-hidden="true" className="text-slate-300">·</span>}
    <button type="button" onClick={()=>launch(canReview?'write':'read')}
     aria-label={`${label} for ${name}`}
-    className="rounded-md px-1.5 py-0.5 text-slate-600 underline decoration-slate-300 underline-offset-2 transition-colors hover:bg-slate-100 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
-    {label}
+    className="inline-flex min-h-7 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-bold text-slate-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
+    <MessageSquareText size={12} aria-hidden="true"/>{label}
    </button>
   </span>
   {open&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 sm:p-5" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}>
