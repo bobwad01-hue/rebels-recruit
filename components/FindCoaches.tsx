@@ -23,7 +23,7 @@ function coachRank(row:CoachRow){
  return 3;
 }
 
-export default function FindCoaches({athleteId,initialSearch=''}:{athleteId:string;initialSearch?:string}){
+export default function FindCoaches({athleteId,initialSearch='',collegeId=''}:{athleteId:string;initialSearch?:string;collegeId?:string}){
  const c=useMemo(()=>createClient(),[]);
  const [query,setQuery]=useState(initialSearch);
  const [results,setResults]=useState<CoachRow[]>([]);
@@ -121,6 +121,7 @@ export default function FindCoaches({athleteId,initialSearch=''}:{athleteId:stri
   finally{setBusy('');}
  }
  const canSearch=query.trim().length>=2;
+ const addNewCoachHref=collegeId?`/coaches/new?college=${encodeURIComponent(collegeId)}&returnTo=%2Fconnections`:'/coaches/new?returnTo=%2Fconnections';
  return <div className="mt-6 space-y-5">
   <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
    <label htmlFor="find-coach-search" className="text-sm font-black text-slate-900">Search the coach directory</label>
@@ -163,7 +164,11 @@ export default function FindCoaches({athleteId,initialSearch=''}:{athleteId:stri
       </div>
      </article>;
     })}
-   </div>:<div className="rounded-2xl border bg-white p-5 text-sm text-slate-600">No matching coaches were found. Try a different name or school.</div>}
+   </div>:<div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5">
+ <p className="text-sm font-semibold text-slate-900">No matching coaches were found.</p>
+ <p className="mt-1 text-xs text-slate-600">Try a different name or school. If the coach isn't listed, you can add them.</p>
+ <Link href={addNewCoachHref} className="mt-3 inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"><Plus size={14}/>Add Coach Not Listed</Link>
+</div>}
   </section>}
   {!canSearch&&<div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
    <Search size={23} className="mx-auto text-slate-500"/>
@@ -172,7 +177,7 @@ export default function FindCoaches({athleteId,initialSearch=''}:{athleteId:stri
   </div>}
   <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5 text-sm">
    <Link href="/connections" className="font-bold text-slate-700 hover:underline">← Back to Connections</Link>
-   <Link href="/coaches/new?returnTo=%2Fconnections" className="font-bold text-red-700 hover:underline">Coach not listed? Add a coach →</Link>
+   <Link href={addNewCoachHref} className="font-bold text-red-700 hover:underline">Coach not listed? Add a coach →</Link>
   </div>
  </div>;
 }

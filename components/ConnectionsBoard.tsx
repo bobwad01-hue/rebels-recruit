@@ -1,8 +1,6 @@
 'use client';
 import Link from 'next/link';
 import OrganizationRatingBadge from '@/components/OrganizationRatingBadge';
-import AthleteReviews from '@/components/AthleteReviews';
-import CoachAthleteReviews from '@/components/CoachAthleteReviews';
 import {useEffect,useMemo,useState} from 'react';
 import {Archive,Plus,Mail,School,Search,Users,ChevronDown,ChevronUp,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
@@ -13,6 +11,8 @@ import {contactedCoachIdsFromInteractions} from '@/lib/coach-contact-status';
 import TargetRanking from '@/components/TargetRanking';
 import {CollegeLogo} from '@/components/RebelsRecruitUI';
 const one=(v:any)=>Array.isArray(v)?v[0]:v;
+const coachRowClass='flex w-full min-w-0 flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between';
+const coachInitials=(first?:string|null,last?:string|null)=>[String(first||'').charAt(0),String(last||'').charAt(0)].join('').toUpperCase()||'C';
 const fmt=(d?:string|null)=>d?new Date(`${String(d).slice(0,10)}T12:00:00`).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'';
 // Connections UI intentionally defaults to a compact school preview; the full list expands on demand.
 type Props={athleteId:string;initialColleges:any[];initialCoaches:any[];initialAvailableCoaches?:any[];initialActivity?:Record<string,string>;initialActions?:any[];initialContactedCoachIds?:string[];initialSearch?:string;recruitingStage?:string};
@@ -130,11 +130,8 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
  return <><div className="rr-toolbar mb-6"><div className="inline-flex rounded-xl bg-slate-100 p-1 self-start"><button className={`px-4 py-2 rounded-lg text-sm font-black ${mode==='current'?'bg-slate-900 text-white':''}`} onClick={()=>setMode('current')}>Current <span className="opacity-70 ml-1">{colleges.filter(x=>!x.archived_at).length}</span></button><button className={`px-4 py-2 rounded-lg text-sm font-black ${mode==='all'?'bg-slate-900 text-white':''}`} onClick={()=>setMode('all')}>All-Time <span className="opacity-70 ml-1">{colleges.length}</span></button></div><div className="flex-1 flex items-center gap-3 rounded-xl bg-slate-50 px-3"><Search size={18}/><input type="text" aria-label="Search schools, coaches or journey stage" className="w-full min-w-0 py-3 bg-transparent outline-none" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search schools, coaches or journey stage"/>{q&&<button type="button" aria-label="Clear search" title="Clear search" onClick={()=>setSearch('')} className="shrink-0 rounded-lg p-1.5 text-slate-600 hover:bg-slate-200 hover:text-slate-950"><X size={16}/></button>}</div><Link href="/colleges/new" className="btn btn-red"><Search size={16}/>Find Schools</Link><Link href="/coaches/find" className="btn"><Search size={16}/>Find Coaches</Link></div>{!guided&&<div className="mb-6 rounded-2xl border bg-white p-4"><div className="flex gap-2 flex-wrap">{[['all','All'],['d1','D1'],['d2','D2'],['d3','D3'],['naia','NAIA'],['juco','JUCO'],['Target School','Target School'],['Engaged','Engaged'],['Interested','Interested'],['Offer','Offer'],['Committed','Committed'],['needs','Needs Contact']].map(([k,l])=><button key={k} onClick={()=>setFilter(k)} className={`px-3 py-2 rounded-full border text-sm font-bold ${filter===k?'bg-slate-900 text-white border-slate-900':'bg-white hover:bg-slate-50'}`}>{l}</button>)}</div></div>}{mode==='current'&&!guided&&<div className={q ? 'hidden' : ''}><TargetRanking fallbackColleges={colleges.filter(r=>!r.archived_at)}/></div>} {error&&<div role="alert" className="mb-5 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}{lastConnected&&<div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm"><span><b>{lastConnected.name}</b> added to My Coach Connections. Existing outreach history is preserved.</span><button type="button" disabled={!!busy} onClick={()=>void undoConnect()} className="font-black text-green-900 underline underline-offset-2">Undo</button></div>}
 
  <section><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 rounded-xl bg-slate-50 px-3 py-2"><div className="flex items-center gap-2"><School size={20}/><h2 className="text-xl font-black">{q ? 'Matching School Relationships' : guided ? 'Your Schools' : 'School Relationships'} ({visibleColleges.length})</h2></div>{!guided&&<label className="text-xs font-bold muted">Sort by<select className="input mt-1 py-2 text-sm min-w-52" value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recent Activity</option><option value="strength">Relationship Strength</option><option value="division">Division</option><option value="school">School A–Z</option><option value="journey">Journey Stage</option></select></label>}</div><div className="grid gap-3">{[...visibleColleges].sort((a,b)=>{const ax=one(a.colleges),bx=one(b.colleges);if(sort==='school')return (ax?.name||'').localeCompare(bx?.name||'');if(sort==='division'){const rank=(v:string='')=>{const s=v.toUpperCase();return s.includes('D1')||s.includes('DIVISION I')?1:s.includes('D2')||s.includes('DIVISION II')?2:s.includes('D3')||s.includes('DIVISION III')?3:s.includes('NAIA')?4:s.includes('NJCAA')?5:9};return rank(ax?.division)-rank(bx?.division)||(ax?.name||'').localeCompare(bx?.name||'')}if(sort==='journey')return normalizeJourneyStage(a.status).localeCompare(normalizeJourneyStage(b.status))||(ax?.name||'').localeCompare(bx?.name||'');const activityTime=(r:any)=>{const sid=one(r.colleges)?.id;const interaction=activity[sid]?new Date(activity[sid]).getTime():0;const coachContact=visibleCoaches.filter(cr=>cr.college_id===sid||one(cr.colleges)?.id===sid).reduce((m,cr)=>Math.max(m,cr.last_contact_date?new Date(cr.last_contact_date).getTime():0),0);return Math.max(interaction,coachContact)};if(sort==='strength'){const strength=(r:any)=>{const sid=one(r.colleges)?.id;return visibleCoaches.filter(cr=>cr.college_id===sid||one(cr.colleges)?.id===sid).reduce((n,cr)=>n+(cr.last_contact_date?1:0)+(cr.next_step?1:0),0)};return strength(b)-strength(a)||(ax?.name||'').localeCompare(bx?.name||'')}return activityTime(b)-activityTime(a)||new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime()}).slice(0,showSchools||!!q?undefined:5).map(row=>{const x=one(row.colleges),stage=normalizeJourneyStage(row.status),schoolId=x?.id;const activeCoaches=visibleCoaches.filter(cr=>!cr.archived_at&&(cr.college_id===schoolId||one(cr.colleges)?.id===schoolId));const linkedCoachIds=new Set(coaches.filter(cr=>!cr.archived_at&&(cr.college_id===schoolId||one(cr.colleges)?.id===schoolId)).map(cr=>one(cr.college_coaches)?.id));const otherStaff=(availableBySchool[schoolId]||[]).filter((coach:any)=>!linkedCoachIds.has(coach.id));const last=activeCoaches.map(cr=>cr.last_contact_date).filter(Boolean).sort().slice(-1)[0];return <div key={row.id} className={`rounded-2xl border bg-white p-5 shadow-sm ${row.archived_at?'opacity-70':''}`}><div className="flex flex-col lg:flex-row lg:items-center gap-3"><div className="min-w-0 flex-1"><div className="flex items-start gap-3"><CollegeLogo name={x?.name||'School'} logoUrl={x?.logo_url} website={x?.website} size="lg"/><div className="min-w-0 flex-1"><Link href={`/colleges/${schoolId}`} className="font-black text-lg hover:text-red-700">{x?.name||'School'}</Link><div className="text-sm mt-2 space-y-1"><div><span className="muted">Division: </span>{divisionLabel(x?.division)||'Not listed'}</div><div><span className="muted">Location: </span>{[x?.city,x?.state].filter(Boolean).join(', ')||'Not listed'}</div>{!guided&&<><div><span className="muted">Conference: </span>{x?.conference||'Not listed'}</div><div><span className="muted">Last contact: </span>{last?fmt(last):'None yet'}</div></>}</div></div></div>{activeCoaches.length>0&&<section className="mt-5">
- <div className="flex flex-wrap items-center justify-between gap-2">
-  <div>
-   <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">My Coach Connections</h3>
-   <p className="mt-1 text-xs text-slate-500">Coaches you've chosen to track</p>
-  </div>
+ <div className="flex items-center justify-between gap-3">
+  <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">My Coach Connections</h3>
   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{activeCoaches.length} saved</span>
  </div>
  <div className="mt-3 space-y-2">
@@ -144,55 +141,61 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
   }).map(cr=>{
    const coach=one(cr.college_coaches),name=[coach?.first_name,coach?.last_name].filter(Boolean).join(' ')||'Coach';
    const contacted=hasContact(cr);
-   return <div key={cr.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3.5 sm:flex-row sm:items-center sm:justify-between">
-    <div className="min-w-0 flex-1">
-     <Link href={`/coaches/${coach?.id}`} className="text-sm font-black text-slate-900 hover:text-red-700 hover:underline">{name}</Link>
-     <p className="mt-0.5 text-xs text-slate-600">{coach?.title||'Softball Coach'}</p>
-     <div className="mt-1.5"><CoachAthleteReviews coachId={coach?.id} coachName={name} collegeId={schoolId} mode="pill" allowShare/></div>
+   return <div key={cr.id} className={coachRowClass}>
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+     <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-black text-slate-700">{coachInitials(coach?.first_name,coach?.last_name)}</span>
+     <div className="min-w-0">
+      <Link href={`/coaches/${coach?.id}`} className="text-sm font-black text-slate-900 hover:text-red-700 hover:underline">{name}</Link>
+      <p className="mt-0.5 text-xs text-slate-600">{coach?.title||'Softball Coach'}</p>
+     </div>
     </div>
-    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${contacted?'bg-green-50 text-green-800':'bg-slate-100 text-slate-600'}`}>{contacted?'Contacted':'Not Contacted'}</span>
+    <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+     <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${contacted?'bg-green-50 text-green-800':'bg-slate-100 text-slate-600'}`}>{contacted?'Contacted':'Not Contacted'}</span>
      {coach?.contact_verification_needed
       ?<span className="text-xs font-semibold text-amber-700">Email under review</span>
-      :<Link href={`/coaches/${coach?.id}?emailStarter=custom`} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"><Mail size={14}/>Email Coach</Link>}
+      :<Link href={`/coaches/${coach?.id}?emailStarter=custom`} className="inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800 sm:flex-none"><Mail size={14}/>Email Coach</Link>}
     </div>
    </div>;
   })}
  </div>
- <p className="mt-2 text-[11px] text-slate-500">Contacted means outreach has been logged, not necessarily that the coach replied.</p>
 </section>}
 {!row.archived_at&&otherStaff.length>0&&<section className="mt-5">
- <div className="flex flex-wrap items-center justify-between gap-2">
-  <div>
-   <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">Available Coaches</h3>
-   <p className="mt-1 text-xs text-slate-500">On the school's staff · Not yet in your Coach Connections</p>
-  </div>
+ <div className="flex items-center justify-between gap-3">
+  <h3 className="text-xs font-black uppercase tracking-[0.12em] text-slate-700">Available Coaches</h3>
   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">{otherStaff.length} available</span>
  </div>
- <div className="mt-3 grid gap-3 sm:grid-cols-2">
+ <div className="mt-3 space-y-2">
   {otherStaff.map((staff:any)=>{
    const name=[staff.first_name,staff.last_name].filter(Boolean).join(' ')||'Coach';
-   const initials=[String(staff.first_name||'').charAt(0),String(staff.last_name||'').charAt(0)].join('').toUpperCase()||'C';
-   return <article key={staff.id} className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4 transition-colors hover:border-slate-300">
-    <div className="flex items-start gap-3">
-     <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-black text-slate-700">{initials}</span>
+   return <div key={staff.id} className={coachRowClass}>
+    <div className="flex min-w-0 flex-1 items-center gap-3">
+     <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-black text-slate-700">{coachInitials(staff.first_name,staff.last_name)}</span>
      <div className="min-w-0">
       <Link href={`/coaches/${staff.id}`} className="text-sm font-black text-slate-900 hover:text-red-700 hover:underline">{name}</Link>
-      <p className="mt-1 text-xs text-slate-600">{staff.title||'Softball Coach'}</p>
-      {staff.verification_status==='unverified'&&<p className="mt-1.5 text-[11px] font-semibold text-amber-700">Pending verification</p>}
+      <p className="mt-0.5 text-xs text-slate-600">{staff.title||'Softball Coach'}</p>
+      {staff.verification_status==='unverified'&&<p className="mt-1 text-[11px] font-semibold text-amber-700">Pending verification</p>}
      </div>
     </div>
     <button type="button" disabled={!!busy} onClick={()=>void connectExistingCoach(staff,schoolId)}
-     className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-800 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 disabled:opacity-50">
+     className="inline-flex min-h-9 w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-800 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500 disabled:opacity-50 sm:w-auto">
      <Plus size={14}/>{busy==='connect-'+staff.id?'Adding…':'Add Connection'}
     </button>
-   </article>;
+   </div>;
   })}
  </div>
- <p className="mt-3 text-xs text-slate-500">Add a coach as a connection before emailing. Adding a connection does not mean you've contacted them.</p>
 </section>}
-{!row.archived_at&&activeCoaches.length===0&&otherStaff.length===0&&<p className="mt-4 text-xs text-slate-500">No softball coaches are listed for this school yet.</p>}
-{!row.archived_at&&<Link href={`/coaches/new?college=${schoolId}&returnTo=%2Fconnections`} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-red-700"><Plus size={13}/>Coach not listed? Add one</Link>}</div><div className="flex flex-wrap items-end gap-3 self-start">{!guided&&<div><label className="text-xs font-bold muted">Recruiting Journey<select className="input mt-1 py-2 text-sm min-w-48" value={stage} disabled={busy===`stage-${row.id}`} onChange={e=>changeStage(row,e.target.value)}>{RECRUITING_JOURNEY.map(s=><option key={s}>{s}</option>)}</select></label><div className="mt-2"><AthleteReviews collegeId={schoolId} collegeName={x?.name||'School'} mode="pill" allowShare/></div></div>}<button disabled={!!busy} onClick={()=>row.archived_at?restore('college',row):setPending({kind:'college',row,name:x?.name||'this school'})} className={`py-2.5 text-sm font-black ${row.archived_at?'text-green-700':'text-red-700'}`}>{row.archived_at?'Restore to Current':'Stop Pursuing'}</button></div></div></div>})}</div>{q&&visibleColleges.length===0&&<p className="rounded-xl border bg-white p-5 text-sm text-slate-600">No school relationships match this search. Try another name.</p>}{visibleColleges.length>5&&!q&&<button type="button" onClick={()=>setShowSchools(v=>!v)} className="mt-3 w-full rounded-xl border bg-white px-4 py-3 text-sm font-black hover:bg-slate-50 flex items-center justify-center gap-2">{showSchools?<><ChevronUp size={16}/>View Less</>:<><ChevronDown size={16}/>View All {visibleColleges.length} Schools</>}</button>}</section>
+{!row.archived_at&&activeCoaches.length===0&&otherStaff.length===0&&<section className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-5">
+ <div className="flex items-start gap-3">
+  <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500"><Users size={18}/></span>
+  <div className="min-w-0">
+   <h3 className="text-sm font-black text-slate-900">No softball coaches listed yet</h3>
+   <p className="mt-1 text-xs text-slate-600">Search the shared directory or add a coach if they aren't listed.</p>
+   <Link href={`/coaches/find?search=${encodeURIComponent(x?.name||'')}&college=${encodeURIComponent(schoolId||'')}`}
+    className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800"><Search size={14}/>Find or Add Coach</Link>
+  </div>
+ </div>
+</section>}
+{!row.archived_at&&(activeCoaches.length>0||otherStaff.length>0)&&<Link href={`/coaches/new?college=${schoolId}&returnTo=%2Fconnections`} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-red-700"><Plus size={13}/>Coach not listed? Add one</Link>}</div><div className="flex flex-wrap items-end gap-3 self-start">{!guided&&<div><label className="text-xs font-bold muted">Recruiting Journey<select className="input mt-1 py-2 text-sm min-w-48" value={stage} disabled={busy===`stage-${row.id}`} onChange={e=>changeStage(row,e.target.value)}>{RECRUITING_JOURNEY.map(s=><option key={s}>{s}</option>)}</select></label></div>}<button disabled={!!busy} onClick={()=>row.archived_at?restore('college',row):setPending({kind:'college',row,name:x?.name||'this school'})} className={`py-2.5 text-sm font-black ${row.archived_at?'text-green-700':'text-red-700'}`}>{row.archived_at?'Restore to Current':'Stop Pursuing'}</button></div></div></div>})}</div>{q&&visibleColleges.length===0&&<p className="rounded-xl border bg-white p-5 text-sm text-slate-600">No school relationships match this search. Try another name.</p>}{visibleColleges.length>5&&!q&&<button type="button" onClick={()=>setShowSchools(v=>!v)} className="mt-3 w-full rounded-xl border bg-white px-4 py-3 text-sm font-black hover:bg-slate-50 flex items-center justify-center gap-2">{showSchools?<><ChevronUp size={16}/>View Less</>:<><ChevronDown size={16}/>View All {visibleColleges.length} Schools</>}</button>}</section>
  {(()=>{
   const schoolIds=new Set(colleges.filter(r=>mode==='all'||!r.archived_at).map(r=>one(r.colleges)?.id).filter(Boolean));
   const other=[...visibleCoaches].filter(r=>!schoolIds.has(r.college_id||one(r.colleges)?.id))
