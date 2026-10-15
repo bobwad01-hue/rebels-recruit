@@ -63,12 +63,34 @@ export async function POST(req:NextRequest){
    const mr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(item.id)}?format=full`,{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
    if(!mr.ok)continue; const m=await mr.json() as any;
    const from=emailFrom(header(m.payload?.headers,'From')); if(!from)continue;
-   const coachRes=await admin.from('college_coaches').select('id,college_id,first_name,last_name,email').ilike('email',from).limit(20);
-   if(!coachRes.data?.length)continue;
-   const coachIds=coachRes.data.map((x:any)=>x.id);
-   const tracked=await admin.from('athlete_coaches').select('coach_id').eq('athlete_user_id',userId).in('coach_id',coachIds);
-   const trackedIds=new Set((tracked.data||[]).map((x:any)=>x.coach_id));
-   const coach=coachRes.data.find((x:any)=>trackedIds.has(x.id));
+   // Match canonical contacts first, but also recognize athlete-supplied
+   // email addresses scoped to this athlete's active coach relationships.
+   // Never promote those private addresses into the shared coach directory.
+   const coachRes=await admin.from('college_coaches')
+    .select('id,college_id,first_name,last_name,email,contact_verification_needed,lifecycle_status')
+    .ilike('email',from).limit(20);
+   let coach:any=null;
+   if(coachRes.data?.length){
+    const coachIds=coachRes.data.map((x:any)=>x.id);
+    const tracked=await admin.from('athlete_coaches').select('coach_id')
+     .eq('athlete_user_id',userId).is('archived_at',null).in('coach_id',coachIds);
+    const trackedIds=new Set((tracked.data||[]).map((x:any)=>x.coach_id));
+    coach=coachRes.data.find((x:any)=>trackedIds.has(x.id)&&x.lifecycle_status==='active'&&!x.contact_verification_needed)||null;
+   }
+   if(!coach){
+    const privateMatch=await admin.from('athlete_coaches').select('coach_id')
+     .eq('athlete_user_id',userId).is('archived_at',null)
+     .ilike('email_override',from).limit(2);
+    // A shared mailbox can belong to multiple coaches. Never guess the
+    // recipient if the athlete has assigned that address to two coaches.
+    if(!privateMatch.error&&privateMatch.data?.length===1){
+     const found=await admin.from('college_coaches')
+      .select('id,college_id,first_name,last_name,email,contact_verification_needed,lifecycle_status')
+      .eq('id',privateMatch.data[0].coach_id).maybeSingle();
+     if(!found.error&&found.data?.lifecycle_status==='active'&&!found.data.contact_verification_needed)
+      coach=found.data;
+    }
+   }
    if(!coach)continue; matched++;
    const subject=header(m.payload?.headers,'Subject'); const text=bodyText(m.payload).slice(0,12000); const urls=extractUrls(text); const meta=extractGmailAttachmentMetadata(m.payload);
    if(/^\s*(fwd|fw):/i.test(subject)||/^\s*-{2,}\s*forwarded message/i.test(text))continue;
