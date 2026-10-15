@@ -7,7 +7,7 @@ const headers={'Cache-Control':'private, no-store'};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roles=new Set(['head_coach','associate_head_coach','assistant_coach','recruiting_coordinator',
   'pitching_coach','hitting_coach','graduate_assistant','volunteer_assistant','other_coaching_staff']);
-type ManualCoach={name:string;title:string;role:string;email:string|null};
+type ManualCoach={name:string;title:string;role:string;email:string|null;email_source_confirmed:boolean;email_domain_exception:boolean};
 
 function host(value:string|null|undefined){
   if(!value)return null;
@@ -35,6 +35,8 @@ export async function POST(req:NextRequest){
   const collegeId=typeof body.college_id==='string'?body.college_id:'';
   const sourceUrl=typeof body.source_url==='string'?body.source_url.trim():'';
   const input=body.coaches;
+  if(body.confirmed_staff_review!==true)
+    return NextResponse.json({error:'Confirm the official coaching staff review before importing'},{status:400,headers});
   if(!uuid.test(collegeId)||!Array.isArray(input)||input.length<1||input.length>8||sourceUrl.length>1500)
     return NextResponse.json({error:'Provide the reviewed school, official URL, and 1–8 coaches'},{status:400,headers});
   const seen=new Set<string>();
@@ -47,6 +49,7 @@ export async function POST(req:NextRequest){
     const title=typeof row.title==='string'?row.title.trim():'';
     const role=typeof row.role==='string'?row.role:'';
     const email=typeof row.email==='string'?row.email.trim().toLowerCase():null;
+    const emailSourceConfirmed=row.email_source_confirmed===true;
     const key=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
     if(!/^[\p{Lu}][\p{L}.'’\-]+(?:\s+[\p{Lu}][\p{L}.'’\-]+){1,3}$/u.test(name)
       ||name.length>120||title.length<4||title.length>120||!/softball|coach|assistant|pitching|hitting/i.test(title)
@@ -55,7 +58,8 @@ export async function POST(req:NextRequest){
     }
     seen.add(key);
     if(role==='head_coach')heads++;
-    coaches.push({name,title,role,email:email||null});
+    coaches.push({name,title,role,email:email||null,
+      email_source_confirmed:emailSourceConfirmed,email_domain_exception:false});
   }
   if(heads!==1)return NextResponse.json({error:'Exactly one head coach must be confirmed'},{status:400,headers});
   try{
@@ -84,10 +88,15 @@ export async function POST(req:NextRequest){
       if(coach.email){
         const domain=coach.email.split('@')[1].replace(/^www\./,'');
         if(!matchingHost(domain,allowed)){
-          return NextResponse.json({error:'The email for '+coach.name+' is not on the saved school/athletics domain. Leave it blank for later contact verification.'},{status:400,headers});
+          if(!coach.email_source_confirmed)return NextResponse.json({
+            error:'The email for '+coach.name+' uses a different domain. Confirm that this exact email is published for this coach on the saved official softball staff page.'
+          },{status:400,headers});
+          coach.email_domain_exception=true;
         }
       }
     }
+    // Every different-domain email requires explicit Super Owner attestation on
+    // the exact saved official source; snapshots retain the evidence and verifier.
     const {data,error}=await admin.rpc('import_manually_verified_college_softball_staff',{
       p_college_id:collegeId,p_user_id:user.id,p_source_url:sourceUrl,p_coaches:coaches
     });
@@ -97,6 +106,7 @@ export async function POST(req:NextRequest){
       return NextResponse.json({error:'Manual import did not complete; no school status was advanced.'},{status:500,headers});
     }
     return NextResponse.json({college_id:collegeId,school:school.name,...data,
+      email_domain_exceptions:coaches.filter(c=>c.email_domain_exception).length,
       message:'Verified staff imported with official-source snapshots and audit history.'},{headers});
   }catch(e){
     console.error('Manual verified staff import failed',e);

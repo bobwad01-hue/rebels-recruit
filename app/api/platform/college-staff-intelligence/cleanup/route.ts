@@ -35,7 +35,7 @@ async function authorized(req:NextRequest){
 
 async function load(admin:ReturnType<typeof createAdminClient>,division:string){
   const {data:schools,error:schoolError}=await admin.from("colleges")
-    .select("id,name,division").eq("division",division).order("name");
+    .select("id,name,division,website").eq("division",division).order("name");
   if(schoolError) throw schoolError;
   const ids=(schools||[]).map(s=>s.id);
   if(!ids.length) return [];
@@ -43,12 +43,17 @@ async function load(admin:ReturnType<typeof createAdminClient>,division:string){
     admin.from("college_staff_bootstrap_queue")
       .select("college_id,status,last_error,attempts,updated_at").in("college_id",ids),
     admin.from("college_softball_sources")
-      .select("college_id,staff_url,staff_navigation_url,softball_url").in("college_id",ids),
+      .select("college_id,staff_url,staff_navigation_url,softball_url,athletics_url").in("college_id",ids),
     admin.from("college_staff_source_verifications")
       .select("college_id,outcome,source_url,head_coach_name,notes,verified_by_user_id,verified_at,recheck_status,recheck_message,rechecked_at")
       .in("college_id",ids)
   ]);
   if(qError||sError||vError) throw qError||sError||vError;
+  const officialHost=(value:string|null|undefined)=>{
+    if(!value)return null;
+    try{const url=new URL(value);return url.protocol==="https:"&&!url.username&&!url.password&&!url.port
+      ?url.hostname.toLowerCase().replace(/^www\./,""):null;}catch{return null;}
+  };
   const bySchool=new Map((schools||[]).map(x=>[x.id,x]));
   const bySource=new Map((sources||[]).map(x=>[x.college_id,x]));
   const byVerification=new Map((verifications||[]).map(x=>[x.college_id,x]));
@@ -60,6 +65,8 @@ async function load(admin:ReturnType<typeof createAdminClient>,division:string){
       updated_at:q.updated_at,staff_url:source?.staff_url||null,
       staff_navigation_url:source?.staff_navigation_url||null,
       softball_url:source?.softball_url||null,
+      email_hosts:[...new Set([school?.website,source?.athletics_url,source?.softball_url,source?.staff_url]
+        .map(officialHost).filter((h):h is string=>Boolean(h)))],
       verification:byVerification.get(q.college_id)||null};
   }).sort((a,b)=>a.name.localeCompare(b.name));
 }
