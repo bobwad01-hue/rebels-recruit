@@ -36,6 +36,8 @@ type Props = {
   coachName: string;
   collegeName?: string;
   email?: string | null;
+  emailOverride?: string | null;
+  contactVerificationNeeded?: boolean;
   phone?: string | null;
   athleteUserId?: string;
   compact?: boolean;
@@ -55,6 +57,8 @@ export default function CoachActionBar({
   coachName,
   collegeName,
   email,
+  emailOverride,
+  contactVerificationNeeded = false,
   phone,
   athleteUserId,
   compact = false,
@@ -83,6 +87,8 @@ export default function CoachActionBar({
       ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("emailStarter") || ""].join(":")
       : "";
   const [emailOpen, setEmailOpen] = useState(false),
+    [recipientEmail, setRecipientEmail] = useState(email || emailOverride || ""),
+    [recipientSavedNotice, setRecipientSavedNotice] = useState(""),
     [templates, setTemplates] = useState(() => mergeEmailStarters([])),
     [subject, setSubject] = useState(""),
     [body, setBody] = useState(""),
@@ -277,7 +283,9 @@ export default function CoachActionBar({
     compose(starter, i, profile);
   }
   async function openEmail(id: EmailStarterId = effectiveStarter) {
-    if (!email) return;
+    if (contactVerificationNeeded || (staffMode && !email)) return;
+    setRecipientEmail(email || emailOverride || '');
+    setRecipientSavedNotice('');
     if (!staffMode && athleteEntitlement === "free") {
       setActionPrompt("upgrade-gmail");
       return;
@@ -308,6 +316,7 @@ export default function CoachActionBar({
         );
         setOpeningIndex(Number(saved.openingIndex || 0));
         setCcCoachIds(Array.isArray(saved.ccCoachIds) ? saved.ccCoachIds : []);
+        if (!email && typeof saved.recipientEmail === "string") setRecipientEmail(saved.recipientEmail);
         setDraftNotice(contextualReply ? "Your saved reply draft was restored." : "Your saved draft was recovered.");
         recovered = true;
       }
@@ -332,10 +341,10 @@ export default function CoachActionBar({
     void checkGmailConnection();
   }
   useEffect(() => {
-    if (!shouldAutoOpen || !email || !autoOpenKey || openedKey.current === autoOpenKey) return;
+    if (!shouldAutoOpen || contactVerificationNeeded || (staffMode && !email) || !autoOpenKey || openedKey.current === autoOpenKey) return;
     openedKey.current = autoOpenKey;
     void openEmail(effectiveStarter);
-  }, [shouldAutoOpen, email, effectiveStarter, autoOpenKey]);
+  }, [shouldAutoOpen, email, staffMode, contactVerificationNeeded, effectiveStarter, autoOpenKey]);
 
   function closeEmail() {
     if (busy) return;
@@ -358,6 +367,7 @@ export default function CoachActionBar({
           starter,
           openingIndex,
           ccCoachIds,
+          recipientEmail: !email ? recipientEmail : undefined,
           savedAt: new Date().toISOString(),
         }),
       );
@@ -371,12 +381,35 @@ export default function CoachActionBar({
     starter,
     openingIndex,
     ccCoachIds,
+    recipientEmail,
+    email,
   ]);
+  const validRecipient=(value:string)=>/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value.trim()) && value.trim().length<=254;
+  async function saveRecipient(){
+    const address=recipientEmail.trim().toLowerCase();
+    if(!validRecipient(address)){
+      setRecipientSavedNotice('Enter a valid email address before saving.');
+      return;
+    }
+    const ctx=await context();
+    if(!ctx){setRecipientSavedNotice('Please sign in again.');return;}
+    const result=await c.from('athlete_coaches').update({
+      email_override:address,email_override_updated_at:new Date().toISOString()
+    }).eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId).is('archived_at',null).select('id').maybeSingle();
+    setRecipientSavedNotice(result.error||!result.data
+      ?'Could not save the address to your Connections. Please try again.'
+      :'Saved for your recruiting relationship. RLTNL has not verified this address.');
+  }
   async function sendEmail() {
     const ctx = await context();
     if (!ctx) {
       setEmailStatus("error");
       setMessage("Your session could not be verified. Please sign in again.");
+      return;
+    }
+    if (!email && !validRecipient(recipientEmail)) {
+      setEmailStatus("error");
+      setMessage("Enter a valid coach email address in the To field before sending.");
       return;
     }
     const connected =
@@ -412,6 +445,7 @@ export default function CoachActionBar({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           coachId,
+          recipientEmail: !email ? recipientEmail.trim().toLowerCase() : undefined,
           ccCoachIds,
           athleteUserId: ctx.athlete,
           subject,
@@ -440,9 +474,11 @@ export default function CoachActionBar({
       } catch {}
       setDraftNotice("");
       setMessage(
-        d.logged
-          ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""} and logged in Activity.`
-          : "Email sent through Gmail, but Activity could not be updated.",
+        !email && d.recipientSaved === false
+          ? "Email sent through Gmail, but the address could not be saved for future use."
+          : d.logged
+            ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""} and logged in Activity.`
+            : "Email sent through Gmail, but Activity could not be updated.",
       );
       if (onEmailSent) await onEmailSent(d);
     } catch {
@@ -537,8 +573,9 @@ export default function CoachActionBar({
         )}
         <button
           type="button"
-          className={cls("email", !email)}
-          disabled={!email}
+          className={cls("email", contactVerificationNeeded || (staffMode && !email))}
+          disabled={contactVerificationNeeded || (staffMode && !email)}
+          title={contactVerificationNeeded?"Contact verification required before emailing":!email?"Enter the coach email address to send":undefined}
           onClick={() => openEmail()}
         >
           <Mail size={compact ? 13 : 15} /> Email
@@ -752,9 +789,17 @@ export default function CoachActionBar({
                       <label className="text-xs uppercase font-bold muted">
                         To
                       </label>
-                      <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">
-                        {email}
-                      </div>
+                      {email ? <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">{email}</div>
+                      : <div className="mt-1 space-y-2">
+                        <input type="email" autoComplete="email" inputMode="email" required
+                          aria-label="Coach email address" placeholder="Enter coach email address"
+                          className="input w-full" value={recipientEmail} maxLength={254} disabled={busy}
+                          onChange={e=>{setRecipientEmail(e.target.value);setRecipientSavedNotice('')}}/>
+                        <p className="text-xs text-slate-600">RLTNL doesn't have a confirmed email for this coach. You can send using an address you know. It stays with your recruiting relationship, not the shared directory.</p>
+                        <button type="button" className="text-xs font-black text-red-700 hover:underline disabled:opacity-50"
+                          disabled={busy||!validRecipient(recipientEmail)} onClick={()=>void saveRecipient()}>Save this address for later</button>
+                        {recipientSavedNotice&&<p role="status" className="text-xs font-semibold text-slate-700">{recipientSavedNotice}</p>}
+                      </div>}
                     </div>
                     <div>
                       <label className="text-xs uppercase font-bold muted">
@@ -903,7 +948,8 @@ export default function CoachActionBar({
                           busy ||
                           gmailConnected === false ||
                           !subject.trim() ||
-                          !body.trim()
+                          !body.trim() ||
+                          (!email && !validRecipient(recipientEmail))
                         }
                         onClick={sendEmail}
                       >
