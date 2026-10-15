@@ -384,7 +384,7 @@ export default function CoachActionBar({
     recipientEmail,
     email,
   ]);
-  const validRecipient=(value:string)=>/^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$/.test(value.trim()) && value.trim().length<=254;
+  const validRecipient=(value:string)=>/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value.trim()) && value.trim().length<=254;
   async function saveRecipient(){
     const address=recipientEmail.trim().toLowerCase();
     if(!validRecipient(address)){
