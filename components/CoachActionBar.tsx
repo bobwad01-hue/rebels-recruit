@@ -330,12 +330,12 @@ export default function CoachActionBar({
         const shouldUpdateSubject = !contextualReply && !staffMode && saved.starter !== "custom" && savedSubject === oldAutoSubject;
         const topic = savedStarter.subjectTemplate ? fill(savedStarter.subjectTemplate, p).split("|")[0].trim() : savedStarter.label;
         const nextSubject = shouldUpdateSubject ? buildRecruitingEmailSubject(topic, v) : savedSubject;
-        const nextBody = formatDraftSignaturePhones(String(saved.body), v.name, [
-          p?.profile?.phone, p?.signature?.travelTeamCoachPhone, p?.signature?.highSchoolCoachPhone,
-        ]);
+        const signaturePhones = [p?.profile?.phone, p?.signature?.travelTeamCoachPhone, p?.signature?.highSchoolCoachPhone];
+        const nextBody = formatDraftSignaturePhones(String(saved.body), v.name, signaturePhones);
+        const nextHtml = formatDraftSignaturePhones(String(saved.bodyHtml || ""), v.name, signaturePhones);
         setSubject(nextSubject);
         setBody(nextBody);
-        setBodyHtml(String(saved.bodyHtml || ""));
+        setBodyHtml(nextHtml);
         setStarter(
           templates.some((item) => item.id === saved.starter)
             ? saved.starter
