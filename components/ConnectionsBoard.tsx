@@ -29,7 +29,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
    const results:any[]=[];
    for(let start=0;start<ids.length;start+=30){
     const {data,error}=await c.from('college_coaches')
-     .select('id,college_id,first_name,last_name,title,email,role_category,staff_sort_order')
+     .select('id,college_id,first_name,last_name,title,email,verification_status,role_category,staff_sort_order')
      .in('college_id',ids.slice(start,start+30)).eq('lifecycle_status','active')
      .order('last_name',{ascending:true}).limit(1000);
     if(error){console.error('Available college staff could not load',error);return}
@@ -130,7 +130,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
  {!row.archived_at&&otherStaff.length>0&&<div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
   <div className="mb-2 text-xs font-black uppercase tracking-wide text-slate-600">{activeCoaches.length?'Other coaches at this school':'Available softball coaches'}</div>
   <div className="space-y-2">{otherStaff.map((staff:any)=><div key={staff.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
-   <div className="min-w-0"><Link href={`/coaches/${staff.id}`} className="font-bold text-slate-900 hover:text-red-700 hover:underline">{staff.first_name} {staff.last_name}</Link><span className="ml-2 text-xs text-slate-600">{staff.title||'Softball Coach'}</span></div>
+   <div className="min-w-0"><Link href={`/coaches/${staff.id}`} className="font-bold text-slate-900 hover:text-red-700 hover:underline">{staff.first_name} {staff.last_name}</Link><span className="ml-2 text-xs text-slate-600">{staff.title||'Softball Coach'}</span>{staff.verification_status==='unverified'&&<span className="ml-2 text-[11px] font-bold text-amber-700">Pending verification</span>}</div>
    <button type="button" disabled={!!busy} onClick={()=>void connectExistingCoach(staff,schoolId)} className="shrink-0 text-xs font-black text-red-700 hover:underline disabled:opacity-50">{busy==='connect-'+staff.id?'Connecting…':'Connect'}</button>
   </div>)}</div>
   <p className="mt-2 text-[11px] text-slate-500">Listed in RLTNL's shared directory. Not yet part of your recruiting relationships.</p>
