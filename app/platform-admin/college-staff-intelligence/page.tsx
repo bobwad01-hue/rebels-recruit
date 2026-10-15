@@ -39,7 +39,10 @@ type ContactRecovery={
 type QualityDiagnostic={college_id:string;name:string;source_url:string|null;status:string;issue:string;
   head_count:number;coaches:{name:string;title:string;role:string;has_email:boolean;has_bio:boolean}[]};
 
-type ManualCoach={name:string;title:string;role:string;email:string;email_source_confirmed:boolean};
+type ManualCoach={name:string;title:string;role:string;email:string;email_source_confirmed:boolean;head_coach_override_confirmed:boolean};
+function normalizedCoachName(value:string){
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+}
 function needsEmailSourceConfirmation(email:string,hosts:string[]){
   const domain=email.trim().toLowerCase().split("@")[1];
   return Boolean(domain&&!hosts.some(host=>domain===host||domain.endsWith("."+host)));
@@ -77,7 +80,7 @@ function staffFromSavedNotes(notes:string):ManualCoach[]{
     const next=lines[i+2]||'';
     const email=/^[\w.%+\-]+@[\w.\-]+\.[a-z]{2,}$/i.test(next)?next:'';
     if(out.some(c=>c.name.toLowerCase()===name.toLowerCase()))continue;
-    out.push({name,title,role:roleFromTitle(title),email,email_source_confirmed:false});
+    out.push({name,title,role:roleFromTitle(title),email,email_source_confirmed:false,head_coach_override_confirmed:false});
     i+=email?2:1;
   }
   return out;
@@ -214,7 +217,7 @@ export default function Page(){
     setManualMode(Boolean(needsManual));
     const fromNotes=staffFromSavedNotes(school.verification?.notes||'');
     setManualCoaches(fromNotes.length?fromNotes:[
-      {name:school.verification?.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false}
+      {name:school.verification?.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}
     ]);
     setManualConfirmed(false);setManualError('');
     setHostEvidenceUrl('');setHostEvidence(null);setHostError('');
@@ -260,7 +263,7 @@ export default function Page(){
       if(saved.recheck_status==='needs_review'&&manualOnly){
         const fromNotes=staffFromSavedNotes(verifyNotes);
         setManualCoaches(fromNotes.length?fromNotes:[
-          {name:verifyHead.trim(),title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false}
+          {name:verifyHead.trim(),title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}
         ]);
         setManualMode(true);setManualConfirmed(false);
       }
@@ -387,7 +390,7 @@ export default function Page(){
         throw new Error('Saved source is not ready for manual coaching staff review');
       const fromNotes=staffFromSavedNotes(saved.notes||'');
       setManualCoaches(fromNotes.length?fromNotes:[
-        {name:saved.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false}
+        {name:saved.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}
       ]);
       setVerifyUrl(saved.source_url);setVerifyOutcome('verified');
       setManualMode(true);setManualConfirmed(false);
@@ -402,6 +405,13 @@ export default function Page(){
   async function importManuallyVerifiedStaff(){
     if(!verifySchool||!manualConfirmed||manualSaving||!canManualImport)return;
     const hosts=[...(verifySchool.email_hosts||[]),sourceHost(verifyUrl)].filter(Boolean);
+    const head=manualCoaches.find(c=>c.role==='head_coach');
+    const savedHead=cleanup?.exceptions.find(s=>s.college_id===verifySchool.college_id)?.verification?.head_coach_name
+      ||verifySchool.verification?.head_coach_name||'';
+    if(head&&savedHead&&normalizedCoachName(head.name)!==normalizedCoachName(savedHead)
+      &&!head.head_coach_override_confirmed){
+      setManualError('Confirm the corrected head coach against the official staff page before importing.');return;
+    }
     if(manualCoaches.some(c=>needsEmailSourceConfirmation(c.email,hosts)&&!c.email_source_confirmed)){
       setManualError('Confirm each different-domain email against the official staff page before importing.');return;
     }
@@ -613,6 +623,10 @@ export default function Page(){
     verifyUrl===activeVerification.source_url);
   const manualEmailHosts=[...(verifySchool?.email_hosts||[]),sourceHost(verifyUrl)].filter(Boolean);
   const hasUnconfirmedEmail=manualCoaches.some(c=>needsEmailSourceConfirmation(c.email,manualEmailHosts)&&!c.email_source_confirmed);
+  const manualHead=manualCoaches.find(c=>c.role==='head_coach');
+  const savedHeadName=activeVerification?.head_coach_name||'';
+  const hasHeadConflict=Boolean(savedHeadName.trim()&&manualHead&&normalizedCoachName(savedHeadName)!==normalizedCoachName(manualHead.name));
+  const hasUnconfirmedHeadConflict=hasHeadConflict&&!manualHead?.head_coach_override_confirmed;
   // Diagnostics are read-only snapshots. Render only schools still in the
   // live quality-gate review queue, never imported or blocked history.
   const activeQuality=diagnostics.filter(x=>(cleanup?.exceptions||[])
@@ -1308,11 +1322,11 @@ export default function Page(){
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div><label className="text-xs font-semibold text-slate-700">Full name</label>
                       <input className="input w-full" value={c.name} maxLength={120} disabled={manualSaving}
-                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,name:e.target.value,email_source_confirmed:false}:r));setManualConfirmed(false);}}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,name:e.target.value,email_source_confirmed:false,head_coach_override_confirmed:false}:r));setManualConfirmed(false);}}
                         placeholder="First Last"/></div>
                     <div><label className="text-xs font-semibold text-slate-700">Coaching role</label>
                       <select className="input w-full" value={c.role} disabled={manualSaving}
-                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,role:e.target.value}:r));setManualConfirmed(false);}}>
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,role:e.target.value,head_coach_override_confirmed:false}:r));setManualConfirmed(false);}}>
                         {manualRoleOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
                       </select></div>
                     <div><label className="text-xs font-semibold text-slate-700">Official title</label>
@@ -1338,9 +1352,23 @@ export default function Page(){
                     </div>
                   </div>
                 </div>)}</div>
+              {hasHeadConflict&&<div className="mt-3 rounded-lg border border-amber-300 bg-white p-3">
+                <p className="text-sm font-bold text-amber-950">Head coach needs your confirmation</p>
+                <p className="mt-1 text-xs text-slate-700">Saved suggestion: <strong>{savedHeadName}</strong></p>
+                <p className="mt-1 text-xs text-slate-700">Official staff review: <strong>{manualHead?.name}</strong></p>
+                <label className="mt-2 flex items-start gap-2 text-xs text-amber-950">
+                  <input type="checkbox" className="mt-0.5" checked={manualHead?.head_coach_override_confirmed===true}
+                    disabled={manualSaving} onChange={e=>{
+                      setManualCoaches(rows=>rows.map(r=>r.role==='head_coach'
+                        ?{...r,head_coach_override_confirmed:e.target.checked}:r));
+                      setManualConfirmed(false);
+                    }}/>
+                  <span>I confirmed <strong>{manualHead?.name}</strong> is the current head coach on the <a href={verifyUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">saved official softball staff page</a>. Replace the incorrect saved suggestion and retain the original value in the audit history.</span>
+                </label>
+              </div>}
               {manualCoaches.length<8&&<button type="button" className="btn mt-3"
                 disabled={manualSaving} onClick={()=>{setManualCoaches(rows=>[...rows,
-                  {name:'',title:'Assistant Softball Coach',role:'assistant_coach',email:'',email_source_confirmed:false}]);setManualConfirmed(false);}}>
+                  {name:'',title:'Assistant Softball Coach',role:'assistant_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}]);setManualConfirmed(false);}}>
                 Add another coach
               </button>}
               <label className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-white p-3 text-sm">
@@ -1348,6 +1376,7 @@ export default function Page(){
                   onChange={e=>setManualConfirmed(e.target.checked)} className="mt-1"/>
                 <span>I checked <strong>each coach's name, coaching role, and any email entered</strong> against the official school page. Import these structured records and preserve any existing verified contacts.</span>
               </label>
+              {hasUnconfirmedHeadConflict&&<p className="mt-3 text-xs font-semibold text-amber-950">Confirm the corrected head coach on the official staff page before importing. The previous suggestion will be preserved in the source history.</p>}
               {hasUnconfirmedEmail&&<p className="mt-3 text-xs font-semibold text-amber-950">Confirm each different-domain email on the official coaching page before importing. Your confirmation will be recorded in the coach’s source history.</p>}
               {manualError&&<p className="mt-3 text-sm font-semibold text-red-700" role="alert">{manualError}</p>}
             </>}
@@ -1387,7 +1416,7 @@ export default function Page(){
               <>
                 <button type="button" className="btn" disabled={manualSaving}
                   onClick={()=>{setManualMode(false);setManualError('');}}>Back</button>
-                <button type="button" className="btn btn-red" disabled={manualSaving||!manualConfirmed||manualCoaches.length===0||hasUnconfirmedEmail}
+                <button type="button" className="btn btn-red" disabled={manualSaving||!manualConfirmed||manualCoaches.length===0||hasUnconfirmedEmail||hasUnconfirmedHeadConflict}
                   onClick={()=>void importManuallyVerifiedStaff()}>
                   <ShieldCheck size={16}/>{manualSaving?'Importing verified coaches…':'Import '+manualCoaches.length+' verified coaches'}
                 </button>

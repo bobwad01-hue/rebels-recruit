@@ -7,7 +7,7 @@ const headers={'Cache-Control':'private, no-store'};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roles=new Set(['head_coach','associate_head_coach','assistant_coach','recruiting_coordinator',
   'pitching_coach','hitting_coach','graduate_assistant','volunteer_assistant','other_coaching_staff']);
-type ManualCoach={name:string;title:string;role:string;email:string|null;email_source_confirmed:boolean;email_domain_exception:boolean};
+type ManualCoach={name:string;title:string;role:string;email:string|null;email_source_confirmed:boolean;email_domain_exception:boolean;head_coach_override_confirmed:boolean};
 
 function host(value:string|null|undefined){
   if(!value)return null;
@@ -50,6 +50,7 @@ export async function POST(req:NextRequest){
     const role=typeof row.role==='string'?row.role:'';
     const email=typeof row.email==='string'?row.email.trim().toLowerCase():null;
     const emailSourceConfirmed=row.email_source_confirmed===true;
+    const headOverrideConfirmed=role==='head_coach'&&row.head_coach_override_confirmed===true;
     const key=name.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
     if(!/^[\p{Lu}][\p{L}.'’\-]+(?:\s+[\p{Lu}][\p{L}.'’\-]+){1,3}$/u.test(name)
       ||name.length>120||title.length<4||title.length>120||!/softball|coach|assistant|pitching|hitting/i.test(title)
@@ -59,7 +60,8 @@ export async function POST(req:NextRequest){
     seen.add(key);
     if(role==='head_coach')heads++;
     coaches.push({name,title,role,email:email||null,
-      email_source_confirmed:emailSourceConfirmed,email_domain_exception:false});
+      email_source_confirmed:emailSourceConfirmed,email_domain_exception:false,
+      head_coach_override_confirmed:headOverrideConfirmed});
   }
   if(heads!==1)return NextResponse.json({error:'Exactly one head coach must be confirmed'},{status:400,headers});
   try{
@@ -76,6 +78,12 @@ export async function POST(req:NextRequest){
       ||verification.source_url!==sourceUrl||queue.status!=='review'){
       return NextResponse.json({error:'The official source must be saved and approved for manual staff review. Refresh before importing.'},{status:409,headers});
     }
+    const confirmedHead=coaches.find(c=>c.role==='head_coach')!;
+    const savedHead=verification.head_coach_name?.trim()||'';
+    const normalizedName=(value:string)=>value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+    if(savedHead&&normalizedName(savedHead)!==normalizedName(confirmedHead.name)
+      &&!confirmedHead.head_coach_override_confirmed)
+      return NextResponse.json({error:'The saved head coach differs from the official staff page. Explicitly confirm the correct head coach before importing.'},{status:400,headers});
     const canonical=sourceUrl.split('#')[0];
     if(!host(canonical)||canonical!==source.staff_url)
       return NextResponse.json({error:'The official source has changed. Verify the source first.'},{status:409,headers});
@@ -107,6 +115,7 @@ export async function POST(req:NextRequest){
     }
     return NextResponse.json({college_id:collegeId,school:school.name,...data,
       email_domain_exceptions:coaches.filter(c=>c.email_domain_exception).length,
+      head_coach_override:confirmedHead.head_coach_override_confirmed,
       message:'Verified staff imported with official-source snapshots and audit history.'},{headers});
   }catch(e){
     console.error('Manual verified staff import failed',e);
