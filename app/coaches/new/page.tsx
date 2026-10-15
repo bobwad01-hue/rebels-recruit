@@ -65,10 +65,20 @@ async function save(e:React.FormEvent){
    });
    if(suggestion.error)throw new Error('The existing coach was found, but the proposed contact changes could not be submitted for review: '+suggestion.error.message);
   }
-  const school=await c.from('athlete_colleges').upsert({
-   athlete_user_id:userId,college_id:collegeId,status:'Researching',archived_at:null,archived_reason:null
-  },{onConflict:'athlete_user_id,college_id'});
-  if(school.error)throw school.error;
+  // Linking a coach cannot reset an existing school's Recruiting Journey.
+  const existingSchool=await c.from('athlete_colleges').select('id,archived_at')
+   .eq('athlete_user_id',userId).eq('college_id',collegeId).maybeSingle();
+  if(existingSchool.error)throw existingSchool.error;
+  if(existingSchool.data?.archived_at){
+   const restored=await c.from('athlete_colleges')
+    .update({archived_at:null,archived_reason:null}).eq('id',existingSchool.data.id);
+   if(restored.error)throw restored.error;
+  }else if(!existingSchool.data){
+   const added=await c.from('athlete_colleges').insert({
+    athlete_user_id:userId,college_id:collegeId,status:'Researching'
+   });
+   if(added.error)throw added.error;
+  }
   const linked=await c.from('athlete_coaches').select('id')
    .eq('athlete_user_id',userId).eq('coach_id',coachId).maybeSingle();
   if(linked.error)throw linked.error;
