@@ -21,8 +21,21 @@ export default async function Connections({searchParams}:{searchParams:Promise<R
   supabase.from('athlete_profiles').select('class_year').eq('user_id',athleteId).maybeSingle()
  ]);
  if(colleges.error||coaches.error||actions.error){console.error('Connections relationship load failed',colleges.error||coaches.error||actions.error);return <AppShell><PageFrame size="5xl"><StatePanel tone="error" title="Connections could not be loaded" description="We could not load your recruiting relationships. Your data has not been changed. Refresh the page and try again."/></PageFrame></AppShell>}
+ // The shared staff directory is separate from athlete_coaches. Load available
+ // official/canonical staff for tracked schools without creating relationships.
+ const trackedSchoolIds=[...new Set((colleges.data||[]).map((r:any)=>{
+  const school=Array.isArray(r.colleges)?r.colleges[0]:r.colleges;
+  return school?.id as string|undefined;
+ }).filter((id):id is string=>Boolean(id)))];
+ const availableStaff=trackedSchoolIds.length
+  ?await supabase.from('college_coaches')
+    .select('id,college_id,first_name,last_name,title,email,role_category,staff_sort_order')
+    .in('college_id',trackedSchoolIds).eq('lifecycle_status','active')
+    .order('last_name',{ascending:true}).limit(1000)
+  :{data:[],error:null};
+ if(availableStaff.error)console.error('Connections available staff load failed',availableStaff.error);
  const orgId=memberships.data?.[0]?.organization_id||'';const classYear=Number(athleteProfile.data?.class_year||0);const yearsAway=classYear?classYear-new Date().getFullYear():null;const recruitingStage=yearsAway===null?'build':yearsAway>=4?'explore':yearsAway===3?'build':yearsAway===2?'recruit':'decide';
  const noRelationships=(colleges.data||[]).length===0&&(coaches.data||[]).length===0;
  if(noRelationships)return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="Keep the schools you are pursuing and the coaches you know in one place."/><div className="mt-5"><EmptyState title="Start with one school" description="Add the first school you want to pursue. Once it is in Connections, you can add coaches, log conversations, and see what to do next." href="/colleges/new" actionLabel="Add Your First School"/></div></PageFrame></AppShell>;
- return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="See where each school and coach relationship stands, then act on the one that needs attention."/><div className="mt-5"><ConnectionsBoard athleteId={athleteId} initialColleges={colleges.data||[]} initialCoaches={coaches.data||[]} initialActions={actions.data||[]} recruitingStage={recruitingStage}/></div></PageFrame></AppShell>;
+ return <AppShell><PageFrame><PageHeader eyebrow="YOUR RECRUITING RELATIONSHIPS" title="Connections" subtitle="See where each school and coach relationship stands, then act on the one that needs attention."/><div className="mt-5"><ConnectionsBoard athleteId={athleteId} initialColleges={colleges.data||[]} initialCoaches={coaches.data||[]} initialAvailableCoaches={availableStaff.data||[]} initialActions={actions.data||[]} recruitingStage={recruitingStage}/></div></PageFrame></AppShell>;
 }
