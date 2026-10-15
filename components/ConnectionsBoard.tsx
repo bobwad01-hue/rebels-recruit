@@ -100,7 +100,7 @@ export default function ConnectionsBoard({athleteId,initialColleges,initialCoach
    if(loaded.error)throw loaded.error;
    setCoaches(rows=>[...rows.filter(row=>row.id!==id),loaded.data]);
    setLastConnected({id:id!,name,created:!existing,archivedAt:existing?.archived_at||null,archivedReason:existing?.archived_reason||null});
-   emitDataChanged('athlete_coaches','insert',id!);
+   emitDataChanged('athlete_coaches',existing?'restore':'create',id!);
    announceSuccess(name+' added to your Connections.');
   }catch(e:any){setError(e?.message||'Could not connect this coach. Please try again.')}
   finally{setBusy('')}
