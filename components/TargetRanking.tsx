@@ -119,7 +119,9 @@ export default function TargetRanking({
   async function save(next: TargetRow[]) {
     const previous=ordered;
     const updated=next.map((r,i)=>({...r,rank:i+1}));
+    const ranks=(items:TargetRow[])=>items.map(r=>({collegeId:r.collegeId,rank:r.rank}));
     setRows(updated);
+    onRanksChange?.(ranks(updated));
     setBusy(true);
     setMsg("");
     try {
@@ -131,14 +133,15 @@ export default function TargetRanking({
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setRows(previous);
+        onRanksChange?.(ranks(previous));
         setMsg(d.error || "Could not save target order.");
       } else {
-        onRanksChange?.(updated.map(r=>({collegeId:r.collegeId,rank:r.rank})));
         setMsg("Saved");
         setTimeout(() => setMsg(""), 1800);
       }
     } catch {
       setRows(previous);
+      onRanksChange?.(ranks(previous));
       setMsg("Could not save target order.");
     } finally {
       setBusy(false);
@@ -204,7 +207,7 @@ export default function TargetRanking({
     );
   return (
     <>
-      <section className="card p-5 mb-4">
+      <section className="card mb-4 px-4 py-3.5">
         {loadError && (
           <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             {loadError}{" "}
@@ -213,13 +216,13 @@ export default function TargetRanking({
             </button>
           </div>
         )}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
           <div>
-            <h2 className="font-black text-lg flex items-center gap-2">
-              <Target size={19} />
+            <h2 className="font-black text-base flex items-center gap-2">
+              <Target size={17} />
               Target Rankings
             </h2>
-            <p className="muted text-sm mt-1">
+            <p className="muted text-xs mt-0.5">
               Drag to rank the schools you want most. Your #1 target stays #1
               even when you filter the page.
             </p>
@@ -228,7 +231,7 @@ export default function TargetRanking({
             {busy ? "Saving..." : msg || "Changes save automatically"}
           </div>
         </div>
-        <div className="mt-3 space-y-1.5">
+        <div className="mt-2.5 space-y-1">
           {visibleRows.map((r) => {
             const i = ordered.findIndex(
               (x) => x.relationshipId === r.relationshipId,
@@ -238,32 +241,28 @@ export default function TargetRanking({
                 key={r.relationshipId}
                 draggable={!busy}
                 onDragStart={() => setDragged(r.relationshipId)}
+                onDragEnd={() => setDragged(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => drop(r.relationshipId)}
-                className={`border rounded-lg bg-white px-3 py-2 flex items-center gap-2.5 ${dragged === r.relationshipId ? "opacity-50" : ""}`}
+                className={`border rounded-lg bg-white px-2.5 py-1.5 flex items-center gap-2.5 ${dragged === r.relationshipId ? "opacity-50" : ""}`}
               >
                 <GripVertical
                   size={18}
                   className="muted cursor-grab hidden sm:block"
                 />
                 <div
-                  className={`h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-sm font-black ${r.rank <= 5 ? "bg-red-50 text-red-700" : "bg-slate-100"}`}
+                  className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-black ${r.rank <= 5 ? "bg-red-50 text-red-700" : "bg-slate-100"}`}
                 >
                   #{r.rank}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <SchoolName row={r} />
-                    {r.rank <= 5 && (
-                      <span className="pill bg-red-50 text-red-700">
-                        Top Target
-                      </span>
-                    )}
                     <span className="status-pill">
                       {String(r.status || "Researching").replace(/_/g, " ")}
                     </span>
                   </div>
-                  <div className="muted text-xs mt-1">
+                  <div className="muted text-[11px] mt-0.5">
                     {[r.division, r.state, r.conference]
                       .filter(Boolean)
                       .join(" · ")}
@@ -297,7 +296,7 @@ export default function TargetRanking({
           )}
         </div>
         {ordered.length>3&&(
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
             <span className="text-xs font-medium text-slate-500">Showing {visibleRows.length} of {ordered.length} ranked schools</span>
             <div className="flex flex-wrap items-center gap-2">
               {rankView!=='top3'&&<button type="button" onClick={()=>setRankView('top3')}

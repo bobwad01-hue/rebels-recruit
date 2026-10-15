@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useRef,useState} from 'react';
-import {MessageSquareText,X} from 'lucide-react';
+import {MessageSquareText,Star,X} from 'lucide-react';
 import AthleteReviews from '@/components/AthleteReviews';
 import CoachAthleteReviews from '@/components/CoachAthleteReviews';
 
@@ -47,12 +47,11 @@ export default function ConnectionsReviewAction({kind,targetId,name,collegeId=''
  },[open,onClose]);
 
  return <>
-  <span className="inline-flex min-h-7 flex-wrap items-center gap-1.5 text-[11px] font-semibold">
-   {count>0&&<button type="button" onClick={()=>launch('read')} title="View athlete reviews" aria-label={`View ${count} athlete ${count===1?'review':'reviews'} for ${name}`}
-    className="rounded-md px-1 py-0.5 font-bold text-amber-700 hover:bg-amber-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
-    {score!=null&&score>0?`★ ${score.toFixed(1)} (${count})`:`${count} ${count===1?'review':'reviews'}`}
+  <span className="inline-flex flex-wrap items-center gap-1.5 align-middle text-[11px] font-semibold">
+   {count>0&&<button type="button" onClick={()=>launch('read')} title="Read athlete reviews" aria-label={`Read ${count} athlete ${count===1?'review':'reviews'} for ${name}`}
+    className="inline-flex min-h-7 items-center gap-1 rounded-md border border-amber-100 bg-amber-50 px-2 py-0.5 font-bold text-amber-800 transition-colors hover:border-amber-200 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
+    {score!=null&&score>0?<><Star size={12} fill="currentColor" aria-hidden="true"/><span>{score.toFixed(1)}</span><span className="font-semibold">({count})</span></>:<><MessageSquareText size={12} aria-hidden="true"/><span>{count} {count===1?'review':'reviews'}</span></>}
    </button>}
-   {count>0&&<span aria-hidden="true" className="text-slate-300">·</span>}
    <button type="button" onClick={()=>launch(canReview?'write':'read')}
     aria-label={`${label} for ${name}`}
     className="inline-flex min-h-7 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-bold text-slate-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
