@@ -1,7 +1,7 @@
 'use client';
 
 import {useEffect,useRef,useState} from 'react';
-import {MessageSquareText,Star,X} from 'lucide-react';
+import {MessageSquareText,PencilLine,Star,X} from 'lucide-react';
 import AthleteReviews from '@/components/AthleteReviews';
 import CoachAthleteReviews from '@/components/CoachAthleteReviews';
 
@@ -35,6 +35,9 @@ export default function ConnectionsReviewAction({kind,targetId,name,collegeId=''
  const own=canReview&&!!summary?.mine;
  const label=!canReview?'View Reviews':own?'Edit My Review':kind==='school'?'Review School':'Review Coach';
  const entity=kind==='school'?'school':'coach';
+ const actionStyle=own
+  ?'border-amber-300 bg-amber-100 text-amber-950 hover:border-amber-400 hover:bg-amber-200'
+  :'border-amber-200 bg-amber-50 text-amber-900 hover:border-amber-300 hover:bg-amber-100';
  const close=()=>{setOpen(false);onClose?.()};
  const launch=(mode:'read'|'write')=>{setIntent(mode);setOpen(true)};
 
@@ -54,8 +57,8 @@ export default function ConnectionsReviewAction({kind,targetId,name,collegeId=''
    </button>}
    <button type="button" onClick={()=>launch(canReview?'write':'read')}
     aria-label={`${label} for ${name}`}
-    className="inline-flex min-h-7 items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 font-bold text-slate-700 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500">
-    <MessageSquareText size={12} aria-hidden="true"/>{label}
+    className={`inline-flex min-h-7 items-center gap-1 rounded-md border px-2 py-0.5 font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-600 ${actionStyle}`}>
+    {own?<PencilLine size={12} aria-hidden="true"/>:canReview?<Star size={12} aria-hidden="true"/>:<MessageSquareText size={12} aria-hidden="true"/>}{label}
    </button>
   </span>
   {open&&<div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 sm:p-5" onMouseDown={event=>{if(event.target===event.currentTarget)close()}}>
