@@ -421,7 +421,7 @@ export default function CoachActionBar({
       });
       if(suggestion.error)console.warn('Could not queue coach email verification',suggestion.error.code);
     }
-    setRecipientSavedNotice('Saved to My Contacts as Not Contacted. This address is private to your recruiting relationship and not yet verified by RLTNL.');
+    setRecipientSavedNotice('Email address saved for this coach in My Contacts. This does not count as outreach. RLTNL has not verified this address.');
   }
   async function sendEmail() {
     const ctx = await context();
@@ -491,7 +491,7 @@ export default function CoachActionBar({
         return;
       }
       setEmailStatus("success");
-      if(!staffMode){emitDataChanged('athlete_coaches','create',coachId);emitDataChanged('interaction','create',coachId)}
+      if(!staffMode){emitDataChanged('athlete_coaches','update',coachId);emitDataChanged('interaction','create',coachId)}
       window.dispatchEvent(new CustomEvent('rltnl:coach-emails-updated', { detail: { emailId: d.repliedToEmailId || null } }));
       try {
         localStorage.removeItem(draftKey);
@@ -499,12 +499,12 @@ export default function CoachActionBar({
       setDraftNotice("");
       setMessage(
         d.contactSaved === false
-          ? "Email sent through Gmail, but the coach could not be saved to My Contacts. Refresh and try adding them manually."
+          ? "Email sent through Gmail, but your coach contact status could not be updated. Please refresh and check My Contacts."
           : !email && d.recipientSaved === false
-            ? "Email sent through Gmail and the coach was added to My Contacts, but the address could not be saved for future use."
+            ? "Email sent through Gmail, but the email address could not be saved for future use."
             : d.logged
-              ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""}, logged in Activity, and coach contacts updated.`
-              : "Email sent through Gmail and coach contacts updated, but Activity could not be updated.",
+              ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""}, logged in Activity, and contact status updated.`
+              : "Email sent through Gmail and coach contact status updated, but Activity could not be updated.",
       );
       if (onEmailSent) await onEmailSent(d);
     } catch {
@@ -821,7 +821,7 @@ export default function CoachActionBar({
                           aria-label="Coach email address" placeholder="Enter coach email address"
                           className="input w-full" value={recipientEmail} maxLength={254} disabled={busy}
                           onChange={e=>{setRecipientEmail(e.target.value);setRecipientSavedNotice('')}}/>
-                        <p className="text-xs text-slate-600">RLTNL doesn't have a confirmed email for this coach. Enter an address you know. Saving it adds the coach to My Contacts as Not Contacted; sending an email adds the coach automatically as Contacted. Your address stays private until verified.</p>
+                        <p className="text-xs text-slate-600">RLTNL doesn't have a confirmed email for this coach. Enter an address you know. Save it for future use or send an email to record outreach. The address stays private until RLTNL verifies it.</p>
                         <button type="button" className="text-xs font-black text-red-700 hover:underline disabled:opacity-50"
                           disabled={busy||!validRecipient(recipientEmail)} onClick={()=>void saveRecipient()}>Save this address for later</button>
                         {recipientSavedNotice&&<p role="status" className="text-xs font-semibold text-slate-700">{recipientSavedNotice}</p>}
