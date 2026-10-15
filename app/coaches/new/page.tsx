@@ -17,6 +17,7 @@ async function save(e:React.FormEvent){
    .ilike('first_name',first.trim()).ilike('last_name',last.trim()).limit(2);
   if(lookup.error)throw lookup.error;
   let record:any=(lookup.data||[])[0]||null;
+  let createdNew=false;
   if(existingCoachId){
    const selected=await c.from('college_coaches').select('id,college_id,first_name,last_name,title,email,phone,x_url,instagram_url').eq('id',existingCoachId).maybeSingle();
    if(selected.error)throw selected.error;
@@ -44,7 +45,7 @@ async function save(e:React.FormEvent){
      .ilike('first_name',first.trim()).ilike('last_name',last.trim()).maybeSingle();
     if(retry.error||!retry.data)throw inserted.error;
     record=retry.data;
-   }else record={id:inserted.data.id,first_name:first.trim(),last_name:last.trim(),title,email:null,phone:null,x_url:null,instagram_url:null};
+   }else {createdNew=true;record={id:inserted.data.id,first_name:first.trim(),last_name:last.trim(),title,email:null,phone:null,x_url:null,instagram_url:null}};
   }
   const coachId=record.id;
   const changes:any={};
@@ -55,15 +56,15 @@ async function save(e:React.FormEvent){
   if(differs(email,record.email))changes.proposed_email=email.trim();
   if(differs(phone,record.phone))changes.proposed_phone=phone.trim();
   if(differs(x,record.x_url))changes.proposed_x_url=x.trim();
-  if(Object.keys(changes).length||differs(instagram,record.instagram_url)){
+  if(createdNew||Object.keys(changes).length||differs(instagram,record.instagram_url)){
    const suggestion=await c.from('college_coach_update_suggestions').insert({
     coach_id:coachId,submitted_by_user_id:userId,
-    suggestion_type:changes.proposed_first_name||changes.proposed_last_name||changes.proposed_title?'incorrect_info':'contact_update',
-    details:'Submitted when adding an athlete-coach relationship. Shared coach information remains unchanged until reviewed.'
+    suggestion_type:createdNew?'other':changes.proposed_first_name||changes.proposed_last_name||changes.proposed_title?'incorrect_info':'contact_update',
+    details:createdNew?'New athlete-submitted coach identity. Verify current school, coaching role and contact details before publishing as verified staff.':'Submitted when adding an athlete-coach relationship. Shared coach information remains unchanged until reviewed.'
       +(differs(instagram,record.instagram_url)?' Suggested Instagram: '+instagram.trim():''),
     ...changes
    });
-   if(suggestion.error)throw new Error('The existing coach was found, but the proposed contact changes could not be submitted for review: '+suggestion.error.message);
+   if(suggestion.error){if(createdNew)console.warn('New coach created, but verification queue failed',suggestion.error.code);else throw new Error('The existing coach was found, but the proposed contact changes could not be submitted for review: '+suggestion.error.message);}
   }
   // Linking a coach cannot reset an existing school's Recruiting Journey.
   const existingSchool=await c.from('athlete_colleges').select('id,archived_at')
