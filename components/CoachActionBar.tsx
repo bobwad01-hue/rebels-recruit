@@ -284,7 +284,7 @@ export default function CoachActionBar({
   }
   async function openEmail(id: EmailStarterId = effectiveStarter) {
     if (contactVerificationNeeded || (staffMode && !email)) return;
-    setRecipientEmail(email || emailOverride || '');
+    setRecipientEmail(current=>email || current || emailOverride || '');
     setRecipientSavedNotice('');
     if (!staffMode && athleteEntitlement === "free") {
       setActionPrompt("upgrade-gmail");
