@@ -396,6 +396,19 @@ export default function CoachActionBar({
     const result=await c.from('athlete_coaches').update({
       email_override:address,email_override_updated_at:new Date().toISOString()
     }).eq('athlete_user_id',ctx.athlete).eq('coach_id',coachId).is('archived_at',null).select('id').maybeSingle();
+    if(!result.error&&result.data){
+      const pending=await c.from('college_coach_update_suggestions').select('id')
+        .eq('coach_id',coachId).eq('submitted_by_user_id',ctx.user.id)
+        .eq('proposed_email',address).eq('status','pending').limit(1);
+      if(!pending.error&&!(pending.data||[]).length){
+        const suggestion=await c.from('college_coach_update_suggestions').insert({
+          coach_id:coachId,submitted_by_user_id:ctx.user.id,suggestion_type:'contact_update',
+          proposed_email:address,
+          details:'Athlete-supplied email for personal outreach; requires independent verification before global publication.'
+        });
+        if(suggestion.error)console.warn('Could not queue coach email verification',suggestion.error.code);
+      }
+    }
     setRecipientSavedNotice(result.error||!result.data
       ?'Could not save the address to your Connections. Please try again.'
       :'Saved for your recruiting relationship. RLTNL has not verified this address.');
