@@ -79,7 +79,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
         setReviewedItems((reviewed.data || []) as unknown as CoachEmail[]);
         setCount(pendingCount.count || 0);
         setError(false);
-        if (!senderBackfillAttempted.current && (pending.data || []).some((message: CoachEmail) => !message.extracted_data?.senderEmail)) {
+        if (!senderBackfillAttempted.current && (pending.data || []).some(message => !message.extracted_data?.senderEmail)) {
           senderBackfillAttempted.current = true;
           void fetch('/api/google/gmail/sync', { method: 'POST', cache: 'no-store' })
             .then(response => { if (response.ok && active) void load(); })
