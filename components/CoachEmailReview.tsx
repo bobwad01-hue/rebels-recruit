@@ -14,6 +14,7 @@ type Email = {
   reviewed_at: string | null;
   interaction_id: string | null;
   recruiting_intent: string | null;
+  extracted_data?: { senderName?: string; senderEmail?: string } | null;
 };
 
 export default function CoachEmailReview({
@@ -83,8 +84,9 @@ export default function CoachEmailReview({
           </div>
           <h2 className="mt-1 break-words text-base font-black sm:text-lg">{email.subject || 'New recruiting email'}</h2>
           <p className="mt-1 text-xs font-medium text-slate-500">
-            {coachName} · {collegeName} · {new Date(email.received_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            {email.extracted_data?.senderName || email.extracted_data?.senderEmail || coachName} · {collegeName} · {new Date(email.received_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
           </p>
+          {email.extracted_data?.senderEmail && <p className="mt-1 text-xs text-slate-500">From: {email.extracted_data.senderEmail}</p>}
           <div className="mt-4 border-t border-slate-100 pt-1">
             <RecruitingEmailReader body={email.body || null} summary={email.summary} />
           </div>
