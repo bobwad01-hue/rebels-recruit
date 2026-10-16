@@ -257,12 +257,18 @@ export default async function Dashboard({
   const {data: targetRankRows} = await admin.from("audit_log").select("entity_id,metadata,created_at").eq("actor_user_id", uid).eq("entity_type","athlete_college_target_rank").order("created_at",{ascending:false});
   const targetRelationshipRanks: Record<string,number> = {};
   for (const row of targetRankRows || []) { if (targetRelationshipRanks[row.entity_id] == null) { const rank=Number((row.metadata as any)?.rank); if(Number.isFinite(rank)&&rank>0) targetRelationshipRanks[row.entity_id]=rank; } }
+  const {data: incomingSenderRows} = await admin.from("gmail_recruiting_messages")
+    .select("interaction_id,extracted_data")
+    .eq("athlete_user_id", uid)
+    .order("received_at", {ascending:false}).limit(100);
+  const senderByInteraction = new Map((incomingSenderRows || []).filter((row:any) => row.interaction_id).map((row:any) => [row.interaction_id, row.extracted_data]));
+  const smartMoveInteractions = interactionRows.map((row:any) => ({...row, gmailSender: senderByInteraction.get(row.id) || null}));
   const smartMoves = buildSmartNextMoves({
     tasks: tasks.data || [],
     coaches: activeCoaches,
     colleges: activeColleges,
     events: eventRows,
-    interactions: interactionRows,
+    interactions: smartMoveInteractions,
     debriefEventIds: (eventDebriefs.data || []).map((x: any) => x.event_id),
     advisorRequests,
     targetRelationshipRanks,
