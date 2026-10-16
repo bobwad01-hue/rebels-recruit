@@ -137,6 +137,7 @@ export default function Page(){
   const [manualMode,setManualMode]=useState(false);
   const [manualCoaches,setManualCoaches]=useState<ManualCoach[]>([]);
   const [manualConfirmed,setManualConfirmed]=useState(false);
+  const [manualNoHeadConfirmed,setManualNoHeadConfirmed]=useState(false);
   const [manualSaving,setManualSaving]=useState(false);
   const [manualError,setManualError]=useState('');
   const [hostEvidenceUrl,setHostEvidenceUrl]=useState('');
@@ -219,7 +220,7 @@ export default function Page(){
     setManualCoaches(fromNotes.length?fromNotes:[
       {name:school.verification?.head_coach_name||'',title:'Head Softball Coach',role:'head_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}
     ]);
-    setManualConfirmed(false);setManualError('');
+    setManualConfirmed(false);setManualNoHeadConfirmed(false);setManualError('');
     setHostEvidenceUrl('');setHostEvidence(null);setHostError('');
     setHostChecking(false);setHostApproving(false);setHostConfirmed(false);setHostEditing(false);
     setHostApprovalComplete(false);setManualAccessPreparing(false);
@@ -406,6 +407,10 @@ export default function Page(){
     if(!verifySchool||!manualConfirmed||manualSaving||!canManualImport)return;
     const hosts=[...(verifySchool.email_hosts||[]),sourceHost(verifyUrl)].filter(Boolean);
     const head=manualCoaches.find(c=>c.role==='head_coach');
+    const headCount=manualCoaches.filter(c=>c.role==='head_coach').length;
+    if(headCount>1||(headCount===0&&!manualNoHeadConfirmed)){
+      setManualError(headCount>1?'Multiple head coaches require separate review':'Confirm no head coach is listed on the official softball staff page.');return;
+    }
     const savedHead=cleanup?.exceptions.find(s=>s.college_id===verifySchool.college_id)?.verification?.head_coach_name
       ||verifySchool.verification?.head_coach_name||'';
     if(head&&savedHead&&normalizedCoachName(head.name)!==normalizedCoachName(savedHead)
@@ -423,15 +428,17 @@ export default function Page(){
       const response=await fetch('/api/platform/college-staff-intelligence/manual-staff',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({college_id:verifySchool.college_id,
-          source_url:verifyUrl,coaches:manualCoaches,confirmed_staff_review:true}),cache:'no-store'
+          source_url:verifyUrl,coaches:manualCoaches,confirmed_staff_review:true,
+          no_head_coach_listed_confirmed:headCount===0&&manualNoHeadConfirmed}),cache:'no-store'
       });
       const saved=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(saved.error||'Manual staff import failed');
-      setVerifySaved(true);setManualMode(false);setManualConfirmed(false);
+      setVerifySaved(true);setManualMode(false);setManualConfirmed(false);setManualNoHeadConfirmed(false);
       setVerifyResultKind('success');
       setVerifyResult('Your official-source verification was already saved. '+
         saved.coaches+' manually verified coaches are now imported ('+
-        saved.created+' new, '+saved.updated+' existing). Official-source audit snapshots were recorded.');
+        saved.created+' new, '+saved.updated+' existing). Official-source audit snapshots were recorded.'+
+        (saved.head_coach_follow_up_required?' No head coach was listed on the official page; this gap was recorded for follow-up.':''));
       await load();
     }catch(e){setManualError(e instanceof Error?e.message:'Manual staff import failed');}
     finally{setManualSaving(false);}
@@ -624,6 +631,10 @@ export default function Page(){
   const manualEmailHosts=[...(verifySchool?.email_hosts||[]),sourceHost(verifyUrl)].filter(Boolean);
   const hasUnconfirmedEmail=manualCoaches.some(c=>needsEmailSourceConfirmation(c.email,manualEmailHosts)&&!c.email_source_confirmed);
   const manualHead=manualCoaches.find(c=>c.role==='head_coach');
+  const manualHeadCount=manualCoaches.filter(c=>c.role==='head_coach').length;
+  const needsNoHeadConfirmation=manualHeadCount===0&&manualCoaches.length>0;
+  const hasUnconfirmedNoHead=needsNoHeadConfirmation&&!manualNoHeadConfirmed;
+  const hasMultipleManualHeads=manualHeadCount>1;
   const savedHeadName=activeVerification?.head_coach_name||'';
   const hasHeadConflict=Boolean(savedHeadName.trim()&&manualHead&&normalizedCoachName(savedHeadName)!==normalizedCoachName(manualHead.name));
   const hasUnconfirmedHeadConflict=hasHeadConflict&&!manualHead?.head_coach_override_confirmed;
@@ -1315,27 +1326,27 @@ export default function Page(){
                     <span className="text-xs font-bold text-slate-800">Coach {i+1}</span>
                     <button type="button" className="text-xs font-bold text-red-700 underline"
                       disabled={manualSaving}
-                      onClick={()=>{setManualCoaches(rows=>rows.filter((_,j)=>j!==i));setManualConfirmed(false);}}>
+                      onClick={()=>{setManualCoaches(rows=>rows.filter((_,j)=>j!==i));setManualConfirmed(false);setManualNoHeadConfirmed(false);}}>
                       Remove
                     </button>
                   </div>
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div><label className="text-xs font-semibold text-slate-700">Full name</label>
                       <input className="input w-full" value={c.name} maxLength={120} disabled={manualSaving}
-                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,name:e.target.value,email_source_confirmed:false,head_coach_override_confirmed:false}:r));setManualConfirmed(false);}}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,name:e.target.value,email_source_confirmed:false,head_coach_override_confirmed:false}:r));setManualConfirmed(false);setManualNoHeadConfirmed(false);}}
                         placeholder="First Last"/></div>
                     <div><label className="text-xs font-semibold text-slate-700">Coaching role</label>
                       <select className="input w-full" value={c.role} disabled={manualSaving}
-                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,role:e.target.value,head_coach_override_confirmed:false}:r));setManualConfirmed(false);}}>
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,role:e.target.value,head_coach_override_confirmed:false}:r));setManualConfirmed(false);setManualNoHeadConfirmed(false);}}>
                         {manualRoleOptions.map(([value,label])=><option key={value} value={value}>{label}</option>)}
                       </select></div>
                     <div><label className="text-xs font-semibold text-slate-700">Official title</label>
                       <input className="input w-full" value={c.title} maxLength={120} disabled={manualSaving}
-                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,title:e.target.value}:r));setManualConfirmed(false);}}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,title:e.target.value}:r));setManualConfirmed(false);setManualNoHeadConfirmed(false);}}
                         placeholder="Assistant Softball Coach"/></div>
                     <div><label className="text-xs font-semibold text-slate-700">Official email (optional)</label>
                       <input className="input w-full" type="email" value={c.email} disabled={manualSaving}
-                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,email:e.target.value,email_source_confirmed:false}:r));setManualConfirmed(false);}}
+                        onChange={e=>{setManualCoaches(rows=>rows.map((r,j)=>j===i?{...r,email:e.target.value,email_source_confirmed:false}:r));setManualConfirmed(false);setManualNoHeadConfirmed(false);}}
                         placeholder="coach@university.edu"/>
                       {needsEmailSourceConfirmation(c.email,manualEmailHosts)&&
                         <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5">
@@ -1366,9 +1377,20 @@ export default function Page(){
                   <span>I confirmed <strong>{manualHead?.name}</strong> is the current head coach on the <a href={verifyUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">saved official softball staff page</a>. Replace the incorrect saved suggestion and retain the original value in the audit history.</span>
                 </label>
               </div>}
+              {needsNoHeadConfirmation&&<div className="mt-3 rounded-lg border border-amber-300 bg-white p-3">
+                <p className="text-sm font-bold text-amber-950">No head coach listed on the official page</p>
+                <p className="mt-1 text-xs text-slate-700">You can import the coaches who are listed without inventing a head coach. The missing head-coach information will be recorded for follow-up.</p>
+                {savedHeadName.trim()&&<p className="mt-1 text-xs text-slate-700">Previously saved head-coach suggestion: <strong>{savedHeadName}</strong>. This suggestion will be retained in the source audit, not treated as a confirmed current head coach.</p>}
+                <label className="mt-2 flex items-start gap-2 text-xs text-amber-950">
+                  <input type="checkbox" className="mt-0.5" checked={manualNoHeadConfirmed}
+                    disabled={manualSaving} onChange={e=>{setManualNoHeadConfirmed(e.target.checked);setManualConfirmed(false);}}/>
+                  <span>I checked the <a href={verifyUrl} target="_blank" rel="noopener noreferrer" className="font-bold underline">saved official softball coaching staff page</a> and confirm it does not list a head coach at this time. Import only the coaches shown.</span>
+                </label>
+              </div>}
+              {hasMultipleManualHeads&&<p className="mt-3 text-xs font-semibold text-red-700">Multiple head coaches require separate review. Do not guess which coach should be listed as head coach.</p>}
               {manualCoaches.length<8&&<button type="button" className="btn mt-3"
                 disabled={manualSaving} onClick={()=>{setManualCoaches(rows=>[...rows,
-                  {name:'',title:'Assistant Softball Coach',role:'assistant_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}]);setManualConfirmed(false);}}>
+                  {name:'',title:'Assistant Softball Coach',role:'assistant_coach',email:'',email_source_confirmed:false,head_coach_override_confirmed:false}]);setManualConfirmed(false);setManualNoHeadConfirmed(false);}}>
                 Add another coach
               </button>}
               <label className="mt-3 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-white p-3 text-sm">
@@ -1376,6 +1398,7 @@ export default function Page(){
                   onChange={e=>setManualConfirmed(e.target.checked)} className="mt-1"/>
                 <span>I checked <strong>each coach's name, coaching role, and any email entered</strong> against the official school page. Import these structured records and preserve any existing verified contacts.</span>
               </label>
+              {hasUnconfirmedNoHead&&<p className="mt-3 text-xs font-semibold text-amber-950">Confirm that the official page does not list a head coach before importing the available staff.</p>}
               {hasUnconfirmedHeadConflict&&<p className="mt-3 text-xs font-semibold text-amber-950">Confirm the corrected head coach on the official staff page before importing. The previous suggestion will be preserved in the source history.</p>}
               {hasUnconfirmedEmail&&<p className="mt-3 text-xs font-semibold text-amber-950">Confirm each different-domain email on the official coaching page before importing. Your confirmation will be recorded in the coach’s source history.</p>}
               {manualError&&<p className="mt-3 text-sm font-semibold text-red-700" role="alert">{manualError}</p>}
@@ -1416,7 +1439,7 @@ export default function Page(){
               <>
                 <button type="button" className="btn" disabled={manualSaving}
                   onClick={()=>{setManualMode(false);setManualError('');}}>Back</button>
-                <button type="button" className="btn btn-red" disabled={manualSaving||!manualConfirmed||manualCoaches.length===0||hasUnconfirmedEmail||hasUnconfirmedHeadConflict}
+                <button type="button" className="btn btn-red" disabled={manualSaving||!manualConfirmed||manualCoaches.length===0||hasUnconfirmedEmail||hasUnconfirmedHeadConflict||hasUnconfirmedNoHead||hasMultipleManualHeads}
                   onClick={()=>void importManuallyVerifiedStaff()}>
                   <ShieldCheck size={16}/>{manualSaving?'Importing verified coaches…':'Import '+manualCoaches.length+' verified coaches'}
                 </button>

@@ -7,7 +7,7 @@ const headers={'Cache-Control':'private, no-store'};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const roles=new Set(['head_coach','associate_head_coach','assistant_coach','recruiting_coordinator',
   'pitching_coach','hitting_coach','graduate_assistant','volunteer_assistant','other_coaching_staff']);
-type ManualCoach={name:string;title:string;role:string;email:string|null;email_source_confirmed:boolean;email_domain_exception:boolean;head_coach_override_confirmed:boolean};
+type ManualCoach={name:string;title:string;role:string;email:string|null;email_source_confirmed:boolean;email_domain_exception:boolean;head_coach_override_confirmed:boolean;no_head_coach_listed_confirmed:boolean};
 
 function host(value:string|null|undefined){
   if(!value)return null;
@@ -35,6 +35,7 @@ export async function POST(req:NextRequest){
   const collegeId=typeof body.college_id==='string'?body.college_id:'';
   const sourceUrl=typeof body.source_url==='string'?body.source_url.trim():'';
   const input=body.coaches;
+  const noHeadCoachListedConfirmed=body.no_head_coach_listed_confirmed===true;
   if(body.confirmed_staff_review!==true)
     return NextResponse.json({error:'Confirm the official coaching staff review before importing'},{status:400,headers});
   if(!uuid.test(collegeId)||!Array.isArray(input)||input.length<1||input.length>8||sourceUrl.length>1500)
@@ -61,9 +62,14 @@ export async function POST(req:NextRequest){
     if(role==='head_coach')heads++;
     coaches.push({name,title,role,email:email||null,
       email_source_confirmed:emailSourceConfirmed,email_domain_exception:false,
-      head_coach_override_confirmed:headOverrideConfirmed});
+      head_coach_override_confirmed:headOverrideConfirmed,
+      no_head_coach_listed_confirmed:noHeadCoachListedConfirmed});
   }
-  if(heads!==1)return NextResponse.json({error:'Exactly one head coach must be confirmed'},{status:400,headers});
+  if(heads>1)return NextResponse.json({error:'Multiple head coaches require separate review'},{status:400,headers});
+  if(heads===0&&!noHeadCoachListedConfirmed)
+    return NextResponse.json({error:'Confirm that the official softball staff page lists no head coach before importing the available coaches'},{status:400,headers});
+  if(heads===1&&noHeadCoachListedConfirmed)
+    return NextResponse.json({error:'A head coach is included in the reviewed staff; uncheck the no-head-coach confirmation'},{status:400,headers});
   try{
     const [{data:school,error:schoolError},{data:source,error:sourceError},
       {data:verification,error:verificationError},{data:queue,error:queueError}]=await Promise.all([
@@ -78,10 +84,10 @@ export async function POST(req:NextRequest){
       ||verification.source_url!==sourceUrl||queue.status!=='review'){
       return NextResponse.json({error:'The official source must be saved and approved for manual staff review. Refresh before importing.'},{status:409,headers});
     }
-    const confirmedHead=coaches.find(c=>c.role==='head_coach')!;
+    const confirmedHead=coaches.find(c=>c.role==='head_coach');
     const savedHead=verification.head_coach_name?.trim()||'';
     const normalizedName=(value:string)=>value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
-    if(savedHead&&normalizedName(savedHead)!==normalizedName(confirmedHead.name)
+    if(confirmedHead&&savedHead&&normalizedName(savedHead)!==normalizedName(confirmedHead.name)
       &&!confirmedHead.head_coach_override_confirmed)
       return NextResponse.json({error:'The saved head coach differs from the official staff page. Explicitly confirm the correct head coach before importing.'},{status:400,headers});
     const canonical=sourceUrl.split('#')[0];
@@ -115,7 +121,7 @@ export async function POST(req:NextRequest){
     }
     return NextResponse.json({college_id:collegeId,school:school.name,...data,
       email_domain_exceptions:coaches.filter(c=>c.email_domain_exception).length,
-      head_coach_override:confirmedHead.head_coach_override_confirmed,
+      head_coach_override:confirmedHead?.head_coach_override_confirmed||false,
       message:'Verified staff imported with official-source snapshots and audit history.'},{headers});
   }catch(e){
     console.error('Manual verified staff import failed',e);
