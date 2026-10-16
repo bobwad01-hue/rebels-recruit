@@ -52,8 +52,8 @@ return <article id={'journey-'+i.id} key={i.id} className="grid grid-cols-[28px_
           {i.college_coaches?.id&&<Link href={'/coaches/'+i.college_coaches.id} className="btn py-2 px-3 text-sm"><UserRound size={15}/>Open Coach</Link>}
           <Link href={'/activity/'+i.id} className="btn py-2 px-3 text-sm">View Details</Link>
           {i.type==='Email Sent'&&i.gmail_message_id&&<a href={gmailSentUrl(i.gmail_message_id,i.gmail_sender_email)} target="_blank" rel="noopener noreferrer" className="btn py-2 px-3 text-sm"><ExternalLink size={15}/>View in Gmail</a>}
-          <Link href={'/activity/'+i.id+'/edit'} className="btn py-2 px-3 text-sm"><Pencil size={15}/>Edit</Link>
-          <button type="button" onClick={()=>remove(i.id)} disabled={deleting===i.id} className="btn py-2 px-3 text-sm text-red-600"><Trash2 size={15}/>{deleting===i.id?'Deleting...':'Delete'}</button>
+          {!(i.type==='Email Sent'&&i.source==='automatic')&&<><Link href={'/activity/'+i.id+'/edit'} className="btn py-2 px-3 text-sm"><Pencil size={15}/>Edit</Link>
+          <button type="button" onClick={()=>remove(i.id)} disabled={deleting===i.id} className="btn py-2 px-3 text-sm text-red-600"><Trash2 size={15}/>{deleting===i.id?'Deleting...':'Delete'}</button></>}
         </div>
         {i.follow_up_completed_at&&<div className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-600"><CheckCircle2 size={15}/>Follow-up completed</div>}
       </div>}
