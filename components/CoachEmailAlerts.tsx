@@ -14,13 +14,14 @@ type CoachEmail = {
   reviewed_at: string | null;
   interaction_id: string | null;
   recruiting_intent: string | null;
+  extracted_data?: {senderName?:string;senderEmail?:string}|null;
   college_coaches?: { first_name?: string; last_name?: string } | null;
   colleges?: { name?: string } | null;
 };
 type Variant = 'bell' | 'home' | 'inbox';
 
 function sender(email: CoachEmail) {
-  return [email.college_coaches?.first_name, email.college_coaches?.last_name].filter(Boolean).join(' ') || 'College coach';
+  return email.extracted_data?.senderName || email.extracted_data?.senderEmail || 'Sender not verified';
 }
 function school(email: CoachEmail) {
   return email.colleges?.name || 'College program';
@@ -37,7 +38,7 @@ function replyUrl(email: CoachEmail) {
     + '&intent=' + encodeURIComponent(email.recruiting_intent || 'coach_response');
 }
 
-const fields = 'id,coach_id,subject,summary,received_at,reviewed_at,interaction_id,recruiting_intent,college_coaches(first_name,last_name),colleges(name)';
+const fields = 'id,coach_id,subject,summary,received_at,reviewed_at,interaction_id,recruiting_intent,extracted_data,college_coaches(first_name,last_name),colleges(name)';
 
 export default function CoachEmailAlerts({ variant = 'bell', compact = false }: { variant?: Variant; compact?: boolean }) {
   const [items, setItems] = useState<CoachEmail[]>([]);
