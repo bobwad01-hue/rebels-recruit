@@ -120,7 +120,7 @@ export default async function Dashboard({
     admin
       .from("interactions")
       .select(
-        "id,athlete_user_id,coach_id,college_id,type,note,date,date_precision,date_year,date_month,created_at,initiated_by",
+        "id,athlete_user_id,coach_id,college_id,type,note,date,date_precision,date_year,date_month,created_at,initiated_by,source",
       )
       .eq("athlete_user_id", uid)
       .order("date", { ascending: false, nullsFirst: false })
