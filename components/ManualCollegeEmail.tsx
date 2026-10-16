@@ -1,21 +1,25 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
+import {createClient} from '@/lib/supabase-browser';
 import {Mail, X} from 'lucide-react';
 
 export default function ManualCollegeEmail({collegeId,collegeName,initialOpen=false,standalone=false}:{collegeId:string;collegeName:string;initialOpen?:boolean;standalone?:boolean}){
  const [open,setOpen]=useState(initialOpen),[busy,setBusy]=useState(false);
  const [email,setEmail]=useState(''),[name,setName]=useState(''),[subject,setSubject]=useState(''),[body,setBody]=useState('');
  const [error,setError]=useState(''),[success,setSuccess]=useState('');
+ const [gmailConnected,setGmailConnected]=useState<boolean|null>(null);
+ useEffect(()=>{if(!open)return;let active=true;(async()=>{try{const c=createClient();const {data:{user}}=await c.auth.getUser();if(!user){if(active)setGmailConnected(false);return}const {data,error}=await c.from('google_workspace_connections').select('gmail_connected').eq('user_id',user.id).maybeSingle();if(active)setGmailConnected(!error&&data?.gmail_connected===true)}catch{if(active)setGmailConnected(false)}})();return()=>{active=false}},[open]);
  async function send(e:React.FormEvent){
-  e.preventDefault();if(busy)return;setBusy(true);setError('');setSuccess('');
+  e.preventDefault();if(busy)return;if(gmailConnected!==true){setError('Email Not Sent. Connect Gmail before sending your message.');return}setBusy(true);setError('');setSuccess('');
   try{
    const r=await fetch('/api/google/gmail/manual-send',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({collegeId,recipientEmail:email,recipientName:name,subject,body})});
    const result=await r.json();
-   if(!r.ok)throw new Error(result.error||'Could not send email.');
+   if(!r.ok)throw new Error(result.error||'Email Not Sent. Please try again.');
+   if(result.ok!==true||!result.messageId)throw new Error('Email Not Sent. Gmail did not confirm delivery to its sending service.');
    setSuccess(result.warning||'Email sent through Gmail and recorded in your recruiting activity.');
    setSubject('');setBody('');
-  }catch(e){setError(e instanceof Error?e.message:'Could not send email.')}
+  }catch(e){setError('Email Not Sent. '+(e instanceof Error?e.message:'Please try again.'))}
   finally{setBusy(false)}
  }
  return <div className={standalone?"":"mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4"}>
@@ -32,8 +36,10 @@ export default function ManualCollegeEmail({collegeId,collegeName,initialOpen=fa
      <label className="block text-sm font-bold">Subject<input required maxLength={200} className="input mt-1 w-full" value={subject} onChange={e=>setSubject(e.target.value)}/></label>
      <label className="block text-sm font-bold">Message<textarea required maxLength={20000} rows={9} className="input mt-1 w-full" value={body} onChange={e=>setBody(e.target.value)}/></label>
      <p className="text-xs text-slate-600">Sent through your connected Gmail account. The school and email will be tracked after a successful send; no shared coach record will be created.</p>
-     {error&&<p role="alert" className="text-sm font-semibold text-red-700">{error}{/Gmail is not connected/i.test(error)&&<> <a className="underline" href="/api/google/connect?service=gmail">Connect Gmail</a></>}</p>}
-     <div className="flex justify-end gap-2"><button type="button" className="btn" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button><button type="submit" className="btn btn-red" disabled={busy}>{busy?'Sending…':'Send Email'}</button></div>
+     {gmailConnected===false&&<div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Gmail isn't connected. No email has been sent. <a className="underline" href="/api/google/connect?service=gmail">Connect Gmail</a> before sending.</div>}
+     {gmailConnected===null&&<p role="status" className="text-sm text-slate-600">Checking Gmail connection…</p>}
+     {error&&<p role="alert" className="text-sm font-semibold text-red-700">{error}</p>}
+     <div className="flex justify-end gap-2"><button type="button" className="btn" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button><button type="submit" className="btn btn-red" disabled={busy||gmailConnected!==true}>{busy?'Sending…':'Send Email'}</button></div>
     </form>}
    </div>
   </div>}
