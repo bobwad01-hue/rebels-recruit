@@ -8,6 +8,7 @@ import type {GmailMimePart} from '@/lib/gmail-attachment-metadata';
 type Header={name?:string;value?:string};
 function header(headers:Header[]|undefined,name:string){return headers?.find(h=>h.name?.toLowerCase()===name.toLowerCase())?.value||''}
 function emailFrom(value:string){return (value.match(/<([^>]+)>/)?.[1]||value).trim().toLowerCase()}
+function senderDetails(headers:Header[]|undefined){const from=header(headers,'From');const email=emailFrom(from);const name=from.includes('<')?from.split('<')[0].trim():'';return {senderEmail:email,senderName:name||email}}
 function decode(data?:string){if(!data)return '';try{return Buffer.from(data.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString('utf8')}catch{return ''}}
 function bodyText(p:GmailMimePart|undefined):string{if(!p)return '';if(p.mimeType==='text/plain'&&p.body?.data)return decode(p.body.data);for(const x of p.parts||[]){const v=bodyText(x);if(v)return v}return ''}
 function cleanMessage(body:string,subject:string){const raw=(body||subject).replace(/\r/g,'');const cut=raw.split(/\n(?:-{2,}\s*Forwarded message\s*-{2,}|On .+wrote:|From:\s|>)/i)[0];return cut.replace(/\n{3,}/g,'\n\n').replace(/[ \t]+/g,' ').replace(/ *\n */g,'\n').trim()}
@@ -46,14 +47,14 @@ export async function POST(req:NextRequest){
    if(existing.data){
     // Existing emails were synced before attachment metadata was captured.
     // Backfill a bounded number per sync, preserving prior extracted fields.
-    if(backfilled<8&&existing.data.extracted_data?.attachmentMetadataChecked!==true){
+    if(backfilled<8&&(existing.data.extracted_data?.attachmentMetadataChecked!==true||!existing.data.extracted_data?.senderEmail)){
      const detail=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'+encodeURIComponent(item.id)+'?format=full',{headers:{Authorization:'Bearer '+accessToken},cache:'no-store'});
      if(detail.ok){
       const oldMessage=await detail.json() as {payload?:GmailMimePart};
       const meta=extractGmailAttachmentMetadata(oldMessage.payload);
       if(meta.attachmentMetadataChecked){
        const prior=existing.data.extracted_data&&typeof existing.data.extracted_data==='object'&&!Array.isArray(existing.data.extracted_data)?existing.data.extracted_data:{};
-       const saved=await admin.from('gmail_recruiting_messages').update({extracted_data:{...prior,...meta}}).eq('id',existing.data.id).eq('athlete_user_id',userId);
+       const saved=await admin.from('gmail_recruiting_messages').update({extracted_data:{...prior,...meta,...senderDetails(oldMessage.payload?.headers)}}).eq('id',existing.data.id).eq('athlete_user_id',userId);
        if(!saved.error)backfilled++;
       }
      }
@@ -113,10 +114,10 @@ export async function POST(req:NextRequest){
    const {data:linkedGmail}=existingInteractionIds.length?await admin.from('gmail_recruiting_messages').select('interaction_id').eq('athlete_user_id',userId).in('interaction_id',existingInteractionIds):{data:[] as any[]};
    const linkedIds=new Set((linkedGmail||[]).map((x:any)=>x.interaction_id));
    const target=normalizeForMatch(intel.summary); const normalizedSubject=normalizeForMatch(subject); const duplicate=(sameDay.data||[]).find((x:any)=>{if(linkedIds.has(x.id))return false;const n=normalizeForMatch(x.note||'');const s=normalizeForMatch(x.email_subject||'');return s===normalizedSubject&&n&&target&&(n.includes(target.slice(0,120))||target.includes(n.slice(0,120))) });
-   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta}});continue}
+   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});continue}
    const interaction=await admin.from('interactions').insert({athlete_user_id:userId,actor_user_id:userId,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),source:'automatic',email_subject:subject||null,email_type:intel.intent,email_content:cleanMessage(text,subject),note:intel.summary}).select('id').single();
    if(interaction.error)continue;
-   const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta}});
+   const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});
    if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
    if(intel.nextAction){
     await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);
