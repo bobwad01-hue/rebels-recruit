@@ -36,8 +36,6 @@ export default function ManualCollegeEmail({collegeId,collegeName,initialOpen=fa
      <label className="block text-sm font-bold">Subject<input required maxLength={200} className="input mt-1 w-full" value={subject} onChange={e=>setSubject(e.target.value)}/></label>
      <label className="block text-sm font-bold">Message<textarea required maxLength={20000} rows={9} className="input mt-1 w-full" value={body} onChange={e=>setBody(e.target.value)}/></label>
      <p className="text-xs text-slate-600">The school and email will be tracked after a successful send; no shared coach record will be created.</p>
-     {gmailConnected===false&&<div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Gmail isn't connected. No email has been sent. <a className="underline" href="/api/google/connect?service=gmail">Connect Gmail</a> before sending.</div>}
-     {gmailConnected===null&&<p role="status" className="text-sm text-slate-600">Checking Gmail connection…</p>}
      {error&&<p role="alert" className="text-sm font-semibold text-red-700">{error}</p>}
      <div className="flex justify-end gap-2"><button type="button" className="btn" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button><button type="submit" className="btn btn-red" disabled={busy||gmailConnected!==true}>{busy?'Sending…':'Send Email'}</button></div>
     </form>}
