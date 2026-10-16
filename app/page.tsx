@@ -17,7 +17,7 @@ const steps = [
   { number: '01', title: 'Find your fit', description: 'Build a school list around what matters to the athlete, not just a ranking.', icon: Compass },
   { number: '02', title: 'Build relationships', description: 'Keep coaches, schools, outreach and relationship history connected.', icon: Handshake },
   { number: '03', title: 'Show up prepared', description: 'Plan camps and visits, record what happened and capture the next move.', icon: CalendarDays },
-  { number: '04', title: 'Follow through', description: 'See coach replies, outstanding actions and timely follow-ups.', icon: Mail },
+  { number: '04', title: 'Follow through', description: 'Send recruiting emails, review coach replies and keep conversations moving toward clear next steps.', icon: Mail },
   { number: '05', title: 'Track the journey', description: 'Understand progress from first contact through the recruiting decision.', icon: TrendingUp },
 ];
 function SectionEyebrow({ children }: { children: React.ReactNode }) {
@@ -120,8 +120,8 @@ export default function Home() {
             <SectionDescription>Help advisors stay aligned, give athletes a consistent process, and see recruiting activity across your organization without piecing it together from spreadsheets and group texts.</SectionDescription>
             <ul className="mt-7 space-y-3">{[
               ['Simpler onboarding','Invite athletes and families using team signup codes.'],
-              ['More consistent advisor coverage','Coordinate athlete assignments, coach conversations and next steps.'],
-              ['Better organization visibility','Understand recruiting progress across teams with recruiting-board views and reporting.'],
+              ['More consistent advisor coverage','Assign advisors to athletes and coordinate coach conversations, follow-ups and support.'],
+              ['Better organization visibility','See recruiting progress, activity and outcomes across teams in one place.'],
             ].map(([title,desc])=><li key={title} className="flex gap-3"><CheckCircle2 size={19} className="mt-1 shrink-0 text-[#D01C29]"/><div><p className="text-sm font-black">{title}</p><p className="mt-1 text-sm leading-6 text-slate-600">{desc}</p></div></li>)}</ul>
             <Link href="/demo" className="btn btn-red mt-8 px-5 py-3">Request an Organization Demo <ArrowRight size={17}/></Link>
           </div>
@@ -142,7 +142,7 @@ export default function Home() {
       <section id="features" className="mx-auto max-w-7xl scroll-mt-20 px-5 py-16 sm:px-8 sm:py-24">
         <SectionEyebrow>Inside RLTNL Recruiting</SectionEyebrow>
         <SectionTitle>See the system behind the follow-through.</SectionTitle>
-        <SectionDescription>Explore how athletes, families, advisors and organizations stay connected through the recruiting process.</SectionDescription>
+        <SectionDescription>See how athletes email coaches, review replies, plan next steps and keep their support teams connected throughout recruiting.</SectionDescription>
         <div className="mt-9"><PublicProductTour/></div>
       </section>
 
@@ -159,13 +159,13 @@ export default function Home() {
 
       <section className="mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
         <SectionEyebrow>One platform. Connected roles.</SectionEyebrow>
-        <SectionTitle>The right people. The right visibility.</SectionTitle>
-        <SectionDescription>Recruiting works best when everyone understands their part. RLTNL connects athletes and their support teams while respecting role-based and athlete-approved access.</SectionDescription>
+        <SectionTitle>Everyone has a role. Everyone stays connected.</SectionTitle>
+        <SectionDescription>From athletes managing their next steps to advisors providing guidance and organizations tracking progress, RLTNL brings the recruiting process together while keeping athletes in control of their information.</SectionDescription>
         <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <RoleCard icon={Target} title="Athletes" description="Own the recruiting journey, build relationships and keep moving." items={['Find Schools and Connections','Game Plan and Next Steps','Events, communication and Journey']}/>
-          <RoleCard icon={Users} title="Parents & guardians" description="Stay informed and support progress with athlete-controlled access." items={['Recruiting overview','Schools and event visibility','Appropriate read-only support']}/>
-          <RoleCard icon={UserRoundCheck} title="Advisors" description="Help assigned athletes turn activity into meaningful follow-through." items={['Player 360° and Next Steps','Coach relationship context','Approved recruiting communications']}/>
-          <RoleCard icon={Building2} title="Organization admins" description="Coordinate the recruiting experience across teams and athletes." items={['Organization command center','Recruiting Board and reporting','Team and Advisor management']}/>
+          <RoleCard icon={Target} title="Athletes" description="Take control of your recruiting journey and know what to do next." items={['Find colleges that fit your goals','Email coaches and track responses','Prepare for events and stay on top of follow-ups']}/>
+          <RoleCard icon={Users} title="Parents & guardians" description="Support your athlete’s recruiting journey without taking over." items={['See recruiting progress and next steps','Stay informed about colleges and events','Help your athlete stay organized and prepared']}/>
+          <RoleCard icon={UserRoundCheck} title="Advisors" description="Help athletes build relationships with college coaches and keep recruiting moving forward." items={['See each assigned athlete’s recruiting progress','Review coach conversations and follow-ups','Know which athletes need support']}/>
+          <RoleCard icon={Building2} title="Organization admins" description="Keep your teams, advisors, and athletes connected through one recruiting program." items={['See recruiting progress across teams','Assign advisors and coordinate support','Track recruiting activity and outcomes']}/>
         </div>
       </section>
 
