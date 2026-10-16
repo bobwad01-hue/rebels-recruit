@@ -117,7 +117,7 @@ export default function PublicProductTour() {
     <div role="tablist" aria-label="Explore RLTNL Recruiting features" className="mb-5 flex flex-wrap gap-2">
       {tabs.map(item=><button type="button" key={item.id} role="tab" aria-selected={tab===item.id}
         aria-controls="rltnl-product-tour-panel" onClick={()=>setTab(item.id)}
-        className={tab===item.id?'rounded-xl bg-[#D01C29] px-4 py-2.5 text-xs font-black text-white shadow-sm sm:text-sm':'rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:border-red-200 sm:text-sm'}>
+        className={tab===item.id?'rounded-xl !bg-[#D01C29] hover:!bg-[#AE1823] px-4 py-2.5 text-xs font-black !text-white hover:!text-white shadow-sm transition-colors sm:text-sm':'rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors sm:text-sm'}>
         {item.label}
       </button>)}
     </div>
