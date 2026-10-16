@@ -112,3 +112,7 @@ body{background:var(--rr-canvas)}
 @media (min-width: 768px) and (max-width: 1100px){
   .rr-admin-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
+
+/* RLTNL public homepage: align CTA buttons with the approved red brand mark. */
+body:has(> div > main#main) .btn-red{background-color:#D01C29;border-color:#D01C29}
+body:has(> div > main#main) .btn-red:not(:disabled):hover{background-color:#AE1823;border-color:#AE1823}
