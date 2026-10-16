@@ -10,7 +10,7 @@ export default async function College({params,searchParams}:{params:Promise<{id:
    <div><Link href={`/coaches/${staff.id}`} className="text-sm font-black text-slate-900 hover:text-red-700 hover:underline">{coachName}</Link>
    <p className="mt-1 text-xs text-slate-600">{staff.title||'Softball Coach'}</p>
    {staff.verification_status==='unverified'&&<p className="mt-1 text-xs font-semibold text-amber-700">Identity pending verification</p>}</div>
-   {canAct&&!viewingOther?<AddCoachToContactsButton athleteId={athleteId} coachId={staff.id} collegeId={id} coachName={coachName} compact/>:<span className="text-xs text-slate-500">Available in the RLTNL directory</span>}
+   {canAct&&!viewingOther?<div className="flex flex-wrap items-center gap-2"><Link href={`/coaches/${staff.id}?action=email`} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800">Email Coach</Link><AddCoachToContactsButton athleteId={athleteId} coachId={staff.id} collegeId={id} coachName={coachName} compact/></div>:<span className="text-xs text-slate-500">Available in the RLTNL directory</span>}
   </div>;
  })}</div></div>}
 {canAct&&!viewingOther&&<Link href={`/coaches/new?college=${id}&returnTo=${encodeURIComponent('/colleges/'+id)}`} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-red-700"><Plus size={13}/>Coach not listed? Add one</Link>}
