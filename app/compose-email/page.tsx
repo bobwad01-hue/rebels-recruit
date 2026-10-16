@@ -31,8 +31,8 @@ export default function ComposeEmailPage(){
   {!error&&<div className="card mt-6 p-5">
    <label htmlFor="school-search" className="text-sm font-black">School</label>
    <p className="mt-1 text-xs text-slate-600">Selecting a school does not add it to your Connections. RLTNL associates it with your recruiting activity after you send.</p>
-   <div className="relative mt-3"><Search size={17} className="pointer-events-none absolute left-3 top-3 text-slate-500"/>
-    <input id="school-search" className="input w-full pl-10" value={query} onChange={e=>{setQuery(e.target.value);setSelected(null)}} placeholder={loading?'Loading schools…':'Search by school name, city or state'} disabled={loading} autoComplete="off"/>
+   <div className="relative mt-3"><Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
+    <input id="school-search" className="input w-full !pl-11 !pr-4" value={query} onChange={e=>{setQuery(e.target.value);setSelected(null)}} placeholder={loading?'Loading schools…':'Search by school name, city or state'} disabled={loading} autoComplete="off"/>
    </div>
    {!selected&&filtered.length>0&&<div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100" role="listbox" aria-label="School results">{filtered.map(s=><button type="button" key={s.id} role="option" aria-selected={false} className="block w-full px-4 py-3 text-left hover:bg-slate-50 focus:bg-slate-50" onClick={()=>{setSelected(s);setQuery(s.name)}}><span className="block text-sm font-bold">{s.name}</span><span className="text-xs text-slate-600">{[s.city,s.state].filter(Boolean).join(', ')}</span></button>)}</div>}
    {!selected&&query.trim().length>=2&&!loading&&filtered.length===0&&<p className="mt-3 text-sm text-slate-600">No schools found. Try a different name.</p>}
