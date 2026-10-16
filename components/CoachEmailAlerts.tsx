@@ -49,6 +49,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'pending' | 'reviewed'>('pending');
   const popoverRef = useRef<HTMLDivElement>(null);
+  const senderBackfillAttempted = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -78,6 +79,12 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
         setReviewedItems((reviewed.data || []) as unknown as CoachEmail[]);
         setCount(pendingCount.count || 0);
         setError(false);
+        if (!senderBackfillAttempted.current && (pending.data || []).some((message: CoachEmail) => !message.extracted_data?.senderEmail)) {
+          senderBackfillAttempted.current = true;
+          void fetch('/api/google/gmail/sync', { method: 'POST', cache: 'no-store' })
+            .then(response => { if (response.ok && active) void load(); })
+            .catch(() => {});
+        }
       }
       setLoaded(true);
     }
@@ -132,6 +139,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
               <h2 className="mt-1 text-base font-black text-slate-950 sm:text-lg">
                 {sender(first)} <span className="font-medium text-slate-500">· {school(first)}</span>
               </h2>
+              {first.extracted_data?.senderEmail && <p className="mt-0.5 text-xs text-slate-500">From: {first.extracted_data.senderEmail}</p>}
               <p className="mt-1 truncate text-sm text-slate-600">{first.subject || 'New recruiting email'}</p>
               {count > 1 && <p className="mt-1 text-xs text-slate-500">Plus {count - 1} more {count === 2 ? 'message' : 'messages'} waiting for review.</p>}
             </div>
@@ -215,6 +223,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
                           </span>
                         </div>
                         <p className="mt-0.5 text-xs font-semibold text-slate-500">{school(email)} · {received(email)}</p>
+                        {email.extracted_data?.senderEmail && <p className="mt-1 text-xs text-slate-500 break-all">From: {email.extracted_data.senderEmail}</p>}
                         <p className="mt-3 break-words text-sm font-bold text-slate-900">{email.subject || 'New recruiting email'}</p>
                         {email.summary && <p className="mt-1 line-clamp-2 break-words text-sm text-slate-600">{email.summary}</p>}
                         <div className="mt-4 flex flex-wrap items-center gap-2">
