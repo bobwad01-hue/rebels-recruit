@@ -24,7 +24,7 @@ export default function ComposeEmailPage(){
   }
   if(alive){setSchools(results);setLoading(false)}
  })();return()=>{alive=false}},[]);
- const filtered=useMemo(()=>{const q=query.trim().toLowerCase();if(q.length<2)return [];return schools.filter(s=>[s.name,s.city,s.state].filter(Boolean).join(' ').toLowerCase().includes(q)).slice(0,30)},[query,schools]);
+ const filtered=useMemo(()=>{const q=query.trim().toLowerCase();if(q.length<2)return [];const rank=(s:College)=>{const name=s.name.toLowerCase(),city=(s.city||'').toLowerCase(),state=(s.state||'').toLowerCase();if(name===q)return 0;if(name.startsWith(q))return 1;if(name.includes(q))return 2;if(city.startsWith(q))return 3;if(city.includes(q))return 4;if(state===q||state.startsWith(q))return 5;if(state.includes(q))return 6;return 99};return schools.map(s=>({school:s,score:rank(s)})).filter(x=>x.score<99).sort((a,b)=>a.score-b.score||a.school.name.localeCompare(b.school.name)).slice(0,30).map(x=>x.school)},[query,schools]);
  return <AppShell><div className="mx-auto max-w-3xl px-4 py-7 sm:px-8">
   <div className="flex items-center gap-3"><Mail size={25} className="text-red-700"/><div><h1 className="text-2xl font-black">Compose Email</h1><p className="text-sm text-slate-600">Choose a school, then email a coach—even if RLTNL doesn't have the coach's details.</p></div></div>
   {error&&<p role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</p>}
