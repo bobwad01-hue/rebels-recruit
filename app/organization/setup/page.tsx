@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Archive,
@@ -46,7 +46,7 @@ type Organization = {
 };
 const empty = { name: "", branchName: "", city: "", state: "", organizationType: "" };
 export default function OrganizationSetup() {
-  const params=useSearchParams();const previewReadOnly=!!params.get("previewRole");
+  const params=useSearchParams();const router=useRouter();const previewReadOnly=!!params.get("previewRole");
   const [organizations, setOrganizations] = useState<Organization[]>([]),
     [canCreate,setCanCreate]=useState(false),
     [selected, setSelected] = useState(""),
@@ -75,7 +75,8 @@ export default function OrganizationSetup() {
         throw new Error(d.error || "Could not load organization setup.");
       const rows = d.organizations || [];
       setOrganizations(rows);setCanCreate(Boolean(d.canCreate));
-      const id = preferred || selected || rows[0]?.id || "";
+      const requested = preferred || params.get("organizationId") || selected || rows[0]?.id || "";
+      const id = rows.some((o: Organization) => o.id === requested) ? requested : (rows[0]?.id || "");
       setSelected(id);
       const o = rows.find((x: Organization) => x.id === id);
       if (o)
@@ -100,6 +101,7 @@ export default function OrganizationSetup() {
   const org = organizations.find((o) => o.id === selected);
   function choose(id: string) {
     setCreating(false);
+    if (canCreate) router.replace("/organization/setup?organizationId=" + encodeURIComponent(id), { scroll: false });
     setSelected(id);
     const o = organizations.find((x) => x.id === id);
     if (o)
@@ -254,9 +256,9 @@ export default function OrganizationSetup() {
           title="Teams & Staff"
           subtitle="Manage organization details, team rosters, onboarding links and staff roles in one place."
           action={
-            <Link href="/organization" className="btn">
+            <Link href={canCreate ? "/platform-admin/organizations" : "/organization"} className="btn">
               <ArrowLeft size={16} />
-              Organization
+              {canCreate ? "All Organizations" : "Organization"}
             </Link>
           }
         />
@@ -283,6 +285,14 @@ export default function OrganizationSetup() {
           </div>
         ) : (
           <>
+            {canCreate && organizations.length > 1 && (
+              <div className="card mb-5 p-4">
+                <label htmlFor="managed-organization" className="block text-sm font-bold">Manage organization</label>
+                <select id="managed-organization" className="input mt-2 w-full" value={selected} onChange={e => choose(e.target.value)}>
+                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name}{o.branch_name ? " · " + o.branch_name : ""}</option>)}
+                </select>
+              </div>
+            )}
             {org&&<section className="card p-5 sm:p-6 mb-5"><div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div><div className="rr-eyebrow">ORGANIZATION</div><h2 className="text-2xl font-black">{org.name}{org.branch_name?` · ${org.branch_name}`:""}</h2><p className="muted text-sm mt-1">{[org.city,org.state].filter(Boolean).join(", ")}</p></div><div className="flex gap-2"><button className="btn" onClick={()=>setOrgEditOpen(true)} disabled={previewReadOnly}><Settings2 size={15}/>Edit Organization</button><button className="btn" disabled={!org.canManageStaff||previewReadOnly} onClick={()=>setStaffOpen(true)}><UserCog size={15}/>Manage Admins & Staff</button></div></div></section>}
             {org && <AccessReviewQueue organizationId={org.id} teams={org.teams || []} readOnly={previewReadOnly} />}
             {!creating && org && (
