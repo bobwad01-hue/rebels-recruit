@@ -16,6 +16,7 @@ import AppShell from "@/components/AppShell";
 import PageHeader from "@/components/PageHeader";
 import { createClient } from "@/lib/supabase-browser";
 import OwnerAdminPlayerAccess from "@/components/OwnerAdminPlayerAccess";
+import TeamAdminPlayerAccess from "@/components/TeamAdminPlayerAccess";
 import { resolveStaffOrganizationContext } from "@/lib/owner-preview";
 
 const text = (v: any) => String(v || "").toLowerCase();
@@ -27,7 +28,8 @@ export default function AdvisorAccessPage() {
     [message, setMessage] = useState(""),
     [loadError, setLoadError] = useState(""),
     [search, setSearch] = useState(""), [inviteEmail,setInviteEmail]=useState(""), [independent,setIndependent]=useState(false), [previewReadOnly,setPreviewReadOnly]=useState(false);
-  const [orgId, setOrgId] = useState(""),
+  const [teamAdminMode,setTeamAdminMode]=useState(false),
+  [orgId, setOrgId] = useState(""),
     [viewerRole, setViewerRole] = useState(""),
     [viewerId, setViewerId] = useState(""),
     [players, setPlayers] = useState<any[]>([]),
@@ -52,6 +54,16 @@ export default function AdvisorAccessPage() {
       return;
     }
     setViewerId(user.id);
+    const activeView=window.localStorage.getItem('rr-active-view');
+    if(activeView!=='advisor'){
+      const [{data:teamGrants,error:teamGrantError},{data:orgAdmins,error:orgAdminError}]=await Promise.all([
+        c.from('team_user_roles').select('team_id').eq('user_id',user.id).eq('role','admin').eq('status','active').limit(1),
+        c.from('organization_members').select('organization_id').eq('user_id',user.id).eq('role','admin').eq('status','active').limit(1),
+      ]);
+      if(teamGrantError||orgAdminError){setLoadError('Your staff access could not be verified.');setLoading(false);return}
+      if(teamGrants?.length&&!orgAdmins?.length){setTeamAdminMode(true);setViewerRole('admin');setLoading(false);return}
+    }
+    setTeamAdminMode(false);
     const qs=typeof window!=="undefined"?new URLSearchParams(window.location.search):new URLSearchParams();const me:any=await resolveStaffOrganizationContext(c,user.id,qs);setPreviewReadOnly(Boolean(qs.get("previewRole")));
     const memberError=me?.error;
     if (memberError) {
@@ -198,6 +210,7 @@ export default function AdvisorAccessPage() {
         !["active", "pending"].includes(byAthlete.get(String(p.id))?.status),
     ).length,
   };
+  if (!loading && teamAdminMode) return <AppShell><div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6"><TeamAdminPlayerAccess/></div></AppShell>;
   if (!loading && viewerRole==="admin") return <AppShell><div className="max-w-6xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6"><OwnerAdminPlayerAccess/></div></AppShell>;
   return (
     <AppShell>

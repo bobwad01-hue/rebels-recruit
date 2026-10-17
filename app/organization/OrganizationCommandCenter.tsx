@@ -131,6 +131,14 @@ export default function OrganizationCommandCenter() {
     }
     const m = resolved || null;
     setMe(m);
+    if(m&&!m.preview&&m.role!=='admin'&&window.localStorage.getItem('rr-active-view')!=='advisor'){
+      const {data:teamGrants}=await c.from('team_user_roles').select('team_id')
+        .eq('user_id',user.id).eq('role','admin').eq('status','active').limit(1);
+      if(teamGrants?.length){
+        setLoadError('Organization-wide reporting is reserved for Organization Admins. Use My Team Athletes or Recruiting HQ for your assigned teams.');
+        setLoading(false);return;
+      }
+    }
     if (!m) {
       setLoading(false);
       return;

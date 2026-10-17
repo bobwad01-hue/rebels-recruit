@@ -156,8 +156,8 @@ export async function setScopedRole(admin: any, grant: RoleGrant) {
       }).eq("user_id", targetId));
     }
     if (!grant.teamId && role !== "parent") await ensureLegacyMember(admin, organizationId, targetId, role, actorId);
-    if (grant.teamId && ["advisor", "athlete"].includes(role))
-      await ensureLegacyMember(admin, organizationId, targetId, role, actorId);
+    if (grant.teamId && ["advisor", "athlete", "admin"].includes(role))
+      await ensureLegacyMember(admin, organizationId, targetId, role === "admin" ? "advisor" : role, actorId);
     checked(await admin.from("user_roles").upsert({ user_id: targetId, role }, { onConflict: "user_id,role" }));
     checked(await admin.from("profiles").update({ registration_status: "active" }).eq("id", targetId));
   } else {

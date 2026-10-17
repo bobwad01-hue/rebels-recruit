@@ -9,6 +9,7 @@ export default function RoleSwitcher({activeRole,platformView=false}:{activeRole
  const c=createClient();
  const[roles,setRoles]=useState<string[]>([]);
  const[superOwner,setSuperOwner]=useState(false);
+ const[teamAdminOnly,setTeamAdminOnly]=useState(false);
  useEffect(()=>{
   c.auth.getUser().then(async({data:{user}})=>{
    if(!user)return;
@@ -24,6 +25,13 @@ export default function RoleSwitcher({activeRole,platformView=false}:{activeRole
     if(!athleteProfile)available.delete('athlete');
    }
    setRoles(order.filter(r=>available.has(r)));
+   if(available.has('admin')){
+    const [{data:orgAdmin},{data:teamAdmin}]=await Promise.all([
+      c.from('organization_members').select('organization_id').eq('user_id',user.id).eq('role','admin').eq('status','active').limit(1),
+      c.from('team_user_roles').select('team_id').eq('user_id',user.id).eq('role','admin').eq('status','active').limit(1),
+    ]);
+    setTeamAdminOnly(!orgAdmin?.length&&Boolean(teamAdmin?.length));
+   }
   });
  },[]);
  if(roles.length<2&&!superOwner)return null;
@@ -31,11 +39,11 @@ export default function RoleSwitcher({activeRole,platformView=false}:{activeRole
   if(role==='super_owner'){window.location.assign('/platform-admin');return}
   window.localStorage.setItem('rr-active-view',role);
   document.cookie=`rr-active-view=${encodeURIComponent(role)}; Path=/; Max-Age=31536000; SameSite=Lax`;
-  window.location.assign(homes[role]||'/dashboard');
+  window.location.assign(role==='admin'&&teamAdminOnly?'/advisors':homes[role]||'/dashboard');
  }
  return <div className="mb-2 rounded-xl border bg-slate-50 p-2">
   <div className="px-2 pb-1 text-[10px] font-black uppercase tracking-[.12em] text-slate-400">Switch View</div>
   {superOwner&&<button type="button" onClick={()=>choose('super_owner')} aria-current={platformView?'true':undefined} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold ${platformView?'bg-white text-slate-950 shadow-sm':'text-slate-600 hover:bg-white'}`}>Super Owner</button>}
-  {roles.map(r=><button type="button" key={r} onClick={()=>choose(r)} aria-current={!platformView&&activeRole===r?'true':undefined} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold ${!platformView&&activeRole===r?'bg-white text-slate-950 shadow-sm':'text-slate-600 hover:bg-white'}`}>{labels[r]||r}</button>)}
+  {roles.map(r=><button type="button" key={r} onClick={()=>choose(r)} aria-current={!platformView&&activeRole===r?'true':undefined} className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold ${!platformView&&activeRole===r?'bg-white text-slate-950 shadow-sm':'text-slate-600 hover:bg-white'}`}>{r==='admin'&&teamAdminOnly?'Team Admin':labels[r]||r}</button>)}
  </div>;
 }

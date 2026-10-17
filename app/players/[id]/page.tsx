@@ -68,6 +68,12 @@ export default function Player360() {
         .eq("id", user.id)
         .single();
       let r = viewer?.app_role || "athlete";
+      const activeView=typeof window!=="undefined"?window.localStorage.getItem("rr-active-view"):null;
+      if(activeView&&["admin","advisor","parent","athlete"].includes(activeView)){
+        const {data:roleGrant}=await c.from("user_roles").select("role")
+          .eq("user_id",user.id).eq("role",activeView).maybeSingle();
+        if(roleGrant)r=activeView;
+      }
       const sp =
           typeof window !== "undefined"
             ? new URLSearchParams(window.location.search)
@@ -135,6 +141,10 @@ export default function Player360() {
         }
         // Full Parent access depends on the active connection, never legacy section flags.
         setPermissions({});
+      }
+      if(user.id!==id&&r!=="parent"){
+        const {data:allowed,error:accessError}=await c.rpc("can_access_athlete",{a:id});
+        if(accessError||!allowed){setError("You do not currently have access to this athlete's recruiting information.");setLoading(false);return;}
       }
       const [p, ap, cs, ch, int, re, ta, ae, sig, fit] = await Promise.all([
         c
