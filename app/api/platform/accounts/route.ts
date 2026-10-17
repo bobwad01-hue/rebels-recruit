@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { setScopedRole, type ScopedRole } from "@/lib/access-role-grants";
 
 export const dynamic = "force-dynamic";
 
@@ -201,6 +202,19 @@ export async function POST(req: NextRequest) {
       .select("id,app_role").eq("id", targetId).maybeSingle();
     if (profileError) throw profileError;
     if (!target) return jsonError("Account not found.", 404);
+    if (action === "setScopedRole") {
+      const role = String(body?.role || "");
+      const scope = String(body?.scope || "");
+      if (!["admin", "advisor", "athlete", "parent"].includes(role) || typeof body?.enabled !== "boolean"
+          || !["organization", "team"].includes(scope)) return jsonError("Choose a role and an organization or team.");
+      const id = String(scope === "organization" ? body?.organizationId || "" : body?.teamId || "");
+      if (!uuid.test(id)) return jsonError("Choose a valid organization or team.");
+      await setScopedRole(admin, {
+        actorId, targetId, role: role as ScopedRole, enabled: body.enabled,
+        ...(scope === "organization" ? { organizationId: id } : { teamId: id }),
+      });
+      return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (!["advisor", "admin"].includes(target.app_role)) {
       return jsonError("Staff permissions can only be assigned to Advisor or Admin accounts. Athlete and Parent access is managed through their dedicated workflows.", 409);
     }

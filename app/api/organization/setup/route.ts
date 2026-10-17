@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import { setScopedRole } from "@/lib/access-role-grants";
 
 function code() {
   return randomBytes(5).toString("hex").toUpperCase();
@@ -115,12 +116,26 @@ export async function GET() {
       canCreate: !!platformOwner,
       organizations: (organizations || []).map((o: any) => ({
         ...o,
+        organization_members: undefined,
         teams: (o.teams || []).filter((t:any)=>{const scope:any=scopeByOrg.get(String(o.id));return scope?.organization_admin!==false||scope?.team_ids?.includes(String(t.id))}).sort((a: any, b: any) =>
           (Number(a.sort_order ?? 999999) - Number(b.sort_order ?? 999999)) || String(a.name).localeCompare(String(b.name)),
         ),
-        staff: (o.organization_members || []).filter((m:any)=>["admin","advisor"].includes(m.role)).map((m:any)=>({...m,profile:staffById.get(String(m.user_id))||null,roles:(orgRoles||[]).filter((r:any)=>r.organization_id===o.id&&r.user_id===m.user_id).map((r:any)=>r.role)})),
-        roster: (o.teams||[]).map((t:any)=>({teamId:t.id,members:[...(teamMembers||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:"athlete"})),...(teamRoles||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:x.role}))].filter((x:any,i:number,a:any[])=>a.findIndex((y:any)=>y.userId===x.userId&&y.role===x.role)===i).map((x:any)=>({...x,profile:staffById.get(String(x.userId))||null,linkedAthletes:x.role==="parent"?(parentLinks||[]).filter((p:any)=>p.parent_user_id===x.userId).map((p:any)=>({id:p.athlete_user_id,name:staffById.get(String(p.athlete_user_id))?.full_name||"Athlete"})):[]}))})),
-        staffInvites:(staffInvites||[]).filter((i:any)=>i.organization_id===o.id),
+        canManageStaff: (scopeByOrg.get(String(o.id)) as any)?.organization_admin !== false,
+        staff: (scopeByOrg.get(String(o.id)) as any)?.organization_admin===false?[]:
+          [...new Set([
+            ...(o.organization_members||[]).filter((m:any)=>["admin","advisor"].includes(m.role)&&m.status==="active").map((m:any)=>String(m.user_id)),
+            ...(teamRoles||[]).filter((r:any)=>r.role==="admin"&&(o.teams||[]).some((t:any)=>t.id===r.team_id)).map((r:any)=>String(r.user_id)),
+          ])].map((uid:string)=>{
+            const member=(o.organization_members||[]).find((m:any)=>String(m.user_id)===uid&&m.status==="active");
+            const canonical=(orgRoles||[]).filter((r:any)=>r.organization_id===o.id&&String(r.user_id)===uid).map((r:any)=>r.role);
+            return {
+              user_id:uid,profile:staffById.get(uid)||null,
+              roles:[...new Set([...canonical,...(member&&["admin","advisor"].includes(member.role)?[member.role]:[])])],
+              teamAdminTeamIds:(teamRoles||[]).filter((r:any)=>String(r.user_id)===uid&&r.role==="admin"&&(o.teams||[]).some((t:any)=>t.id===r.team_id)).map((r:any)=>r.team_id),
+            };
+          }),
+        roster: (o.teams||[]).filter((t:any)=>{const scope:any=scopeByOrg.get(String(o.id));return scope?.organization_admin!==false||scope?.team_ids?.includes(String(t.id))}).map((t:any)=>({teamId:t.id,members:[...(teamMembers||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:"athlete"})),...(teamRoles||[]).filter((x:any)=>x.team_id===t.id).map((x:any)=>({userId:x.user_id,role:x.role}))].filter((x:any,i:number,a:any[])=>a.findIndex((y:any)=>y.userId===x.userId&&y.role===x.role)===i).map((x:any)=>({...x,profile:staffById.get(String(x.userId))||null,linkedAthletes:x.role==="parent"?(parentLinks||[]).filter((p:any)=>p.parent_user_id===x.userId&&((teamMembers||[]).some((a:any)=>a.team_id===t.id&&a.user_id===p.athlete_user_id)||(teamRoles||[]).some((a:any)=>a.team_id===t.id&&a.user_id===p.athlete_user_id&&a.role==="athlete"))).map((p:any)=>({id:p.athlete_user_id,name:staffById.get(String(p.athlete_user_id))?.full_name||"Athlete"})):[]}))})),
+        staffInvites:(scopeByOrg.get(String(o.id)) as any)?.organization_admin===false?[]:(staffInvites||[]).filter((i:any)=>i.organization_id===o.id),
       })),
     });
   } catch (error) {
@@ -264,11 +279,55 @@ export async function POST(req: NextRequest) {
         ...x,url:x.role==="family"?`${appUrl}/signup?join_token=${x.token}`:`${appUrl}/join/${x.token}`,
       }))});
     }
+    if (action === "setTeamAdminTeams") {
+      if (scope?.organization_admin === false)
+        return NextResponse.json({ error: "Only Organization Admins can assign Team Admins." }, { status: 403 });
+      const targetId = String(body.userId || "");
+      const requested = Array.isArray(body.teamIds) ? body.teamIds.map(String) : [];
+      if (!/^[0-9a-f-]{36}$/i.test(targetId) || new Set(requested).size !== requested.length)
+        return NextResponse.json({ error: "Choose a valid staff member and team assignments." }, { status: 400 });
+      const { data: member, error: memberError } = await admin.from("organization_members")
+        .select("id").eq("organization_id", organizationId).eq("user_id", targetId)
+        .eq("status", "active").in("role", ["admin", "advisor"]).maybeSingle();
+      if (memberError) throw new Error(memberError.message);
+      if (!member) {
+        const {data:existingTeamAdmin,error:teamAdminError}=await admin.from("team_user_roles")
+          .select("team_id").eq("user_id",targetId).eq("role","admin").eq("status","active");
+        if(teamAdminError)throw new Error(teamAdminError.message);
+        const {data:orgTeamIds,error:orgTeamError}=await admin.from("teams")
+          .select("id").eq("organization_id",organizationId);
+        if(orgTeamError)throw new Error(orgTeamError.message);
+        const ids=new Set((orgTeamIds||[]).map((t:any)=>t.id));
+        if(!(existingTeamAdmin||[]).some((t:any)=>ids.has(t.team_id)))
+          return NextResponse.json({ error: "Choose an existing organization staff member or Team Admin." }, { status: 404 });
+      }
+      const { data: orgTeams, error: teamError } = await admin.from("teams")
+        .select("id,archived_at").eq("organization_id", organizationId);
+      if (teamError) throw new Error(teamError.message);
+      const activeIds = (orgTeams || []).filter((t:any) => !t.archived_at).map((t:any) => String(t.id));
+      if (requested.some((id:string) => !activeIds.includes(id)))
+        return NextResponse.json({ error: "Every selected team must belong to this organization and be active." }, { status: 400 });
+      const { data: current, error: currentError } = activeIds.length
+        ? await admin.from("team_user_roles").select("team_id").eq("user_id", targetId)
+            .eq("role", "admin").eq("status", "active").in("team_id", activeIds)
+        : { data: [], error: null };
+      if (currentError) throw new Error(currentError.message);
+      const old = new Set((current || []).map((x:any) => String(x.team_id)));
+      const next = new Set(requested);
+      for (const teamId of activeIds) {
+        if (old.has(teamId) === next.has(teamId)) continue;
+        await setScopedRole(admin, {
+          actorId: user.id, targetId, teamId, role: "admin", enabled: next.has(teamId),
+        });
+      }
+      return NextResponse.json({ ok: true });
+    }
     if(scope?.organization_admin===false&&!["getJoinLinks","manageUserRole","setTeamAccess"].includes(action))return NextResponse.json({error:"Organization Admin access is required for that action."},{status:403});
     if (action === "manageUserRole") {
       const target=String(body.userId||""),role=String(body.role||""),enabled=Boolean(body.enabled),teamIds=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
       if(!target||!["admin","advisor","athlete","parent"].includes(role))return NextResponse.json({error:"Person and role are required."},{status:400});
       if(scope?.organization_admin===false){
+        if(role==="admin")return NextResponse.json({error:"Only an Organization Admin can assign Team Admin access."},{status:403});
         if(!teamIds.length||teamIds.some((id:string)=>!scope.team_ids?.includes(id)))return NextResponse.json({error:"Team Admins can manage roles only inside their assigned team(s)."},{status:403});
         for(const teamId of scope.team_ids||[])await admin.from("team_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("user_id",target).eq("role",role).eq("team_id",teamId);
         if(enabled)for(const teamId of teamIds)await admin.from("team_user_roles").upsert({team_id:teamId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"team_id,user_id,role"});
@@ -293,22 +352,18 @@ export async function POST(req: NextRequest) {
     }
     if (action === "setStaffRoles") {
       const target=String(body.userId||""), wantsAdmin=Boolean(body.admin), wantsAdvisor=Boolean(body.advisor);
-      if(!target||(!wantsAdmin&&!wantsAdvisor))return NextResponse.json({error:"Choose Advisor, Admin, or Advisor + Admin."},{status:400});
-      for(const role of ["admin","advisor"]){
-        const enabled=role==="admin"?wantsAdmin:wantsAdvisor;
-        if(enabled){
-          const {error:roleError}=await admin.from("organization_user_roles").upsert({organization_id:organizationId,user_id:target,role,status:"active",granted_by:user.id,granted_at:new Date().toISOString(),revoked_at:null},{onConflict:"organization_id,user_id,role"});if(roleError)throw new Error(roleError.message);
-          const {error:globalError}=await admin.from("user_roles").upsert({user_id:target,role},{onConflict:"user_id,role"});if(globalError)throw new Error(globalError.message);
-        }else{
-          const {error:revokeError}=await admin.from("organization_user_roles").update({status:"revoked",revoked_at:new Date().toISOString()}).eq("organization_id",organizationId).eq("user_id",target).eq("role",role);if(revokeError)throw new Error(revokeError.message);
-        }
+      if(!target||(!wantsAdmin&&!wantsAdvisor))
+        return NextResponse.json({error:"Choose Advisor, Admin, or Advisor + Admin."},{status:400});
+      // Activate desired roles before revoking others, preserving the person's other
+      // relationships and enforcing the last-Organization-Admin safeguard.
+      for(const role of ["advisor","admin"] as const){
+        if((role==="admin"?wantsAdmin:wantsAdvisor))
+          await setScopedRole(admin,{actorId:user.id,targetId:target,organizationId,role,enabled:true});
       }
-      const legacyRole=wantsAdmin?"admin":"advisor";
-      const {data:legacy}=await admin.from("organization_members").select("id").eq("organization_id",organizationId).eq("user_id",target).maybeSingle();
-      if(legacy){const {error:e}=await admin.from("organization_members").update({role:legacyRole,status:"active",organization_view_access:wantsAdmin}).eq("id",legacy.id);if(e)throw new Error(e.message)}
-      else{const {error:e}=await admin.from("organization_members").insert({organization_id:organizationId,user_id:target,role:legacyRole,status:"active",organization_view_access:wantsAdmin,joined_at:new Date().toISOString()});if(e)throw new Error(e.message)}
-      const {error:activationError}=await admin.from("profiles").update({registration_status:"active"}).eq("id",target);
-      if(activationError)throw new Error(activationError.message);
+      for(const role of ["admin","advisor"] as const){
+        if(!(role==="admin"?wantsAdmin:wantsAdvisor))
+          await setScopedRole(admin,{actorId:user.id,targetId:target,organizationId,role,enabled:false});
+      }
       return NextResponse.json({ok:true});
     }
     if (action === "inviteStaff") {
@@ -349,7 +404,13 @@ export async function POST(req: NextRequest) {
     }
     if (action === "setTeamAccess") {
       const target=String(body.userId||""),teamId=String(body.teamId||""),mode=String(body.mode||"remove");
-      if(scope?.organization_admin===false&&!scope.team_ids?.includes(teamId))return NextResponse.json({error:"That team is outside your Team Admin scope."},{status:403});
+      if(scope?.organization_admin===false&&(!scope.team_ids?.includes(teamId)||(body.scope&&body.scope!=="team")))return NextResponse.json({error:"That team or access scope is outside your Team Admin permissions."},{status:403});
+      if(scope?.organization_admin===false){
+        const {data:protectedAdmin,error:protectedError}=await admin.from("team_user_roles").select("team_id")
+          .eq("team_id",teamId).eq("user_id",target).eq("role","admin").eq("status","active").maybeSingle();
+        if(protectedError)throw new Error(protectedError.message);
+        if(protectedAdmin)return NextResponse.json({error:"Only an Organization Admin can remove a Team Admin."},{status:403});
+      }
       const {data:team}=await admin.from("teams").select("id").eq("id",teamId).eq("organization_id",organizationId).maybeSingle();
       if(!target||!team)return NextResponse.json({error:"Team access was not found."},{status:404});
       const teamIds=((await admin.from("teams").select("id").eq("organization_id",organizationId)).data||[]).map((x:any)=>x.id);

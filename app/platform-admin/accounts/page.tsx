@@ -84,8 +84,8 @@ export default function PlatformAccountsPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [chosenOrgId, setChosenOrgId] = useState("");
   const [chosenTeamId, setChosenTeamId] = useState("");
-  const [orgAdvisor, setOrgAdvisor] = useState(false);
-  const [orgAdmin, setOrgAdmin] = useState(false);
+  const [orgRole, setOrgRole] = useState("advisor");
+  const [orgEnabled, setOrgEnabled] = useState(false);
   const [teamRole, setTeamRole] = useState("advisor");
   const [teamEnabled, setTeamEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -190,11 +190,11 @@ export default function PlatformAccountsPage() {
     setSearch(""); setRole("all"); setOrgFilter("all"); setTeamFilter("all");
     setStatusFilter("all"); setAccountFilter("all"); setActivityFilter("all"); setCommercialFilter("all"); setSort("name_asc");
   }
-  function chooseOrg(id: string, account: Account | null = selected) {
+  function chooseOrg(id: string, nextRole = orgRole, account: Account | null = selected) {
     setChosenOrgId(id);
-    const grants = account?.organizations.find(o => o.id === id)?.grants || [];
-    setOrgAdvisor(grants.includes("advisor"));
-    setOrgAdmin(grants.includes("admin"));
+    setOrgRole(nextRole);
+    const access = account?.organizations.find(o => o.id === id);
+    setOrgEnabled(Boolean(access?.grants.includes(nextRole) || access?.roles.includes(nextRole)));
   }
   function chooseTeam(id: string, nextRole = teamRole, account: Account | null = selected) {
     setChosenTeamId(id);
@@ -208,7 +208,7 @@ export default function PlatformAccountsPage() {
     setConfirmAction(null);
     setActionMessage("");
     setActionError("");
-    chooseOrg(account.organizations[0]?.id || organizations[0]?.id || "", account);
+    chooseOrg(account.organizations[0]?.id || organizations[0]?.id || "", "advisor", account);
     chooseTeam(account.teams.find(t => !t.archived)?.id || teams.find(t => !t.archived)?.id || "", "advisor", account);
   }
   async function updateAccess(body: Record<string, unknown>, message: string) {
@@ -229,9 +229,8 @@ export default function PlatformAccountsPage() {
       setTeams(refreshed.teams || []);
       const updated = nextAccounts.find(a => a.id === selected.id);
       if (updated) {
-        const grants = updated.organizations.find(o => o.id === chosenOrgId)?.grants || [];
-        setOrgAdvisor(grants.includes("advisor"));
-        setOrgAdmin(grants.includes("admin"));
+        const access = updated.organizations.find(o => o.id === chosenOrgId);
+        setOrgEnabled(Boolean(access?.grants.includes(orgRole) || access?.roles.includes(orgRole)));
         setTeamEnabled(Boolean(updated.teams.find(t => t.id === chosenTeamId)?.roles.includes(teamRole)));
       }
       setActionMessage(message);
@@ -245,15 +244,21 @@ export default function PlatformAccountsPage() {
   }
   function saveOrg() {
     if (!selected || !chosenOrgId) return;
-    const grants = selected.organizations.find(o => o.id === chosenOrgId)?.grants || [];
-    if (!orgAdmin && !orgAdvisor && grants.length && !window.confirm("Remove this account's organization-wide Advisor and Admin roles? Team-specific access will remain.")) return;
-    void updateAccess({ action: "setOrganizationStaffRoles", organizationId: chosenOrgId, advisor: orgAdvisor, admin: orgAdmin }, "Organization roles saved.");
+    const active = Boolean(selected.organizations.find(o => o.id === chosenOrgId)?.roles.includes(orgRole));
+    if (active && !orgEnabled && !window.confirm("Revoke this account's " + roleName(orgRole) + " role for this organization? Other roles and team assignments remain.")) return;
+    void updateAccess({
+      action: "setScopedRole", scope: "organization", organizationId: chosenOrgId,
+      role: orgRole, enabled: orgEnabled,
+    }, "Organization role updated.");
   }
   function saveTeam() {
     if (!selected || !chosenTeamId) return;
     const active = Boolean(selected.teams.find(t => t.id === chosenTeamId)?.roles.includes(teamRole));
-    if (active && !teamEnabled && !window.confirm("Revoke this account's " + roleName(teamRole) + " access to this team?")) return;
-    void updateAccess({ action: "setTeamStaffRole", teamId: chosenTeamId, role: teamRole, enabled: teamEnabled }, "Team access saved.");
+    if (active && !teamEnabled && !window.confirm("Revoke this account's " + roleName(teamRole) + " role for this team? Other roles remain.")) return;
+    void updateAccess({
+      action: "setScopedRole", scope: "team", teamId: chosenTeamId,
+      role: teamRole, enabled: teamEnabled,
+    }, "Team role updated.");
   }
 
   function openLifecycle(action: LifecycleAction) {
@@ -312,7 +317,6 @@ export default function PlatformAccountsPage() {
     }
   }
 
-  const staffEditable = selected && ["advisor", "admin"].includes(selected.app_role);
   const protectedAccount = Boolean(selected && (selected.id === viewerId || selected.platform_roles.includes("super_owner")));
   const deleteIdentity = authDetails?.email || selected?.email || selected?.id || "";
   const accountOrg = selected?.organizations.find(o => o.id === chosenOrgId);
@@ -338,6 +342,7 @@ export default function PlatformAccountsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><h2 className="text-lg font-black">Search & filter accounts</h2><p className="mt-1 text-xs text-slate-500">Roles include active organization/team assignments and platform access. Account type is shown separately.</p></div>
           <div className="flex gap-2">
+            <button type="button" className="btn text-xs" disabled={!viewerId||loading} onClick={() => { const mine=accounts.find(a=>a.id===viewerId); if(mine)openAccount(mine); }}><UserRoundCog size={15}/>My account</button>
             {isFiltered && <button type="button" className="btn text-xs" onClick={resetFilters}><FilterX size={15}/>Clear filters</button>}
             <button type="button" className="btn text-xs" disabled={loading} onClick={() => void load()}><RefreshCw size={15}/>Refresh</button>
           </div>
@@ -504,41 +509,55 @@ export default function PlatformAccountsPage() {
             <h3 className="font-black">Pending access requests</h3>
             {selected.pending_requests.length ? <div className="mt-3 space-y-2">{selected.pending_requests.map(r => <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 p-3 text-sm"><div><span className="font-semibold">{roleName(r.role)}</span><div className="text-xs text-slate-600">{organizations.find(o => o.id === r.organization_id)?.name || "Athlete connection"} · {r.team_ids.map(id => teams.find(t => t.id === id)?.name || "Team").join(", ") || "Organization-wide"}</div></div><span className="text-xs text-amber-800">{dateLabel(r.requested_at)}</span></div>)}</div> : <p className="mt-2 text-sm text-slate-500">No pending access requests.</p>}
           </section>
-          {staffEditable ? <section className="rounded-2xl border border-slate-300 p-4">
-            <div className="flex items-center gap-2"><UserRoundCog size={18}/><h3 className="font-black">Manage staff access</h3></div>
-            <p className="mt-2 text-xs text-slate-600">Super Owner changes take effect immediately. Athlete and Parent relationships are managed in their own approval workflows.</p>
+          <section className="rounded-2xl border border-slate-300 p-4">
+            <div className="flex items-center gap-2"><UserRoundCog size={18}/><h3 className="font-black">Manage role assignments</h3></div>
+            <p className="mt-2 text-xs text-slate-600">Assign any existing RLTNL account, including your own, to multiple roles. Each grant is independent. Organization Admin covers an organization; Team Admin covers only the selected team. The account's original type and Super Owner status are unchanged.</p>
             <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4">
-              <h4 className="text-sm font-black">Organization-wide roles</h4>
+              <h4 className="text-sm font-black">Organization roles</h4>
               <Field label="Organization">
                 <select className="input w-full" value={chosenOrgId} onChange={e => chooseOrg(e.target.value)}>
                   <option value="">Select an organization</option>
                   {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </select>
               </Field>
-              {chosenOrgId && <><div className="flex flex-wrap gap-5">
-                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={orgAdvisor} onChange={e => setOrgAdvisor(e.target.checked)} className="h-4 w-4 accent-red-600"/>Advisor</label>
-                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={orgAdmin} onChange={e => setOrgAdmin(e.target.checked)} className="h-4 w-4 accent-red-600"/>Admin</label>
-              </div><p className="text-xs text-slate-500">{accountOrg ? "Current organization-wide roles: " + (accountOrg.grants.map(roleName).join(", ") || "None") : "No current organization-wide roles."} Unchecking both removes organization-wide staff grants, but preserves separately assigned team roles.</p>
-              <button className="btn btn-red" disabled={saving} onClick={saveOrg}><ShieldCheck size={15}/>{saving ? "Saving…" : "Save organization roles"}</button></>}
+              {chosenOrgId && <>
+                <Field label="Role">
+                  <select className="input w-full" value={orgRole} onChange={e => chooseOrg(chosenOrgId, e.target.value)}>
+                    <option value="admin">Organization Admin</option>
+                    <option value="advisor">Advisor / Coach</option>
+                    <option value="parent">Parent / Guardian</option>
+                    <option value="athlete">Athlete</option>
+                  </select>
+                </Field>
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={orgEnabled} onChange={e => setOrgEnabled(e.target.checked)} className="h-4 w-4 accent-red-600"/>Grant this organization role</label>
+                <p className="text-xs text-slate-500">Current organization-wide grants: {accountOrg?.grants.map(roleName).join(", ") || "None"}. Saving this role leaves every other role unchanged.</p>
+                <button className="btn btn-red" disabled={saving} onClick={saveOrg}><ShieldCheck size={15}/>{saving ? "Saving…" : "Save organization role"}</button>
+              </>}
             </div>
             <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-4">
-              <h4 className="text-sm font-black">Team-specific roles</h4>
+              <h4 className="text-sm font-black">Team roles</h4>
               <Field label="Team">
                 <select className="input w-full" value={chosenTeamId} onChange={e => chooseTeam(e.target.value)}>
                   <option value="">Select a team</option>
                   {teams.filter(t => !t.archived).map(t => <option key={t.id} value={t.id}>{t.name} · {organizations.find(o => o.id === t.organization_id)?.name || "Organization"}</option>)}
                 </select>
               </Field>
-              {chosenTeamId && <><Field label="Team role">
-                <select className="input w-full" value={teamRole} onChange={e => chooseTeam(chosenTeamId, e.target.value)}>
-                  <option value="advisor">Advisor</option><option value="admin">Team Admin</option>
-                </select>
-              </Field>
-              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={teamEnabled} onChange={e => setTeamEnabled(e.target.checked)} className="h-4 w-4 accent-red-600"/>Enable this team role</label>
-              <p className="text-xs text-slate-500">Currently {accountTeam?.roles.includes(teamRole) ? "enabled" : "not assigned"}. Team roles do not automatically grant organization-wide Admin privileges.</p>
-              <button className="btn btn-red" disabled={saving} onClick={saveTeam}><ShieldCheck size={15}/>{saving ? "Saving…" : "Save team role"}</button></>}
+              {chosenTeamId && <>
+                <Field label="Team role">
+                  <select className="input w-full" value={teamRole} onChange={e => chooseTeam(chosenTeamId, e.target.value)}>
+                    <option value="admin">Team Admin</option>
+                    <option value="advisor">Advisor / Coach</option>
+                    <option value="parent">Parent / Guardian</option>
+                    <option value="athlete">Athlete</option>
+                  </select>
+                </Field>
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={teamEnabled} onChange={e => setTeamEnabled(e.target.checked)} className="h-4 w-4 accent-red-600"/>Grant this team role</label>
+                <p className="text-xs text-slate-500">Current team roles: {accountTeam?.roles.map(roleName).join(", ") || "None"}. Team Admin does not grant organization-wide Admin access.</p>
+                <button className="btn btn-red" disabled={saving} onClick={saveTeam}><ShieldCheck size={15}/>{saving ? "Saving…" : "Save team role"}</button>
+              </>}
             </div>
-          </section> : <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">This account is an Athlete or Parent. Staff-role editing is unavailable here to protect their separate access and consent workflows.</div>}
+            <p className="mt-3 text-xs text-slate-600">Parent / Guardian role assignment does not link a parent to an athlete or bypass athlete approval. Advisor role assignment does not grant access to an athlete's private recruiting information. Athlete role creates an empty athlete profile when needed; the athlete completes their own recruiting details.</p>
+          </section>
           <section className="rounded-2xl border p-4">
             <h3 className="font-black">Access history</h3>
             <p className="mt-1 text-xs text-slate-500">Recent changes made through the Platform Account Directory. Other historical actions may be recorded elsewhere.</p>

@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@/lib/supabase-server";
 import {createAdminClient} from "@/lib/supabase-admin";
+import {setScopedRole} from "@/lib/access-role-grants";
 
 async function context(req:NextRequest){
  const supabase=await createClient();const{data:{user}}=await supabase.auth.getUser();if(!user)return null;
@@ -18,12 +19,28 @@ async function context(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const c=await context(req);if(!c)return NextResponse.json({error:"Admin access is required."},{status:403});const{admin,organizationId}=c;
- let teamQuery=admin.from("teams").select("id,name,age_group,archived_at").eq("organization_id",organizationId);if(c.teamIds)teamQuery=teamQuery.in("id",c.teamIds);const{data:teams}=await teamQuery;
- const{data:roles}=await admin.from("organization_user_roles").select("user_id,role,status").eq("organization_id",organizationId).eq("status","active");
- const teamIds=(teams||[]).map((t:any)=>t.id);const{data:teamRoles}=teamIds.length?await admin.from("team_user_roles").select("team_id,user_id,role,status").in("team_id",teamIds).eq("status","active"):{data:[]};
- const{data:requests}=await admin.from("organization_join_requests").select("id,user_id,team_id,role,status,requested_at").eq("organization_id",organizationId).eq("status","pending");
- const userIds=[...new Set([...(roles||[]).map((x:any)=>x.user_id),...(requests||[]).map((x:any)=>x.user_id)])];const{data:profiles}=userIds.length?await admin.from("profiles").select("id,full_name,email").in("id",userIds):{data:[]};const byId=new Map((profiles||[]).map((p:any)=>[String(p.id),p]));
- const people=[...new Set((roles||[]).map((x:any)=>String(x.user_id)))].map(uid=>({user_id:uid,profile:byId.get(uid)||null,roles:(roles||[]).filter((x:any)=>String(x.user_id)===uid).map((x:any)=>x.role),teamRoles:(teamRoles||[]).filter((x:any)=>String(x.user_id)===uid).map((x:any)=>({team_id:x.team_id,role:x.role}))}));
+ let teamQuery=admin.from("teams").select("id,name,age_group,archived_at").eq("organization_id",organizationId);
+ if(c.teamIds)teamQuery=teamQuery.in("id",c.teamIds);
+ const{data:teams,error:teamError}=await teamQuery;
+ if(teamError)return NextResponse.json({error:teamError.message},{status:500});
+ const teamIds=(teams||[]).map((t:any)=>t.id);
+ const [{data:roles,error:roleError},{data:teamRoles,error:teamRoleError},{data:teamMembers,error:teamMemberError},{data:requests,error:requestError}]=await Promise.all([
+  c.organizationAdmin?admin.from("organization_user_roles").select("user_id,role,status").eq("organization_id",organizationId).eq("status","active"):Promise.resolve({data:[],error:null}),
+  teamIds.length?admin.from("team_user_roles").select("team_id,user_id,role,status").in("team_id",teamIds).eq("status","active"):Promise.resolve({data:[],error:null}),
+  teamIds.length?admin.from("team_members").select("team_id,user_id").in("team_id",teamIds):Promise.resolve({data:[],error:null}),
+  c.organizationAdmin?admin.from("organization_join_requests").select("id,user_id,team_id,role,status,requested_at").eq("organization_id",organizationId).eq("status","pending")
+    :teamIds.length?admin.from("organization_join_requests").select("id,user_id,team_id,role,status,requested_at").eq("organization_id",organizationId).eq("status","pending").in("team_id",teamIds)
+    :Promise.resolve({data:[],error:null}),
+ ]);
+ for(const error of [roleError,teamRoleError,teamMemberError,requestError])if(error)return NextResponse.json({error:error.message},{status:500});
+ const userIds=[...new Set([...(roles||[]).map((x:any)=>x.user_id),...(teamRoles||[]).map((x:any)=>x.user_id),...(teamMembers||[]).map((x:any)=>x.user_id),...(requests||[]).map((x:any)=>x.user_id)])];
+ const{data:profiles,error:profileError}=userIds.length?await admin.from("profiles").select("id,full_name,email").in("id",userIds):{data:[],error:null};
+ if(profileError)return NextResponse.json({error:profileError.message},{status:500});
+ const byId=new Map((profiles||[]).map((p:any)=>[String(p.id),p]));
+ const people=userIds.map(uid=>({user_id:uid,profile:byId.get(String(uid))||null,
+  roles:[...new Set([...(roles||[]).filter((x:any)=>String(x.user_id)===uid).map((x:any)=>x.role),...(teamRoles||[]).filter((x:any)=>String(x.user_id)===uid).map((x:any)=>x.role),...(teamMembers||[]).filter((x:any)=>String(x.user_id)===uid).map(()=> "athlete")])],
+  teamRoles:[...(teamRoles||[]).filter((x:any)=>String(x.user_id)===uid).map((x:any)=>({team_id:x.team_id,role:x.role})),...(teamMembers||[]).filter((x:any)=>String(x.user_id)===uid).map((x:any)=>({team_id:x.team_id,role:"athlete"}))],
+ }));
  return NextResponse.json({people,teams:teams||[],requests:(requests||[]).map((x:any)=>({...x,profile:byId.get(String(x.user_id))||null}))});
 }
 export async function POST(req:NextRequest){
@@ -40,6 +57,7 @@ export async function POST(req:NextRequest){
   if(decision==="approved"){
     const roles=r.role==="advisor_admin"?["advisor","admin"]:[r.role];
     if(roles.some((role:string)=>!["advisor","admin"].includes(role)))return NextResponse.json({error:"This staff request cannot be approved here."},{status:400});
+    if(!c.organizationAdmin&&roles.includes("admin"))return NextResponse.json({error:"Only Organization Admins can approve Team Admin access."},{status:403});
     for(const role of roles){
       if(r.team_id){
         const{error}=await admin.from("team_user_roles").upsert({
@@ -82,6 +100,25 @@ export async function POST(req:NextRequest){
     .eq("id",id).eq("status","pending");
   if(updateError)return NextResponse.json({error:updateError.message},{status:500});
   return NextResponse.json({ok:true});
+ }
+ if(action==="saveAccess"&&!c.organizationAdmin){
+  const target=String(body.userId||""),role=String(body.role||""),enabled=body.enabled;
+  const selected=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
+  if(!target||!["advisor","athlete","parent"].includes(role)||typeof enabled!=="boolean")
+    return NextResponse.json({error:"Choose an eligible team role."},{status:400});
+  if(selected.some((id:string)=>!c.teamIds?.includes(id))||(enabled&&!selected.length))
+    return NextResponse.json({error:"Select one or more teams you administer."},{status:403});
+  try{
+    for(const teamId of c.teamIds||[]){
+      const desired=enabled&&selected.includes(teamId);
+      const {data:existing,error}=await admin.from("team_user_roles").select("status")
+        .eq("team_id",teamId).eq("user_id",target).eq("role",role).maybeSingle();
+      if(error)throw new Error(error.message);
+      if((existing?.status==="active")===desired)continue;
+      await setScopedRole(admin,{actorId:user.id,targetId:target,teamId,role:role as "advisor"|"athlete"|"parent",enabled:desired});
+    }
+    return NextResponse.json({ok:true});
+  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:"Could not update team access."},{status:500})}
  }
  if(action==="saveAccess"){
   const target=String(body.userId||""),role=String(body.role||""),enabled=Boolean(body.enabled),selected=Array.isArray(body.teamIds)?body.teamIds.map(String):[];
