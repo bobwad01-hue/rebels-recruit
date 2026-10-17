@@ -105,7 +105,7 @@ export default function Home() {
               <Link href="/demo" className="btn btn-red w-full justify-center px-5 py-3 text-sm sm:w-auto">Bring RLTNL to Your Organization <ArrowRight size={17}/></Link>
               <Link href="/signup" className="btn w-full justify-center px-5 py-3 text-sm sm:w-auto">Have a Team Code? Join <ArrowUpRight size={16}/></Link>
             </div>
-            <p className="mt-4 max-w-xl text-xs leading-5 text-slate-500">New to RLTNL? Request a demo for your organization or high school team. Already invited? Join using your team code.</p>
+            <p className="mt-4 max-w-xl text-xs leading-5 text-slate-500">New to RLTNL? Request a demo for your organization or high school team. A team invitation is required to sign up. Already invited? Join using your team code.</p>
             <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-600"><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-[#D01C29]"/> Athletes first</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-[#D01C29]"/> Families supported</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-[#D01C29]"/> Advisors connected</span><span className="flex items-center gap-1.5"><CheckCircle2 size={15} className="text-[#D01C29]"/> Organizations informed</span></div>
           </div>
           <HeroPreview/>
