@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const migration=read('supabase/migrations/20261016180000_team_admin_automatic_athlete_access.sql');
+const staffGuard=read('supabase/migrations/20261016200000_team_admin_staff_only_guard.sql');
 const athlete=read('app/manage-access/page.tsx');
 const actions=read('app/manage-access/TeamAdminAccessActions.tsx');
 const advisor=read('app/advisors/page.tsx');
@@ -11,6 +12,7 @@ const roles=read('lib/access-role-grants.ts');
 for(const key of ['athlete_team_admin_revocations','team_admin_can_access_athlete','my_team_admin_athlete_ids','can_access_athlete','can_edit_athlete','role = \'admin\' and staff.status = \'active\'']){
  assert(migration.includes(key),'Migration missing '+key);
 }
+assert(staffGuard.includes('select not exists (')&&!staffGuard.includes('select a = (select auth.uid())'),'Team Admin access must never include an athlete self-bypass');
 assert(migration.includes('not exists (')&&migration.includes('denied.admin_user_id'),'Revocation must override automatic coverage');
 assert(migration.includes('tm.team_id=t.id')||migration.includes('tm.team_id=t.id'),'Coverage must be tied to team membership');
 assert(athlete.includes('Team Admin Access')&&athlete.includes('TeamAdminAccessActions'),'Athletes need visible Team Admin revocation controls');
