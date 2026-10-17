@@ -64,7 +64,7 @@ grant execute on function public.team_admin_can_access_athlete(uuid) to authenti
 -- Active Team Admins may message covered athletes; a revocation removes this path.
 create or replace function private.can_message_user(target_user uuid)
 returns boolean language sql stable security definer set search_path = ''
-as $
+as $body$
  select target_user=(select auth.uid())
  or exists (
   select 1 from public.athlete_advisor_assignments aa
@@ -80,7 +80,7 @@ as $
    and (me.role in ('owner','admin') or (me.role='advisor' and me.organization_view_access))
  )
  or public.team_admin_can_access_athlete(target_user);
-$;
+$body$;
 
 -- Preserve existing independently granted Advisor, Organization Admin, and Super Owner rights.
 -- A revoked Team Admin grant never reactivates through re-assignment or roster sync.
@@ -158,14 +158,14 @@ on conflict (organization_id,user_id) do nothing;
 create or replace function public.my_team_admin_athlete_ids()
 returns table (athlete_user_id uuid)
 language sql stable security definer set search_path = ''
-as $
+as $body$
  select distinct tm.user_id
  from public.team_user_roles r
  join public.teams t on t.id=r.team_id and t.archived_at is null
  join public.team_members tm on tm.team_id=t.id
  where r.user_id=(select auth.uid()) and r.role='admin' and r.status='active'
  and public.team_admin_can_access_athlete(tm.user_id);
-$;
+$body$;
 revoke all on function public.my_team_admin_athlete_ids() from public;
 grant execute on function public.my_team_admin_athlete_ids() to authenticated;
 
