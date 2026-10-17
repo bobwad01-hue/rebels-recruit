@@ -108,7 +108,7 @@ function OrganizationScreen() {
 export default function PublicProductTour() {
   const [tab, setTab] = useState<Tab>('athlete');
   const heading = {
-    athlete: ['Game Plan', 'Know your next move.'],
+    athlete: ['Game Plan', 'Know your next step.'],
     connections: ['Connections', 'Relationships, not just contacts.'],
     advisor: ['Advisor Communications', 'The conversations behind recruiting.'],
     organization: ['Recruiting Board', 'See the recruiting picture across your teams.'],
