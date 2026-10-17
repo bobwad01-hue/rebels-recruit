@@ -81,7 +81,8 @@ async function syncGlobalRole(admin: any, userId: string, role: ScopedRole) {
     admin.from("team_user_roles").select("role").eq("user_id", userId).eq("role", role).eq("status", "active").limit(1),
   ]);
   checked(profile); checked(orgRoles); checked(teamRoles);
-  let keep = profile.data?.app_role === role || !!orgRoles.data?.length || !!teamRoles.data?.length;
+  // Admin is always scoped. A historical account type alone must not keep Admin view after revocation.
+  let keep = (role !== "admin" && profile.data?.app_role === role) || !!orgRoles.data?.length || !!teamRoles.data?.length;
   if (role === "athlete" && !keep) {
     const athlete = await admin.from("athlete_profiles").select("user_id").eq("user_id", userId).maybeSingle();
     checked(athlete); keep = !!athlete.data;
