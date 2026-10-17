@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 const steps = [
   { number: '01', title: 'Find your fit', description: 'Build a school list around what matters to the athlete, not just a ranking.', icon: Compass },
   { number: '02', title: 'Build relationships', description: 'Keep coaches, schools, outreach and relationship history connected.', icon: Handshake },
-  { number: '03', title: 'Show up prepared', description: 'Plan camps and visits, record what happened and capture the next move.', icon: CalendarDays },
+  { number: '03', title: 'Show up prepared', description: 'Plan camps and visits, record what happened and capture the next step.', icon: CalendarDays },
   { number: '04', title: 'Follow through', description: 'Send recruiting emails, review coach replies and keep conversations moving toward clear next steps.', icon: Mail },
   { number: '05', title: 'Track the journey', description: 'Understand progress from first contact through the recruiting decision.', icon: TrendingUp },
 ];
@@ -43,7 +43,7 @@ function HeroPreview() {
     <div className="pointer-events-none absolute -right-4 -top-5 h-32 w-32 rounded-full bg-red-100/80 blur-3xl" aria-hidden="true" />
     <PreviewChrome label="Game Plan">
       <div className="p-4 sm:p-6">
-        <div className="flex items-center justify-between gap-3"><div><div className="text-[11px] font-bold text-[#D01C29]">RECRUITING GAME PLAN</div><h3 className="mt-1 text-xl font-black tracking-tight">Know your next move.</h3></div><div className="rounded-xl bg-red-50 p-3 text-[#D01C29]"><Target size={23}/></div></div>
+        <div className="flex items-center justify-between gap-3"><div><div className="text-[11px] font-bold text-[#D01C29]">RECRUITING GAME PLAN</div><h3 className="mt-1 text-xl font-black tracking-tight">Know your next step.</h3></div><div className="rounded-xl bg-red-50 p-3 text-[#D01C29]"><Target size={23}/></div></div>
         <div className="mt-5 grid grid-cols-3 gap-2.5">
           {[['Schools','12'],['Connections','8'],['Next steps','3']].map(([name,value])=><div key={name} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"><p className="text-[10px] font-semibold text-slate-500">{name}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
         </div>
