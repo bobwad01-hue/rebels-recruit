@@ -34,9 +34,15 @@ export async function POST(req:NextRequest){
   const{data:p}=await admin.from('profiles').select('id,email').ilike('email',email).limit(1);
   const userId=p?.[0]?.id;
   if(!userId)return NextResponse.json({ok:true});
+  // A send-only or disconnected account cannot be synced. Acknowledge its
+  // Pub/Sub notifications rather than causing endless retries and 409s.
+  const {data:connection}=await admin.from('google_workspace_connections').select('gmail_connected').eq('user_id',userId).maybeSingle();
+  if(!connection?.gmail_connected)return NextResponse.json({ok:true,skipped:'gmail-not-connected'});
+  const {data:token}=await admin.from('google_workspace_tokens').select('scope').eq('user_id',userId).eq('service','gmail').maybeSingle();
+  if(!token?.scope?.includes('gmail.readonly'))return NextResponse.json({ok:true,skipped:'gmail-read-permission-required'});
   const syncUrl=new URL('/api/google/gmail/sync',req.nextUrl.origin);
   const sync=await fetch(syncUrl,{method:'POST',headers:{'Content-Type':'application/json','x-gmail-push-user':userId,'x-gmail-push-secret':process.env.GMAIL_PUSH_SECRET||''},cache:'no-store',redirect:'manual'});
-  if(!sync.ok){const detail=await sync.text().catch(()=> '');const throttled=sync.status===429||/quota exceeded|rate limit/i.test(detail);if(throttled){console.warn('Gmail push sync deferred due to provider quota',sync.status);return NextResponse.json({ok:true,deferred:true},{status:202})}console.error('Gmail push sync failed',sync.status,detail);return NextResponse.json({error:'sync failed'},{status:500})}
+  if(!sync.ok){const detail=await sync.text().catch(()=> '');if(sync.status===409&&/reconnectRequired|Reconnect Gmail/i.test(detail))return NextResponse.json({ok:true,skipped:'gmail-read-permission-required'});const throttled=sync.status===429||/quota exceeded|rate limit/i.test(detail);if(throttled){console.warn('Gmail push sync deferred due to provider quota',sync.status);return NextResponse.json({ok:true,deferred:true},{status:202})}console.error('Gmail push sync failed',sync.status,detail);return NextResponse.json({error:'sync failed'},{status:500})}
   await admin.from('google_workspace_connections').update({gmail_history_id:historyId,gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);
   return NextResponse.json({ok:true});
  }catch(e){console.error('Gmail push failed',e);return NextResponse.json({error:'push failed'},{status:500})}
