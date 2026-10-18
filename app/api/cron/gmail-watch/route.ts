@@ -5,9 +5,6 @@ import {startGmailWatch} from '@/lib/gmail-inbound';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
-// The daily cron both renews expiring Gmail watches and catches up on
-// messages missed while a watch was expired or Pub/Sub delivery was delayed.
-// Bound the work so this stays affordable as more athletes join.
 const MAX_WATCH_RENEWALS=25;
 const MAX_CATCHUP_SYNCS=6;
 const CATCHUP_INTERVAL_MS=20*60*60*1000;
@@ -46,12 +43,11 @@ export async function GET(req:NextRequest){
   catch(e){failures.push({userId:row.user_id,step:'watch',error:e instanceof Error?e.message:'Watch renewal failed'})}
  }));
 
- // This scan is intentionally independent of watch renewal: an active watch
- // is not proof that notifications arrived, and renewing a watch does not
- // automatically import the messages missed during an outage.
  const stale=readable.filter(row=>!row.gmail_last_synced_at||now-new Date(row.gmail_last_synced_at).getTime()>CATCHUP_INTERVAL_MS)
   .slice(0,MAX_CATCHUP_SYNCS);
- const syncUrl=new URL('/api/google/gmail/sync',req.nextUrl.origin);
+ // Custom production domains bypass Vercel deployment SSO; the deployment URL does not.
+ // Keep the sync route's existing shared-secret authentication intact.
+ const syncUrl=new URL('/api/google/gmail/sync','https://rltnl.com');
  let synced=0,imported=0;
  await Promise.all(stale.map(async row=>{
   try{
@@ -61,14 +57,11 @@ export async function GET(req:NextRequest){
     'x-gmail-push-secret':process.env.GMAIL_PUSH_SECRET!
    },cache:'no-store',redirect:'manual'});
    const result=await response.json().catch(()=>({})) as {logged?:number;error?:string};
-   if(!response.ok)throw new Error(result.error||`Gmail catch-up returned ${response.status}`);
+   if(!response.ok)throw new Error(typeof result.error==='string'?result.error:`Gmail catch-up returned ${response.status}`);
    synced++;imported+=result.logged||0;
   }catch(e){failures.push({userId:row.user_id,step:'catchup',error:e instanceof Error?e.message:'Catch-up sync failed'})}
  }));
  if(failures.length)console.error('Gmail watch/catch-up cron failures',failures);
- // One structured heartbeat per scheduled run allows operational checks to
- // distinguish a successful cron execution from a silently missed schedule.
- // Only aggregate counts are logged; no Gmail content or user identifiers.
  const summary={checked:rows.length,readEnabled:readable.length,
   skippedWithoutReadScope:rows.length-readable.length,watchRenewalsAttempted:expiring.length,renewed,
   catchupsAttempted:stale.length,synced,imported,failed:failures.length};
