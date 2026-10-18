@@ -19,6 +19,15 @@ type CoachEmail = {
   colleges?: { name?: string } | null;
 };
 type Variant = 'bell' | 'home' | 'inbox';
+type SyncHealth = 'unknown' | 'healthy' | 'disconnected' | 'permission' | 'watch' | 'stale';
+
+function syncMessage(status: SyncHealth) {
+  if (status === 'disconnected') return 'Connect Gmail to receive and track incoming coach emails.';
+  if (status === 'permission') return 'Reconnect Gmail to allow incoming coach emails to be read.';
+  if (status === 'watch') return 'Incoming Gmail notifications stopped. Repair monitoring and check for missed coach replies.';
+  if (status === 'stale') return 'Gmail has not been checked recently. Check now for missed coach replies.';
+  return '';
+}
 
 function sender(email: CoachEmail) {
   return email.extracted_data?.senderName || email.extracted_data?.senderEmail || 'Sender not verified';
@@ -46,10 +55,42 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
   const [count, setCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
+  const [syncHealth, setSyncHealth] = useState<SyncHealth>('unknown');
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState('');
+  const autoSyncAttempted = useRef(false);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'pending' | 'reviewed'>('pending');
   const popoverRef = useRef<HTMLDivElement>(null);
   const senderBackfillAttempted = useRef(false);
+
+  async function repairAndSync(repairWatch: boolean) {
+    setSyncing(true);
+    setSyncError('');
+    try {
+      let watchError = '';
+      if (repairWatch) {
+        const watch = await fetch('/api/google/gmail/watch', { method: 'POST', cache: 'no-store' });
+        if (!watch.ok) {
+          const result = await watch.json().catch(() => ({})) as {error?: string};
+          watchError = result.error || 'Gmail notifications could not be restarted.';
+        }
+      }
+      // Scanning is independent of watch renewal. It recovers missed emails
+      // even if Google's notification service is temporarily unavailable.
+      const response = await fetch('/api/google/gmail/sync', { method: 'POST', cache: 'no-store' });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({})) as {error?: string};
+        throw new Error(result.error || 'Could not check incoming coach emails.');
+      }
+      if (watchError) setSyncError(watchError);
+      window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
+    } catch (e) {
+      setSyncError(e instanceof Error ? e.message : 'Could not check Gmail.');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -59,7 +100,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
       if (!active) return;
       if (!user) { setLoaded(true); return; }
 
-      const [pendingCount, pending, reviewed] = await Promise.all([
+      const [pendingCount, pending, reviewed, connection] = await Promise.all([
         client.from('gmail_recruiting_messages').select('id', { count: 'exact', head: true })
           .eq('athlete_user_id', user.id).is('reviewed_at', null),
         client.from('gmail_recruiting_messages').select(fields)
@@ -70,8 +111,26 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
               .eq('athlete_user_id', user.id).not('reviewed_at', 'is', null)
               .order('reviewed_at', { ascending: false }).limit(30)
           : Promise.resolve({ data: [] as CoachEmail[], error: null }),
+        client.from('google_workspace_connections')
+          .select('gmail_connected,gmail_scope,gmail_watch_expiration,gmail_last_synced_at')
+          .eq('user_id', user.id).maybeSingle(),
       ]);
       if (!active) return;
+      const gmail = connection.data;
+      const connected = Boolean(gmail?.gmail_connected);
+      const canRead = connected && Boolean(gmail?.gmail_scope?.includes('gmail.readonly'));
+      const now = Date.now();
+      const watchActive = Boolean(gmail?.gmail_watch_expiration && new Date(gmail.gmail_watch_expiration).getTime() > now);
+      const lastChecked = gmail?.gmail_last_synced_at ? new Date(gmail.gmail_last_synced_at).getTime() : 0;
+      const recentlyChecked = Boolean(lastChecked && now - lastChecked < 26 * 60 * 60 * 1000);
+      const health: SyncHealth = connection.error ? 'unknown' : !connected ? 'disconnected'
+        : !canRead ? 'permission' : !watchActive ? 'watch' : !recentlyChecked ? 'stale' : 'healthy';
+      setSyncHealth(health);
+      if (variant === 'inbox' && canRead && !autoSyncAttempted.current
+          && (!watchActive || !lastChecked || now - lastChecked > 15 * 60 * 1000)) {
+        autoSyncAttempted.current = true;
+        void repairAndSync(!watchActive);
+      }
       if (pendingCount.error || pending.error || reviewed.error) {
         setError(true);
       } else {
@@ -173,6 +232,21 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
             <span className="text-xs font-bold leading-4 text-red-800">To<br />review</span>
           </div>
         </div>
+        {(syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncing || syncError) && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+            <p>{syncing ? 'Checking Gmail for missed coach emails…' : syncError || syncMessage(syncHealth)}</p>
+            {(syncHealth === 'permission' || syncHealth === 'disconnected') ? (
+              <Link className="btn text-xs" href={syncHealth === 'permission' ? '/api/google/connect?service=gmail' : '/settings'}>
+                {syncHealth === 'permission' ? 'Reconnect Gmail' : 'Connect Gmail'}
+              </Link>
+            ) : (
+              <button type="button" className="btn text-xs" disabled={syncing}
+                onClick={() => { autoSyncAttempted.current = true; void repairAndSync(true); }}>
+                {syncing ? 'Checking…' : 'Sync & repair'}
+              </button>
+            )}
+          </div>
+        )}
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
           <section className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -186,7 +260,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
                   Reviewed
                 </button>
               </div>
-              <span className="text-xs text-slate-500">Synced with your connected Gmail</span>
+              <span className="text-xs text-slate-500">{syncHealth === 'healthy' ? 'Gmail monitoring active' : syncing ? 'Checking Gmail…' : 'Gmail connection status shown above'}</span>
             </div>
             {!loaded ? (
               <div className="card p-8 text-center text-sm text-slate-600" role="status">Loading coach emails…</div>
@@ -200,9 +274,9 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
                   <CheckCircle2 size={26} />
                 </div>
-                <h3 className="mt-4 text-lg font-black">{tab === 'pending' ? 'All caught up' : 'No reviewed emails yet'}</h3>
+                <h3 className="mt-4 text-lg font-black">{tab === 'pending' ? (syncHealth === 'healthy' ? 'All caught up' : 'No emails to review yet') : 'No reviewed emails yet'}</h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm text-slate-600">
-                  {tab === 'pending' ? 'No incoming coach emails need your attention right now. New replies will appear here.' : 'After you review or reply to a coach email, you can find it here.'}
+                  {tab === 'pending' ? (syncHealth === 'healthy' ? 'No incoming coach emails need your attention right now. New replies will appear here.' : 'There are no imported coach emails awaiting review. Check your Gmail connection above to make sure replies are being received.') : 'After you review or reply to a coach email, you can find it here.'}
                 </p>
                 {tab === 'pending' && reviewedItems.length > 0 &&
                   <button type="button" onClick={() => setTab('reviewed')} className="btn mt-5 text-sm">See reviewed emails <ArrowRight size={15} /></button>}
@@ -272,9 +346,12 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
             <div className="font-black">Coach email alerts</div>
             {count > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">{count} new</span>}
           </div>
+          {syncHealth !== 'healthy' && syncHealth !== 'unknown' && (
+            <p className="mb-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{syncMessage(syncHealth)}</p>
+          )}
           {error ? <p className="p-2 text-sm text-red-700">Could not load alerts.</p>
             : !loaded ? <p className="p-2 text-sm text-slate-600">Loading…</p>
-            : count === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">You're all caught up. No emails need review.</p>
+            : count === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{syncHealth === 'healthy' ? "You're all caught up. No emails need review." : 'No imported coach emails currently need review.'}</p>
             : <div className="space-y-2">{items.slice(0, 5).map((email) =>
                 <Link key={email.id} href={detailsUrl(email)} onClick={() => setOpen(false)}
                   className="block rounded-xl border p-3 transition-colors hover:border-red-200 hover:bg-red-50">
