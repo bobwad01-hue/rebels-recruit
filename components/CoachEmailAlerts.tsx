@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Bell, CheckCircle2, ChevronRight, Clock3, Inbox, Mail, MessageSquareReply } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase-browser';
@@ -20,6 +21,22 @@ type CoachEmail = {
 };
 type Variant = 'bell' | 'home' | 'inbox';
 type SyncHealth = 'unknown' | 'healthy' | 'disconnected' | 'permission' | 'watch' | 'stale';
+
+// Try a self-healing watch renewal once per browser session, with a
+// cross-page cooldown. A failed Google/PubSub configuration must not create
+// repeated requests on every navigation or dashboard poll.
+const attemptedAutoWatchRepairs = new Set<string>();
+function shouldAutoRepairWatch(userId: string) {
+  if (attemptedAutoWatchRepairs.has(userId)) return false;
+  try {
+    const key = 'rltnl:gmail-watch-repair:' + userId;
+    const previous = Number(sessionStorage.getItem(key) || '0');
+    if (Date.now() - previous < 30 * 60 * 1000) return false;
+    sessionStorage.setItem(key, String(Date.now()));
+  } catch { /* Browser storage can be unavailable; the in-memory guard remains. */ }
+  attemptedAutoWatchRepairs.add(userId);
+  return true;
+}
 
 function syncMessage(status: SyncHealth) {
   if (status === 'disconnected') return 'Connect Gmail to receive and track incoming coach emails.';
@@ -50,6 +67,7 @@ function replyUrl(email: CoachEmail) {
 const fields = 'id,coach_id,subject,summary,received_at,reviewed_at,interaction_id,recruiting_intent,extracted_data,college_coaches(first_name,last_name),colleges(name)';
 
 export default function CoachEmailAlerts({ variant = 'bell', compact = false }: { variant?: Variant; compact?: boolean }) {
+  const router = useRouter();
   const [items, setItems] = useState<CoachEmail[]>([]);
   const [reviewedItems, setReviewedItems] = useState<CoachEmail[]>([]);
   const [count, setCount] = useState(0);
@@ -63,6 +81,24 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
   const [tab, setTab] = useState<'pending' | 'reviewed'>('pending');
   const popoverRef = useRef<HTMLDivElement>(null);
   const senderBackfillAttempted = useRef(false);
+
+  async function autoRepairWatch() {
+    setSyncing(true);
+    setSyncError('');
+    try {
+      const response = await fetch('/api/google/gmail/watch', { method: 'POST', cache: 'no-store' });
+      const result = await response.json().catch(() => ({})) as {error?: string};
+      if (!response.ok) throw new Error(result.error || 'Could not restart Gmail monitoring.');
+      window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
+      // The coach relationship timeline is server-rendered. Refresh it when
+      // an inbox scan imports a reply while that page is already open.
+      router.refresh();
+    } catch (e) {
+      setSyncError(e instanceof Error ? e.message : 'Could not restart Gmail monitoring.');
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function repairAndSync(repairWatch: boolean) {
     setSyncing(true);
@@ -126,6 +162,9 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
       const health: SyncHealth = connection.error ? 'unknown' : !connected ? 'disconnected'
         : !canRead ? 'permission' : !watchActive ? 'watch' : !recentlyChecked ? 'stale' : 'healthy';
       setSyncHealth(health);
+      if (canRead && !watchActive && shouldAutoRepairWatch(user.id)) {
+        void autoRepairWatch();
+      }
       if (variant === 'inbox' && canRead && !autoSyncAttempted.current
           && (!watchActive || !lastChecked || now - lastChecked > 15 * 60 * 1000)) {
         autoSyncAttempted.current = true;
@@ -210,6 +249,15 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
             {count > 1 && <Link href="/coach-emails" className="btn text-sm">View all</Link>}
           </div>
         </div>
+        {(syncHealth === 'watch' || syncHealth === 'stale' || syncError) && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status">
+            <span>{syncing ? 'Checking Gmail monitoring…' : syncError || syncMessage(syncHealth)}</span>
+            <button type="button" className="font-bold underline underline-offset-2 disabled:opacity-50"
+              disabled={syncing} onClick={() => void repairAndSync(true)}>
+              {syncing ? 'Checking…' : 'Sync & repair'}
+            </button>
+          </div>
+        )}
       </section>
     );
   }
@@ -346,8 +394,21 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
             <div className="font-black">Coach email alerts</div>
             {count > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">{count} new</span>}
           </div>
-          {syncHealth !== 'healthy' && syncHealth !== 'unknown' && (
-            <p className="mb-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">{syncMessage(syncHealth)}</p>
+          {(syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncError || syncing) && (
+            <div className="mb-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900" role="status">
+              <p>{syncing ? 'Checking Gmail monitoring…' : syncError || syncMessage(syncHealth)}</p>
+              {(syncHealth === 'permission' || syncHealth === 'disconnected') ? (
+                <Link href={syncHealth === 'permission' ? '/api/google/connect?service=gmail' : '/settings'}
+                  className="mt-2 inline-block font-bold underline underline-offset-2">
+                  {syncHealth === 'permission' ? 'Reconnect Gmail' : 'Connect Gmail'}
+                </Link>
+              ) : (
+                <button type="button" className="mt-2 font-bold underline underline-offset-2 disabled:opacity-50"
+                  disabled={syncing} onClick={() => void repairAndSync(true)}>
+                  {syncing ? 'Checking…' : 'Sync & repair'}
+                </button>
+              )}
+            </div>
           )}
           {error ? <p className="p-2 text-sm text-red-700">Could not load alerts.</p>
             : !loaded ? <p className="p-2 text-sm text-slate-600">Loading…</p>
