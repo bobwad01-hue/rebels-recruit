@@ -162,13 +162,13 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
       const health: SyncHealth = connection.error ? 'unknown' : !connected ? 'disconnected'
         : !canRead ? 'permission' : !watchActive ? 'watch' : !recentlyChecked ? 'stale' : 'healthy';
       setSyncHealth(health);
-      if (canRead && !watchActive && shouldAutoRepairWatch(user.id)) {
-        void autoRepairWatch();
-      }
+      const shouldRepairWatch = canRead && !watchActive && shouldAutoRepairWatch(user.id);
       if (variant === 'inbox' && canRead && !autoSyncAttempted.current
           && (!watchActive || !lastChecked || now - lastChecked > 15 * 60 * 1000)) {
         autoSyncAttempted.current = true;
-        void repairAndSync(!watchActive);
+        void repairAndSync(shouldRepairWatch);
+      } else if (shouldRepairWatch) {
+        void autoRepairWatch();
       }
       if (pendingCount.error || pending.error || reviewed.error) {
         setError(true);
