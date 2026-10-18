@@ -66,7 +66,12 @@ export async function GET(req:NextRequest){
   }catch(e){failures.push({userId:row.user_id,step:'catchup',error:e instanceof Error?e.message:'Catch-up sync failed'})}
  }));
  if(failures.length)console.error('Gmail watch/catch-up cron failures',failures);
- return NextResponse.json({ok:failures.length===0,checked:rows.length,readEnabled:readable.length,
+ // One structured heartbeat per scheduled run allows operational checks to
+ // distinguish a successful cron execution from a silently missed schedule.
+ // Only aggregate counts are logged; no Gmail content or user identifiers.
+ const summary={checked:rows.length,readEnabled:readable.length,
   skippedWithoutReadScope:rows.length-readable.length,watchRenewalsAttempted:expiring.length,renewed,
-  catchupsAttempted:stale.length,synced,imported,failed:failures.length,failures:failures.slice(0,10)});
+  catchupsAttempted:stale.length,synced,imported,failed:failures.length};
+ console.info('Gmail watch cron completed',JSON.stringify(summary));
+ return NextResponse.json({ok:failures.length===0,...summary,failures:failures.slice(0,10)});
 }
