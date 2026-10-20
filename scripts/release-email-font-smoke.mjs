@@ -17,6 +17,7 @@ function loadTs(path, dependencies = {}) {
   return module.exports;
 }
 const fonts = loadTs('lib/email-fonts.ts');
+const { chooseEmailEditorRange } = loadTs('lib/email-editor-selection.ts');
 const { renderEmailHtml } = loadTs('lib/email-html.ts', { './email-fonts': fonts });
 const editor = read('components/RichEmailEditor.tsx');
 const composer = read('components/CoachActionBar.tsx');
@@ -27,6 +28,21 @@ assert.deepEqual(Array.from(fonts.EMAIL_SIZES, size => size.label), ['Small','No
 assert(editor.includes('aria-label="Font family"') && editor.includes('aria-label="Text size"'), 'Font and size controls must be accessible');
 assert(editor.includes("command('fontName',font)") && editor.includes("command('fontSize',size)"), 'Font controls must format editor text');
 assert(editor.includes('safeDraftHtml(html)'), 'Saved HTML must be sanitized before restoration');
+assert(editor.includes('const live=currentEditorRange(editor);'), 'Formatting must inspect the current browser selection');
+assert(editor.includes('chooseEmailEditorRange(cmd,live,saved)'), 'Formatting must use the tested selection policy');
+assert(!editor.includes('onBlur={()=>{rememberSelection();emit()}}'), 'Blur must not overwrite the last selected text with a changed selection');
+const previousWholeBody = { collapsed: false, text: 'Old selection: whole message' };
+const currentlySelectedLine = { collapsed: false, text: 'Current selection: one line' };
+const caret = { collapsed: true, text: '' };
+assert.equal(chooseEmailEditorRange('bold', currentlySelectedLine, previousWholeBody), currentlySelectedLine, 'Bold must use the live one-line selection, not an old multi-paragraph selection');
+assert.equal(chooseEmailEditorRange('italic', currentlySelectedLine, previousWholeBody), currentlySelectedLine, 'Italic must use the live selection');
+assert.equal(chooseEmailEditorRange('underline', currentlySelectedLine, previousWholeBody), currentlySelectedLine, 'Underline must use the live selection');
+assert.equal(chooseEmailEditorRange('bold', null, previousWholeBody), null, 'Bold must never apply an old selection after focus leaves the editor');
+assert.equal(chooseEmailEditorRange('bold', caret, previousWholeBody), caret, 'Bold at the caret must not format the previous selection');
+assert.equal(chooseEmailEditorRange('fontName', currentlySelectedLine, previousWholeBody), currentlySelectedLine, 'Font selection must prefer a new live selection');
+assert.equal(chooseEmailEditorRange('fontName', null, previousWholeBody), previousWholeBody, 'Font dropdown must restore the selection when focus leaves the editor');
+assert.equal(chooseEmailEditorRange('fontSize', caret, previousWholeBody), previousWholeBody, 'Font dropdown must preserve a captured selection if focus collapses it');
+assert.equal(chooseEmailEditorRange('createLink', null, previousWholeBody), previousWholeBody, 'Link popup must restore the captured selection');
 assert(editor.includes('onPaste={e=>{e.preventDefault()'), 'Pasted HTML must not inject unsafe markup into drafts');
 assert(composer.includes('html={bodyHtml}'), 'Saved formatted HTML must be restored in the composer');
 assert(composer.includes('setBodyHtml(current => current'), 'Adding video links must not erase formatting');
@@ -46,4 +62,4 @@ const unsupported = renderEmailHtml('Coach', '<font face="Comic Sans MS" size="7
 assert(!unsupported.includes('Comic Sans') && !unsupported.includes('font-size:'), 'Unsupported fonts and sizes must be stripped');
 const dangerous = renderEmailHtml('Coach', '<font face="Georgia" onclick="alert(1)">Coach</font><a href="javascript:alert(1)">bad</a>');
 assert(!dangerous.includes('onclick') && !dangerous.includes('javascript:'), 'Unsafe attributes and links must be stripped');
-console.log('Email font controls, draft restoration, Gmail rendering, and style allowlist smoke tests passed.');
+console.log('Email font controls, exact-selection formatting, draft restoration, Gmail rendering, and style allowlist smoke tests passed.');
