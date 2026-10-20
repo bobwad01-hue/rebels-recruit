@@ -31,11 +31,14 @@ assert(editor.includes('onPaste={e=>{e.preventDefault()'), 'Pasted HTML must not
 assert(composer.includes('html={bodyHtml}'), 'Saved formatted HTML must be restored in the composer');
 assert(composer.includes('setBodyHtml(current => current'), 'Adding video links must not erase formatting');
 assert(gmailSend.includes('renderEmailHtml(body,bodyHtml)'), 'Outgoing Gmail MIME HTML must use the formatted body');
+assert(gmailSend.includes('font-size:16px;line-height:1.5'), 'Default Gmail text size must match the composer');
 
 const formatted = renderEmailHtml('Hello Coach', '<font face="Georgia" size="4">Hello Coach</font>');
 assert(formatted.includes('<span style="font-family:Georgia, serif;font-size:18px">Hello Coach</span>'), 'Font and size must survive Gmail HTML rendering');
 const trebuchet = renderEmailHtml('Hello', '<font face="Trebuchet MS" size="2">Hello</font>');
 assert(trebuchet.includes("font-family:'Trebuchet MS', Arial, sans-serif;font-size:13px"), 'Fonts with spaces must render safely: ' + trebuchet);
+const times = renderEmailHtml('Hello', "<font face='Times New Roman' size='3'>Hello</font>");
+assert(times.includes("font-family:'Times New Roman', Times, serif;font-size:16px"), 'Single-quoted font attributes must be preserved safely: ' + times);
 const styled = renderEmailHtml('Coach', '<span style="font-family:Verdana;font-size:16px;color:red;background-image:url(javascript:alert(1))">Coach</span>');
 assert(styled.includes('font-family:Verdana, sans-serif;font-size:16px'), 'Allowlisted CSS font formatting must survive');
 assert(!styled.includes('background-image') && !styled.includes('color:red') && !styled.includes('javascript:'), 'Unapproved CSS must be stripped');
