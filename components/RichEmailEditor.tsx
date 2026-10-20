@@ -47,6 +47,18 @@ function safeDraftHtml(html:string):string {
   }
   return output.innerHTML;
 }
+// The live browser selection is authoritative for toolbar buttons. A saved Range can
+// become stale when the user makes a new selection and releases the mouse outside
+// the editor. Restoring that stale range would format unrelated paragraphs.
+function rangeIsInEditor(editor: HTMLElement, range: Range | null): range is Range {
+  return !!range && editor.contains(range.startContainer) && editor.contains(range.endContainer);
+}
+function currentEditorRange(editor: HTMLElement): Range | null {
+  const selection=window.getSelection();
+  if(!selection?.rangeCount)return null;
+  const range=selection.getRangeAt(0);
+  return rangeIsInEditor(editor,range)?range.cloneRange():null;
+}
 export default function RichEmailEditor({value,html='',onChange,attachments,onAttachmentsChange,disabled}:Props){const ref=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null),lastValue=useRef(''),lastHtml=useRef(''),savedRange=useRef<Range|null>(null);const [linkOpen,setLinkOpen]=useState(false),[linkUrl,setLinkUrl]=useState(''),[selectedFont,setSelectedFont]=useState('Arial'),[selectedSize,setSelectedSize]=useState('3');
  useEffect(()=>{
    const editor=ref.current;
@@ -57,18 +69,29 @@ export default function RichEmailEditor({value,html='',onChange,attachments,onAt
    lastHtml.current=html;
  },[value,html]);
  function emit(){if(!ref.current)return;const plain=plainFrom(ref.current);const markup=ref.current.innerHTML;lastValue.current=plain;lastHtml.current=markup;onChange(plain,markup)}
- function rememberSelection(){const sel=window.getSelection();if(sel&&sel.rangeCount&&ref.current?.contains(sel.anchorNode))savedRange.current=sel.getRangeAt(0).cloneRange()}
- function restoreSelection(){if(!savedRange.current)return;const sel=window.getSelection();sel?.removeAllRanges();sel?.addRange(savedRange.current)}
+ function rememberSelection(){const editor=ref.current;if(!editor)return;const live=currentEditorRange(editor);if(live)savedRange.current=live}
  function command(cmd:string,value?:string){
    const editor=ref.current;
    if(!editor)return;
+   // Buttons keep focus with preventDefault on mousedown, so read the CURRENT
+   // selection instead of blindly restoring an older selection snapshot.
+   const live=currentEditorRange(editor);
+   const saved=rangeIsInEditor(editor,savedRange.current)?savedRange.current.cloneRange():null;
+   // Dropdowns and the link popup can move focus away from the editor; only
+   // those actions are allowed to fall back to the last captured selection.
+   const needsSavedRange=cmd==='fontName'||cmd==='fontSize'||cmd==='createLink';
+   const target=needsSavedRange ? (live&&!live.collapsed ? live : saved||live) : live;
    editor.focus();
-   if(savedRange.current&&editor.contains(savedRange.current.commonAncestorContainer))restoreSelection();
-   else {
+   const selection=window.getSelection();
+   if(target){
+     selection?.removeAllRanges();
+     selection?.addRange(target);
+   }else{
+     // No current selection: place the caret at the end. Never select the
+     // entire message or apply a stale multi-paragraph selection.
      const range=document.createRange();
      range.selectNodeContents(editor);
      range.collapse(false);
-     const selection=window.getSelection();
      selection?.removeAllRanges();
      selection?.addRange(range);
    }
@@ -90,4 +113,4 @@ export default function RichEmailEditor({value,html='',onChange,attachments,onAt
   {EMAIL_SIZES.map(size=><option key={size.value} value={size.value}>{size.label}</option>)}
  </select>
  <span className="mx-1 h-6 border-l"/>
- <button type="button" className={tool} title="Bold" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('bold')}><Bold size={16}/></button><button type="button" className={tool} title="Italic" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('italic')}><Italic size={16}/></button><button type="button" className={tool} title="Underline" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('underline')}><Underline size={16}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool} title="Insert link" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={openLink}><LinkIcon size={16}/></button><button type="button" className={tool} title="Bulleted list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertUnorderedList')}><List size={17}/></button><button type="button" className={tool} title="Numbered list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertOrderedList')}><ListOrdered size={17}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool+' gap-1.5 text-xs font-bold'} disabled={disabled} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/> Attach</button><input ref={fileRef} type="file" multiple className="hidden" onChange={e=>addFiles(e.target.files)}/></div>{linkOpen&&<div className="flex flex-col sm:flex-row gap-2 border-b bg-white p-2"><input className="input py-1.5 text-sm" autoFocus placeholder="Paste a URL" value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addLink()}}}/><button type="button" className="btn btn-red py-1.5 text-xs" onClick={addLink}>Add link</button><button type="button" className="btn py-1.5 text-xs" onClick={()=>setLinkOpen(false)}>Cancel</button></div>}<div ref={ref} contentEditable={!disabled} suppressContentEditableWarning onInput={()=>{rememberSelection();emit()}} onPaste={e=>{e.preventDefault();document.execCommand("insertText",false,e.clipboardData.getData("text/plain"));emit()}} onDrop={e=>{e.preventDefault();document.execCommand("insertText",false,e.dataTransfer.getData("text/plain"));emit()}} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onBlur={()=>{rememberSelection();emit()}} className="min-h-[240px] sm:min-h-[260px] lg:min-h-[300px] p-3 text-[16px] leading-6 outline-none whitespace-pre-wrap break-words" style={{fontFamily:"Arial, Helvetica, sans-serif"}} data-placeholder="Write your email…"/>{attachments.length>0&&<div className="border-t bg-slate-50 p-3"><div className="text-xs font-black uppercase text-slate-500 mb-2">Attachments</div><div className="flex flex-wrap gap-2">{attachments.map((a,i)=><div key={`${a.name}-${i}`} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs"><Paperclip size={13}/><span className="font-semibold max-w-[220px] truncate">{a.name}</span><span className="text-slate-500">{(a.size/1024/1024).toFixed(1)} MB</span><button type="button" title="Remove attachment" onClick={()=>onAttachmentsChange(attachments.filter((_,x)=>x!==i))}><X size={13}/></button></div>)}</div></div>}</div>}
+ <button type="button" className={tool} title="Bold" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('bold')}><Bold size={16}/></button><button type="button" className={tool} title="Italic" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('italic')}><Italic size={16}/></button><button type="button" className={tool} title="Underline" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('underline')}><Underline size={16}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool} title="Insert link" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={openLink}><LinkIcon size={16}/></button><button type="button" className={tool} title="Bulleted list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertUnorderedList')}><List size={17}/></button><button type="button" className={tool} title="Numbered list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertOrderedList')}><ListOrdered size={17}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool+' gap-1.5 text-xs font-bold'} disabled={disabled} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/> Attach</button><input ref={fileRef} type="file" multiple className="hidden" onChange={e=>addFiles(e.target.files)}/></div>{linkOpen&&<div className="flex flex-col sm:flex-row gap-2 border-b bg-white p-2"><input className="input py-1.5 text-sm" autoFocus placeholder="Paste a URL" value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addLink()}}}/><button type="button" className="btn btn-red py-1.5 text-xs" onClick={addLink}>Add link</button><button type="button" className="btn py-1.5 text-xs" onClick={()=>setLinkOpen(false)}>Cancel</button></div>}<div ref={ref} contentEditable={!disabled} suppressContentEditableWarning onInput={()=>{rememberSelection();emit()}} onPaste={e=>{e.preventDefault();document.execCommand("insertText",false,e.clipboardData.getData("text/plain"));emit()}} onDrop={e=>{e.preventDefault();document.execCommand("insertText",false,e.dataTransfer.getData("text/plain"));emit()}} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onBlur={()=>{emit()}} className="min-h-[240px] sm:min-h-[260px] lg:min-h-[300px] p-3 text-[16px] leading-6 outline-none whitespace-pre-wrap break-words" style={{fontFamily:"Arial, Helvetica, sans-serif"}} data-placeholder="Write your email…"/>{attachments.length>0&&<div className="border-t bg-slate-50 p-3"><div className="text-xs font-black uppercase text-slate-500 mb-2">Attachments</div><div className="flex flex-wrap gap-2">{attachments.map((a,i)=><div key={`${a.name}-${i}`} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs"><Paperclip size={13}/><span className="font-semibold max-w-[220px] truncate">{a.name}</span><span className="text-slate-500">{(a.size/1024/1024).toFixed(1)} MB</span><button type="button" title="Remove attachment" onClick={()=>onAttachmentsChange(attachments.filter((_,x)=>x!==i))}><X size={13}/></button></div>)}</div></div>}</div>}
