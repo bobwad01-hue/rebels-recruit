@@ -49,7 +49,7 @@ type Props = {
   primaryAction?: PrimaryAction;
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
-  contextualReply?: {interactionId?:string;emailId?:string;kind:string;choice?:string;subject?:string;originalEmail?:{body:string|null;summary:string|null;receivedAt:string|null}};
+  contextualReply?: {interactionId?:string;emailId?:string;sentInteractionId?:string;recipientEmail?:string;kind:string;choice?:string;subject?:string;originalEmail?:{body:string|null;summary:string|null;receivedAt:string|null}};
   onEmailSent?: (detail?: any) => void | Promise<void>;
   staffMode?: boolean;
   athleteEntitlement?: "free" | "full";
@@ -79,7 +79,7 @@ export default function CoachActionBar({
     params = useSearchParams(),
     openedKey = useRef(""),
     draftReady = useRef(false),
-    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}${contextualReply ? `:reply:${contextualReply.emailId || contextualReply.interactionId || "message"}` : ""}`,
+    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}${contextualReply ? `:reply:${contextualReply.emailId || contextualReply.sentInteractionId || contextualReply.interactionId || "message"}` : ""}`,
     requested = params.get("emailStarter") as EmailStarterId | null,
     requestedValid = EMAIL_STARTERS.some((s) => s.id === requested),
     effectiveStarter = staffMode
@@ -87,7 +87,7 @@ export default function CoachActionBar({
       : requestedValid && requested ? requested : initialEmailStarter,
     shouldAutoOpen = (autoOpenEmail && !!params.get("action")) || !!requestedValid,
     autoOpenKey = shouldAutoOpen
-      ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("emailStarter") || ""].join(":")
+      ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("sentInteraction") || "", params.get("emailStarter") || ""].join(":")
       : "";
   const [emailOpen, setEmailOpen] = useState(false),
     [recipientEmail, setRecipientEmail] = useState(email || emailOverride || ""),
@@ -297,7 +297,7 @@ export default function CoachActionBar({
   }
   async function openEmail(id: EmailStarterId = effectiveStarter) {
     if (contactVerificationNeeded || (staffMode && !email)) return;
-    setRecipientEmail(current=>email || current || emailOverride || '');
+    setRecipientEmail(current=>contextualReply?.recipientEmail || email || current || emailOverride || '');
     setRecipientSavedNotice('');
     if (!staffMode && athleteEntitlement === "free") {
       setActionPrompt("upgrade-gmail");
@@ -360,7 +360,13 @@ export default function CoachActionBar({
           questionnaire:{subject:"Re: Recruiting Questionnaire",body:"Thank you for sending the recruiting questionnaire. I've completed it and wanted to let you know. I appreciate you staying in touch."},
           offer_related:{subject:"Re: Recruiting Conversation",body:"Thank you for reaching out. I appreciate the opportunity and would like to set up a time to talk through the details and next steps."},
           follow_up:{subject:"Re: Checking In",body:"Thank you for checking in. I really appreciate you staying in touch. I wanted to send you a quick update."}
-        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");}
+        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);
+          // Continuing an athlete's own sent email is not a response to a coach.
+          // Start with a neutral greeting, never a fabricated thank-you.
+          setBody(kind==="sent_follow_up"
+            ? `Hello Coach ${lastName},\n\n\n\n${sig||""}`
+            : `Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);
+          setBodyHtml("");}
       } else await buildStarter(id);
     }
     draftReady.current = true;
@@ -376,9 +382,9 @@ export default function CoachActionBar({
   function closeEmail() {
     if (busy) return;
     setEmailOpen(false);
-    if (params.get("action") === "recruiting-reply" || params.get("action") === "camp-reply" || params.has("emailStarter")) {
+    if (params.get("action") === "recruiting-reply" || params.get("action") === "camp-reply" || params.get("action") === "continue-thread" || params.has("emailStarter")) {
       const url = new URL(window.location.href);
-      for (const key of ["action", "replyEmail", "interaction", "intent", "choice", "emailStarter"]) url.searchParams.delete(key);
+      for (const key of ["action", "replyEmail", "interaction", "sentInteraction", "intent", "choice", "emailStarter"]) url.searchParams.delete(key);
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
   }
@@ -502,8 +508,9 @@ export default function CoachActionBar({
           bodyHtml,
           emailPurpose: starter,
           attachments,
-          recruitingInteractionId: contextualReply?.interactionId || null,
-          recruitingMessageId: contextualReply?.emailId || null,
+          recruitingInteractionId: contextualReply?.sentInteractionId ? null : contextualReply?.interactionId || null,
+          sentInteractionId: contextualReply?.sentInteractionId || null,
+          recruitingMessageId: contextualReply?.sentInteractionId ? null : contextualReply?.emailId || null,
           staffMode,
         }),
       });
@@ -841,7 +848,7 @@ export default function CoachActionBar({
                       <label className="text-xs uppercase font-bold muted">
                         To
                       </label>
-                      {email ? <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">{email}</div>
+                      {(email || contextualReply?.sentInteractionId) ? <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">{contextualReply?.sentInteractionId ? (contextualReply.recipientEmail || email || recipientEmail) : email}</div>
                       : <div className="mt-1 space-y-2">
                         <input type="email" autoComplete="email" inputMode="email" required
                           aria-label="Coach email address" placeholder="Enter coach email address"
@@ -921,19 +928,19 @@ export default function CoachActionBar({
                       </div>
                     </div>
                     {contextualReply?.originalEmail && (
-                      <section aria-label="Previous coach email" className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                      <section aria-label={contextualReply.sentInteractionId ? "Previous sent email" : "Previous coach email"} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 text-sm font-black text-slate-900"><Mail size={17} className="shrink-0 text-slate-500" /> Previous Email</div>
                             <p className="mt-1 text-xs text-slate-600">
-                              From {coachName}{collegeName ? ` · ${collegeName}` : ""}
+                              {contextualReply.sentInteractionId ? `Sent to ${coachName}` : `From ${coachName}`}{collegeName ? ` · ${collegeName}` : ""}
                               {contextualReply.originalEmail.receivedAt ? ` · ${new Date(contextualReply.originalEmail.receivedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
                             </p>
                             {contextualReply.subject && <p className="mt-2 break-words text-sm font-semibold text-slate-800">{contextualReply.subject}</p>}
                           </div>
                           <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">Reference only</span>
                         </div>
-                        <p className="mt-2 text-xs leading-5 text-slate-600">Read the coach's message while composing. It will not be added to your outgoing reply.</p>
+                        <p className="mt-2 text-xs leading-5 text-slate-600">{contextualReply.sentInteractionId ? 'Your earlier email is shown for reference. It will not be added to your follow-up.' : "Read the coach's message while composing. It will not be added to your outgoing reply."}</p>
                         <RecruitingEmailReader body={contextualReply.originalEmail.body} summary={contextualReply.originalEmail.summary} compact />
                       </section>
                     )}
@@ -944,7 +951,7 @@ export default function CoachActionBar({
                           <ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180" />
                         </summary>
                         <div className="space-y-3 border-t bg-white p-3">
-                          <p className="text-xs text-slate-600">Your reply is already drafted. Selecting a template will replace the current message, but keep the original Gmail conversation.</p>
+                          <p className="text-xs text-slate-600">{contextualReply.sentInteractionId ? 'You can use a template to draft a follow-up. Selecting one will' : 'Your reply is already drafted. Selecting a template will'} replace the current message, but keep the original Gmail conversation.</p>
                           <div>
                             <label htmlFor="coach-reply-starter" className="text-xs font-bold uppercase text-slate-500">Email starting point</label>
                             <select
