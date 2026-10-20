@@ -229,10 +229,13 @@ export default function CoachActionBar({
     );
   }
   function insertVideo(video: { title: string; url: string }) {
-    setBody(
-      (current) => `${current.trimEnd()}\n\n${video.title}: ${video.url}`,
-    );
-    setBodyHtml("");
+    const line = `${video.title}: ${video.url}`;
+    setBody(current => `${current.trimEnd()}\n\n${line}`);
+    // Appending a recruiting video must not discard the athlete's font,
+    // text-size, or other rich-text formatting.
+    setBodyHtml(current => current
+      ? `${current}<br><br>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`
+      : "");
   }
   async function loadProfile() {
     const ctx = await context();
@@ -912,6 +915,7 @@ export default function CoachActionBar({
                       </div>
                       <RichEmailEditor
                         value={body}
+                        html={bodyHtml}
                         onChange={(plain, html) => {
                           setBody(plain);
                           setBodyHtml(html);
@@ -921,7 +925,7 @@ export default function CoachActionBar({
                         disabled={busy}
                       />
                       <div className="text-xs text-slate-500 mt-2">
-                        Use bold, italic, underline, links, bullets or numbered
+                        Choose a font and text size, or select text to format it. Use bold, italic, underline, links, bullets or numbered
                         lists. Up to 5 attachments; 2.5 MB each and 3 MB
                         combined. Recruiting video links can be inserted
                         directly from My Videos.
