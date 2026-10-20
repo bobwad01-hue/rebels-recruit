@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       admin
         .from("interactions")
         .select(
-          "id,type,date,date_precision,date_year,date_month,created_at,note,initiated_by,source,email_subject,email_type,email_content,gmail_message_id,gmail_thread_id,gmail_sender_email,follow_up_due_date,follow_up_completed_at,college_id,coach_id",
+          "id,type,date,date_precision,date_year,date_month,created_at,note,initiated_by,actor_user_id,source,email_subject,email_type,email_content,gmail_message_id,gmail_thread_id,gmail_sender_email,follow_up_due_date,follow_up_completed_at,college_id,coach_id",
         )
         .eq("athlete_user_id", athleteUserId)
         .order("date", { ascending: false, nullsFirst: false })
@@ -121,6 +121,7 @@ export async function GET(request: Request) {
     {
       activities: activity.map((row) => ({
         ...row,
+        can_continue_thread: athleteUserId===user.id && row.type==='Email Sent' && row.source==='automatic' && row.actor_user_id===user.id && !!row.coach_id && !!row.gmail_message_id && !!row.gmail_thread_id,
         colleges: row.college_id
           ? collegeMap.get(row.college_id) || null
           : null,
