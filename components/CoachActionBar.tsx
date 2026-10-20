@@ -928,19 +928,19 @@ export default function CoachActionBar({
                       </div>
                     </div>
                     {contextualReply?.originalEmail && (
-                      <section aria-label="Previous coach email" className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                      <section aria-label={contextualReply.sentInteractionId ? "Previous sent email" : "Previous coach email"} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 text-sm font-black text-slate-900"><Mail size={17} className="shrink-0 text-slate-500" /> Previous Email</div>
                             <p className="mt-1 text-xs text-slate-600">
-                              From {coachName}{collegeName ? ` · ${collegeName}` : ""}
+                              {contextualReply.sentInteractionId ? `Sent to ${coachName}` : `From ${coachName}`}{collegeName ? ` · ${collegeName}` : ""}
                               {contextualReply.originalEmail.receivedAt ? ` · ${new Date(contextualReply.originalEmail.receivedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
                             </p>
                             {contextualReply.subject && <p className="mt-2 break-words text-sm font-semibold text-slate-800">{contextualReply.subject}</p>}
                           </div>
                           <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">Reference only</span>
                         </div>
-                        <p className="mt-2 text-xs leading-5 text-slate-600">Read the coach's message while composing. It will not be added to your outgoing reply.</p>
+                        <p className="mt-2 text-xs leading-5 text-slate-600">{contextualReply.sentInteractionId ? 'Your earlier email is shown for reference. It will not be added to your follow-up.' : "Read the coach's message while composing. It will not be added to your outgoing reply."}</p>
                         <RecruitingEmailReader body={contextualReply.originalEmail.body} summary={contextualReply.originalEmail.summary} compact />
                       </section>
                     )}
@@ -951,7 +951,7 @@ export default function CoachActionBar({
                           <ChevronDown size={17} className="shrink-0 transition-transform group-open:rotate-180" />
                         </summary>
                         <div className="space-y-3 border-t bg-white p-3">
-                          <p className="text-xs text-slate-600">Your reply is already drafted. Selecting a template will replace the current message, but keep the original Gmail conversation.</p>
+                          <p className="text-xs text-slate-600">{contextualReply.sentInteractionId ? 'You can use a template to draft a follow-up. Selecting one will' : 'Your reply is already drafted. Selecting a template will'} replace the current message, but keep the original Gmail conversation.</p>
                           <div>
                             <label htmlFor="coach-reply-starter" className="text-xs font-bold uppercase text-slate-500">Email starting point</label>
                             <select
