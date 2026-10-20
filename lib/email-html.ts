@@ -6,7 +6,7 @@ function escapeHtml(value:string){return value.replace(/&/g,'&amp;').replace(/</
 function hasIntentionalFormatting(value:string){return /<(?:strong|b|em|i|u|a|ul|ol|li|font|span)\b/i.test(value)}
 
 function attribute(attrs: string, name: string): string {
-  const match = attrs.match(new RegExp('(?:^|\\s)' + name + '\\s*=\\s*(?:"([^"]*)"|\\'([^\\']*)\\'|([^\\s>]+))', 'i'));
+  const match = attrs.match(new RegExp("(?:^|\\s)" + name + "\\s*=\\s*(?:\\"([^\\"]*)\\"|'([^']*)'|([^\\s>]+))", "i"));
   return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
 }
 
