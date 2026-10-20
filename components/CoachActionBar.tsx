@@ -49,7 +49,7 @@ type Props = {
   primaryAction?: PrimaryAction;
   initialEmailStarter?: EmailStarterId;
   autoOpenEmail?: boolean;
-  contextualReply?: {interactionId?:string;emailId?:string;kind:string;choice?:string;subject?:string;originalEmail?:{body:string|null;summary:string|null;receivedAt:string|null}};
+  contextualReply?: {interactionId?:string;emailId?:string;sentInteractionId?:string;recipientEmail?:string;kind:string;choice?:string;subject?:string;originalEmail?:{body:string|null;summary:string|null;receivedAt:string|null}};
   onEmailSent?: (detail?: any) => void | Promise<void>;
   staffMode?: boolean;
   athleteEntitlement?: "free" | "full";
@@ -79,7 +79,7 @@ export default function CoachActionBar({
     params = useSearchParams(),
     openedKey = useRef(""),
     draftReady = useRef(false),
-    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}${contextualReply ? `:reply:${contextualReply.emailId || contextualReply.interactionId || "message"}` : ""}`,
+    draftKey = `rr-email-draft:${staffMode ? "staff" : athleteUserId || "self"}:${coachId}${contextualReply ? `:reply:${contextualReply.emailId || contextualReply.sentInteractionId || contextualReply.interactionId || "message"}` : ""}`,
     requested = params.get("emailStarter") as EmailStarterId | null,
     requestedValid = EMAIL_STARTERS.some((s) => s.id === requested),
     effectiveStarter = staffMode
@@ -87,7 +87,7 @@ export default function CoachActionBar({
       : requestedValid && requested ? requested : initialEmailStarter,
     shouldAutoOpen = (autoOpenEmail && !!params.get("action")) || !!requestedValid,
     autoOpenKey = shouldAutoOpen
-      ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("emailStarter") || ""].join(":")
+      ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("sentInteraction") || "", params.get("emailStarter") || ""].join(":")
       : "";
   const [emailOpen, setEmailOpen] = useState(false),
     [recipientEmail, setRecipientEmail] = useState(email || emailOverride || ""),
@@ -297,7 +297,7 @@ export default function CoachActionBar({
   }
   async function openEmail(id: EmailStarterId = effectiveStarter) {
     if (contactVerificationNeeded || (staffMode && !email)) return;
-    setRecipientEmail(current=>email || current || emailOverride || '');
+    setRecipientEmail(current=>contextualReply?.recipientEmail || email || current || emailOverride || '');
     setRecipientSavedNotice('');
     if (!staffMode && athleteEntitlement === "free") {
       setActionPrompt("upgrade-gmail");
@@ -360,7 +360,13 @@ export default function CoachActionBar({
           questionnaire:{subject:"Re: Recruiting Questionnaire",body:"Thank you for sending the recruiting questionnaire. I've completed it and wanted to let you know. I appreciate you staying in touch."},
           offer_related:{subject:"Re: Recruiting Conversation",body:"Thank you for reaching out. I appreciate the opportunity and would like to set up a time to talk through the details and next steps."},
           follow_up:{subject:"Re: Checking In",body:"Thank you for checking in. I really appreciate you staying in touch. I wanted to send you a quick update."}
-        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);setBody(`Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);setBodyHtml("");}
+        };const d=drafts[kind]||{subject:"Re: Recruiting Update",body:"Thank you for reaching out. I really appreciate you staying in touch."};setStarter("custom");setSubject(originalReplySubject() || d.subject);
+          // Continuing an athlete's own sent email is not a response to a coach.
+          // Start with a neutral greeting, never a fabricated thank-you.
+          setBody(kind==="sent_follow_up"
+            ? `Hello Coach ${lastName},\n\n\n\n${sig||""}`
+            : `Hello Coach ${lastName},\n\n${d.body}${sig?`\n\n${sig}`:""}`);
+          setBodyHtml("");}
       } else await buildStarter(id);
     }
     draftReady.current = true;
@@ -376,9 +382,9 @@ export default function CoachActionBar({
   function closeEmail() {
     if (busy) return;
     setEmailOpen(false);
-    if (params.get("action") === "recruiting-reply" || params.get("action") === "camp-reply" || params.has("emailStarter")) {
+    if (params.get("action") === "recruiting-reply" || params.get("action") === "camp-reply" || params.get("action") === "continue-thread" || params.has("emailStarter")) {
       const url = new URL(window.location.href);
-      for (const key of ["action", "replyEmail", "interaction", "intent", "choice", "emailStarter"]) url.searchParams.delete(key);
+      for (const key of ["action", "replyEmail", "interaction", "sentInteraction", "intent", "choice", "emailStarter"]) url.searchParams.delete(key);
       window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     }
   }
@@ -502,8 +508,9 @@ export default function CoachActionBar({
           bodyHtml,
           emailPurpose: starter,
           attachments,
-          recruitingInteractionId: contextualReply?.interactionId || null,
-          recruitingMessageId: contextualReply?.emailId || null,
+          recruitingInteractionId: contextualReply?.sentInteractionId ? null : contextualReply?.interactionId || null,
+          sentInteractionId: contextualReply?.sentInteractionId || null,
+          recruitingMessageId: contextualReply?.sentInteractionId ? null : contextualReply?.emailId || null,
           staffMode,
         }),
       });
@@ -841,7 +848,7 @@ export default function CoachActionBar({
                       <label className="text-xs uppercase font-bold muted">
                         To
                       </label>
-                      {email ? <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">{email}</div>
+                      {(email || contextualReply?.sentInteractionId) ? <div className="mt-1 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm font-semibold break-all">{contextualReply?.sentInteractionId ? (contextualReply.recipientEmail || email || recipientEmail) : email}</div>
                       : <div className="mt-1 space-y-2">
                         <input type="email" autoComplete="email" inputMode="email" required
                           aria-label="Coach email address" placeholder="Enter coach email address"
