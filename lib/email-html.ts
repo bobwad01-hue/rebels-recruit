@@ -1,11 +1,36 @@
+import { emailFontCss, emailSizeCss, safeEmailFontStyle } from './email-fonts';
+
 // Keep the message's visible line breaks when turning the rich-text editor into email HTML.
 // In particular, contentEditable may mix literal newlines with <div>/<br> markup.
 function escapeHtml(value:string){return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
-function hasIntentionalFormatting(value:string){return /<(?:strong|b|em|i|u|a|ul|ol|li)\b/i.test(value)}
+function hasIntentionalFormatting(value:string){return /<(?:strong|b|em|i|u|a|ul|ol|li|font|span)\b/i.test(value)}
+
+function attribute(attrs: string, name: string): string {
+  const match = attrs.match(new RegExp('(?:^|\\s)' + name + '\\s*=\\s*(?:"([^"]*)"|\\x27([^\\x27]*)\\x27|([^\\s>]+))', 'i'));
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? '';
+}
+
+function normalizeFontTags(value: string): string {
+  return value.replace(/<font\b([^>]*)>/gi, (_, attrs: string) => {
+    const family = emailFontCss(attribute(attrs, 'face'));
+    const size = emailSizeCss(attribute(attrs, 'size'));
+    const styles = [family ? `font-family:${family}` : '', size ? `font-size:${size}` : ''].filter(Boolean).join(';');
+    return styles ? `<span style="${styles}">` : '<span>';
+  }).replace(/<\/font\s*>/gi, '</span>');
+}
 function sanitizeHtml(value:string){
-  let x=value.replace(/<\/?(?:script|style|iframe|object|embed|form|input|button|meta|link)[^>]*>/gi,'');
+  let x=normalizeFontTags(value);
+  x=x.replace(/<\/?(?:script|style|iframe|object|embed|form|input|button|meta|link)[^>]*>/gi,'');
+  // Preserve only known-safe typography in spans; no arbitrary CSS or attributes.
+  x=x.replace(/<span\b([^>]*)>/gi, (_tag, attrs: string) => {
+    const safeStyle = safeEmailFontStyle(attribute(attrs, 'style'));
+    return safeStyle ? `<span style="${safeStyle}">` : '<span>';
+  });
+  // Remove all other inline styles, including pasted CSS.
+  x=x.replace(/<([a-z][a-z0-9]*)\b([^>]*)>/gi, (tag: string, name: string) =>
+    name.toLowerCase()==='span' ? tag : tag.replace(/\sstyle\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,'')
+  );
   x=x.replace(/\son\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,'');
-  x=x.replace(/\sstyle\s*=\s*(?:"[^"]*"|'[^']*')/gi,'');
   x=x.replace(/href\s*=\s*(["'])\s*(?:javascript|data):[^"']*\1/gi,'href="#"');
   return x;
 }
