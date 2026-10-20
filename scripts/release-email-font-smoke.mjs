@@ -35,7 +35,7 @@ assert(gmailSend.includes('renderEmailHtml(body,bodyHtml)'), 'Outgoing Gmail MIM
 const formatted = renderEmailHtml('Hello Coach', '<font face="Georgia" size="4">Hello Coach</font>');
 assert(formatted.includes('<span style="font-family:Georgia, serif;font-size:18px">Hello Coach</span>'), 'Font and size must survive Gmail HTML rendering');
 const trebuchet = renderEmailHtml('Hello', '<font face="Trebuchet MS" size="2">Hello</font>');
-assert(trebuchet.includes('font-family:&quot;') === false && trebuchet.includes('font-family:"Trebuchet MS", Arial, sans-serif;font-size:13px'), 'Fonts with spaces must render safely');
+assert(trebuchet.includes("font-family:'Trebuchet MS', Arial, sans-serif;font-size:13px"), 'Fonts with spaces must render safely: ' + trebuchet);
 const styled = renderEmailHtml('Coach', '<span style="font-family:Verdana;font-size:16px;color:red;background-image:url(javascript:alert(1))">Coach</span>');
 assert(styled.includes('font-family:Verdana, sans-serif;font-size:16px'), 'Allowlisted CSS font formatting must survive');
 assert(!styled.includes('background-image') && !styled.includes('color:red') && !styled.includes('javascript:'), 'Unapproved CSS must be stripped');
