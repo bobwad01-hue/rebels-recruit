@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {Bold,Italic,Underline,Link as LinkIcon,List,ListOrdered,Paperclip,X} from 'lucide-react';
 import { EMAIL_FONTS, EMAIL_SIZES, emailFontCss, emailSizeCss, safeEmailFontStyle } from '@/lib/email-fonts';
+import { chooseEmailEditorRange } from '@/lib/email-editor-selection';
 export type EmailAttachment={name:string;type:string;data:string;size:number};
 type Props={value:string;html?:string;onChange:(plain:string,html:string)=>void;attachments:EmailAttachment[];onAttachmentsChange:(files:EmailAttachment[])=>void;disabled?:boolean};
 function plainFrom(el:HTMLElement){return (el.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n')}
@@ -69,7 +70,7 @@ export default function RichEmailEditor({value,html='',onChange,attachments,onAt
    lastHtml.current=html;
  },[value,html]);
  function emit(){if(!ref.current)return;const plain=plainFrom(ref.current);const markup=ref.current.innerHTML;lastValue.current=plain;lastHtml.current=markup;onChange(plain,markup)}
- function rememberSelection(){const editor=ref.current;if(!editor)return;const live=currentEditorRange(editor);if(live)savedRange.current=live}
+ function rememberSelection(){const editor=ref.current;if(!editor)return;savedRange.current=currentEditorRange(editor)}
  function command(cmd:string,value?:string){
    const editor=ref.current;
    if(!editor)return;
@@ -79,8 +80,7 @@ export default function RichEmailEditor({value,html='',onChange,attachments,onAt
    const saved=rangeIsInEditor(editor,savedRange.current)?savedRange.current.cloneRange():null;
    // Dropdowns and the link popup can move focus away from the editor; only
    // those actions are allowed to fall back to the last captured selection.
-   const needsSavedRange=cmd==='fontName'||cmd==='fontSize'||cmd==='createLink';
-   const target=needsSavedRange ? (live&&!live.collapsed ? live : saved||live) : live;
+   const target=chooseEmailEditorRange(cmd,live,saved);
    editor.focus();
    const selection=window.getSelection();
    if(target){
