@@ -14,6 +14,9 @@ assert(journeyApi.includes('row.actor_user_id===user.id'), 'Do not offer continu
 assert(journey.includes('action=continue-thread&sentInteraction='), 'Journey sent email needs a Continue Thread action');
 assert(activity.includes('action=continue-thread&sentInteraction='), 'Activity details need the same continuation action');
 assert(coach.includes('i.actor_user_id===user.id&&i.gmail_message_id&&i.gmail_thread_id'), 'Coach timeline should only offer the action for the athlete\'s actual Gmail sends');
+assert(coach.includes('<a href={`/coaches/${id}?action=continue-thread&sentInteraction=${encodeURIComponent(i.id)}`}'), 'Coach timeline must perform a fresh page load for a sent Gmail thread, not reuse stale client navigation state');
+assert(coach.includes("qs.action==='continue-thread'&&canReadOwnCoachEmail&&!sentThreadEmail"), 'If original thread validation fails, the athlete must see an explanation instead of a dead click');
+assert(coach.includes("No email has been sent."), 'Missing-thread warning must reassure athlete that no email was sent');
 assert(coach.includes(".eq('athlete_user_id',user.id).eq('actor_user_id',user.id).eq('coach_id',id)"), 'Coach composer must validate the original sent interaction');
 assert(composer.includes('sentInteractionId: contextualReply?.sentInteractionId || null'), 'Composer must pass sent interaction ID to Gmail API');
 assert(composer.includes('kind==="sent_follow_up"'), 'Sent follow-ups must not pretend the coach already replied');
