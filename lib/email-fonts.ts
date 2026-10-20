@@ -4,8 +4,8 @@ export const EMAIL_FONTS = [
   { label: 'Arial', value: 'Arial', css: 'Arial, Helvetica, sans-serif' },
   { label: 'Georgia', value: 'Georgia', css: 'Georgia, serif' },
   { label: 'Verdana', value: 'Verdana', css: 'Verdana, sans-serif' },
-  { label: 'Trebuchet MS', value: 'Trebuchet MS', css: '"Trebuchet MS", Arial, sans-serif' },
-  { label: 'Times New Roman', value: 'Times New Roman', css: '"Times New Roman", Times, serif' },
+  { label: 'Trebuchet MS', value: 'Trebuchet MS', css: "'Trebuchet MS', Arial, sans-serif" },
+  { label: 'Times New Roman', value: 'Times New Roman', css: "'Times New Roman', Times, serif" },
 ] as const;
 
 export const EMAIL_SIZES = [
