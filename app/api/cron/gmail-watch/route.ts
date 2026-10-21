@@ -47,7 +47,7 @@ export async function GET(req:NextRequest){
   .slice(0,MAX_CATCHUP_SYNCS);
  // Custom production domains bypass Vercel deployment SSO; the deployment URL does not.
  // Keep the sync route's existing shared-secret authentication intact.
- const syncUrl=new URL('/api/google/gmail/sync','https://rltnl.com');
+ const syncUrl=new URL('/api/google/gmail/sync','https://www.rltnl.com');
  let synced=0,imported=0;
  await Promise.all(stale.map(async row=>{
   try{
