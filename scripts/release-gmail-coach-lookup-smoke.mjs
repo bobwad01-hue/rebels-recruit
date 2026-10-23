@@ -76,11 +76,11 @@ result=await lookupCoachWithRetry(async()=>{
 assert.equal(result.error.code,'QUERY_EXCEPTION');
 assert.equal(attempts,1,'Unexpected application exceptions must not be retried');
 
-assert(send.includes('lookupCoachWithRetry('),'Gmail send route must use the bounded coach lookup');
+assert(send.includes('lookupCoachWithRetry<GmailSendCoach>('),'Gmail send route must use the bounded, typed coach lookup');
 assert(send.includes("console.error('[gmail/send] Coach lookup failed before Gmail send'"),'Database failures must be logged with diagnostic details');
 assert(send.includes("if(coachError)return NextResponse.json("),'Database failures must have their own response');
 assert(send.includes("error:'Unable to load coach information. Please try again.'"),'Transient failures must not be reported as a missing coach');
 assert(send.includes("if(!coach){"),'Genuinely missing coach must have a separate response');
-assert(send.indexOf('lookupCoachWithRetry(')<send.indexOf("fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send'"),'Retries must happen before sending anything to Gmail');
-assert.equal((send.match(/lookupCoachWithRetry\(/g)||[]).length,1,'Never wrap the Gmail send itself in retry logic');
+assert(send.indexOf('lookupCoachWithRetry<GmailSendCoach>(')<send.indexOf("fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send'"),'Retries must happen before sending anything to Gmail');
+assert.equal((send.match(/lookupCoachWithRetry<GmailSendCoach>\(/g)||[]).length,1,'Never wrap the Gmail send itself in retry logic');
 console.log('Gmail coach lookup: transient retry, missing record, authorization, schema failure, logging and no-duplicate-send tests passed.');
