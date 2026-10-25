@@ -106,6 +106,23 @@ export async function POST(req: NextRequest) {
     if (value) metadata[key] = value;
   }
   const admin = createAdminClient();
+  const signatureMode = body?.signatureMode;
+  if (signatureMode !== undefined && !["default","custom","none"].includes(signatureMode))
+    return NextResponse.json({ error: "Invalid signature preference." }, { status: 400 });
+  if (body?.customSignature !== undefined && (typeof body.customSignature !== "string" || body.customSignature.length > 4000))
+    return NextResponse.json({ error: "Signature must be under 4,000 characters." }, { status: 400 });
+  const { data: previous } = await admin.from("audit_log").select("metadata")
+    .eq("entity_type", ENTITY).eq("entity_id", user.id)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prior = (previous?.metadata || {}) as Record<string, unknown>;
+  if (body?.signatureMode !== undefined || body?.customSignature !== undefined) {
+    Object.assign(metadata, prior);
+    if (body?.signatureMode !== undefined) metadata.signatureMode = body.signatureMode;
+    if (body?.customSignature !== undefined) metadata.customSignature = body.customSignature;
+  } else {
+    metadata.signatureMode = prior.signatureMode || "default";
+    metadata.customSignature = prior.customSignature || "";
+  }
   const requestedOrganizationId = String(body?.organizationId || "");
   const memberQuery = admin
     .from("organization_members")
