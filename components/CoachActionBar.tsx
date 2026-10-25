@@ -100,6 +100,11 @@ export default function CoachActionBar({
     [starter, setStarter] = useState<EmailStarterId>(effectiveStarter),
     [openingIndex, setOpeningIndex] = useState(0),
     [profile, setProfile] = useState<any>(null),
+    [signatureMode, setSignatureMode] = useState<"default"|"custom"|"none">("default"),
+    [customSignature, setCustomSignature] = useState(""),
+    [signatureEditing, setSignatureEditing] = useState(false),
+    [signatureSaving, setSignatureSaving] = useState(false),
+    [signatureFeedback, setSignatureFeedback] = useState(""),
     [message, setMessage] = useState(""),
     [draftNotice, setDraftNotice] = useState(""),
     [emailStatus, setEmailStatus] = useState<"idle" | "success" | "error">(
@@ -176,6 +181,9 @@ export default function CoachActionBar({
     );
   }
   function signature(p: any) {
+    const preference = p?.signature?.signatureMode || "default";
+    if (!staffMode && preference === "none") return "";
+    if (!staffMode && preference === "custom") return String(p?.signature?.customSignature || "");
     const v = values(p),
       lines: string[] = [];
     if (v.name) lines.push(`${v.name} Profile Summary`);
@@ -203,6 +211,23 @@ export default function CoachActionBar({
     if (v.academic) lines.push(`Academic Interest: ${v.academic}`);
     if (v.ncaa) lines.push(`NCAA #: ${v.ncaa}`);
     return lines.join("\n");
+  }
+  async function saveSignaturePreference() {
+    setSignatureSaving(true);
+    setSignatureFeedback("");
+    try {
+      const response = await fetch("/api/profile/email-signature", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({signatureMode,customSignature}),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to save signature.");
+      setProfile((current:any) => ({...current,signature:{...(current?.signature||{}),signatureMode,customSignature}}));
+      setSignatureEditing(false);
+      setSignatureFeedback("Signature preference saved. New emails will use it; this draft is unchanged.");
+    } catch (error) {
+      setSignatureFeedback(error instanceof Error ? error.message : "Unable to save signature.");
+    } finally {setSignatureSaving(false);}
   }
   function compose(id: EmailStarterId, index: number, p: any) {
     const s = starterById(id, templates),
@@ -248,6 +273,8 @@ export default function CoachActionBar({
       if (!r.ok) return null;
       const d = await r.json();
       setProfile(d);
+      setSignatureMode(["default","custom","none"].includes(d?.signature?.signatureMode) ? d.signature.signatureMode : "default");
+      setCustomSignature(String(d?.signature?.customSignature || ""));
       return d;
     } catch {
       return null;
@@ -913,6 +940,24 @@ export default function CoachActionBar({
                           onInsert={insertVideo}
                         />
                       </div>
+                      {!staffMode && <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold">My Email Signature</span>
+                          <button type="button" className="text-red-700 font-semibold underline" onClick={()=>{setSignatureEditing(v=>!v);setSignatureFeedback("");}}>Manage signature</button>
+                        </div>
+                        {signatureEditing && <div className="mt-3 space-y-3">
+                          <label className="block text-xs font-semibold">Signature for future emails</label>
+                          <select aria-label="Email signature preference" className="input w-full" value={signatureMode} onChange={e=>setSignatureMode(e.target.value as "default"|"custom"|"none")}>
+                            <option value="default">RLTNL signature (default)</option>
+                            <option value="custom">My custom signature</option>
+                            <option value="none">No signature</option>
+                          </select>
+                          {signatureMode==="custom" && <textarea aria-label="Custom email signature" className="input w-full min-h-32" maxLength={4000} value={customSignature} onChange={e=>setCustomSignature(e.target.value)} placeholder="Your name, graduation year, team, contact details…" />}
+                          <button type="button" className="btn btn-red" disabled={signatureSaving || (signatureMode==="custom"&&!customSignature.trim())} onClick={saveSignaturePreference}>{signatureSaving?"Saving…":"Save signature"}</button>
+                          <p className="text-xs text-slate-500">Existing drafts will not be changed. Your signature is included automatically when starting a new email.</p>
+                        </div>}
+                        {signatureFeedback && <p role="status" className="mt-2 text-xs text-slate-600">{signatureFeedback}</p>}
+                      </div>}
                       <RichEmailEditor
                         value={body}
                         html={bodyHtml}
