@@ -89,8 +89,8 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
       setRecipientName(String(d.recipientName||''));
      }
     }
-   if(manualOnly&&initialSchool){setChoice({kind:'school',label:initialSchool.name,school:initialSchool});setQuery(initialSchool.name)}
    }catch{/* Private browsing can disable draft storage. */}
+   if(manualOnly&&initialSchool){setChoice({kind:'school',label:initialSchool.name,school:initialSchool});setQuery(initialSchool.name)}
    setDraftReady(true);
    setLoading(false);
   })();
@@ -264,7 +264,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   <form onSubmit={send} className="mt-5 space-y-4">
    <div>
     <label htmlFor="quick-email-to" className="block text-sm font-black">To</label>
-    <p className="mt-1 text-xs text-slate-500">Search schools, coaches, or enter an email address.</p>
+    <p className="mt-1 text-xs text-slate-500">{manualOnly?"This school is selected. Enter the coach’s email address below.":"Search schools, coaches, or enter an email address."}</p>
     <div className="relative mt-2">
      <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"/>
      <input id="quick-email-to" className="input w-full !pl-10 !pr-10" value={query}
