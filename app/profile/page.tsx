@@ -215,6 +215,7 @@ export default function Profile() {
       <PageFrame size="5xl">
         <PageHeader title={isOnboarding ? "Set Up Your Profile" : "Profile"} subtitle={isOnboarding ? "Complete your athlete profile so RLTNL Recruiting can personalize your experience." : "Keep your athlete, softball, academic and recruiting-contact information current in one place."} />
         {!isOnboarding && <Link href="/fit-profile" className="rr-priority-card rr-interactive-card mb-5 p-4 flex items-center gap-3"><Sparkles size={21} className="text-red-600" /><div className="flex-1"><div className="rr-eyebrow">SCHOOL DISCOVERY</div><div className="font-black">School Preferences</div><div className="muted text-xs mt-0.5">Tell RLTNL Recruiting what matters to you so Find Schools and School Fit can work better.</div></div><ChevronRight size={18} /></Link>}
+        {!isOnboarding && <Link href="/videos" className="mb-5 flex items-center justify-between rounded-2xl border bg-white p-4 text-sm font-bold hover:border-red-200 hover:bg-red-50"><span>My Recruiting Videos <span className="ml-2 font-normal text-slate-600">Manage highlight reels and shareable video links</span></span><ChevronRight size={18}/></Link>}
         {loading && <StatePanel title="Loading profile" description="Loading your saved profile information..." />}
         {loadError && <StatePanel title="Profile could not be loaded" description={loadError} tone="error" action={<button className="btn" onClick={() => location.reload()}>Try Again</button>} />}
         {!loading && !loadError && (
