@@ -32,8 +32,9 @@ import RichEmailEditor, {
 } from "@/components/RichEmailEditor";
 import EmailVideoPicker from "@/components/EmailVideoPicker";
 import EmailSubjectSettings from "@/components/EmailSubjectSettings";
+import EmailSignatureSettings from "@/components/EmailSignatureSettings";
 import RecruitingEmailReader from "@/components/RecruitingEmailReader";
-import { buildRecruitingEmailSubject, formatDraftSignaturePhones, formatEmailPhone } from "@/lib/recruiting-email-format";
+import { buildRecruitingEmailSubject, formatDraftSignaturePhones, formatEmailPhone, hasUnresolvedRecruitingSubjectFields } from "@/lib/recruiting-email-format";
 import {gmailSubjectChanged} from "@/lib/gmail-reply-context";
 type PrimaryAction = "email" | "text" | "call" | "log" | "reminder" | null;
 type Props = {
@@ -110,11 +111,6 @@ export default function CoachActionBar({
     [starter, setStarter] = useState<EmailStarterId>(effectiveStarter),
     [openingIndex, setOpeningIndex] = useState(0),
     [profile, setProfile] = useState<any>(null),
-    [signatureMode, setSignatureMode] = useState<"default"|"custom"|"none">("default"),
-    [customSignature, setCustomSignature] = useState(""),
-    [signatureEditing, setSignatureEditing] = useState(false),
-    [signatureSaving, setSignatureSaving] = useState(false),
-    [signatureFeedback, setSignatureFeedback] = useState(""),
     [message, setMessage] = useState(""),
     [draftNotice, setDraftNotice] = useState(""),
     [emailStatus, setEmailStatus] = useState<"idle" | "success" | "error">(
@@ -223,23 +219,6 @@ export default function CoachActionBar({
     if (v.ncaa) lines.push(`NCAA #: ${v.ncaa}`);
     return lines.join("\n");
   }
-  async function saveSignaturePreference() {
-    setSignatureSaving(true);
-    setSignatureFeedback("");
-    try {
-      const response = await fetch("/api/profile/email-signature", {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({signatureMode,customSignature}),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Unable to save signature.");
-      setProfile((current:any) => ({...current,signature:{...(current?.signature||{}),signatureMode,customSignature}}));
-      setSignatureEditing(false);
-      setSignatureFeedback("Signature preference saved. New emails will use it; this draft is unchanged.");
-    } catch (error) {
-      setSignatureFeedback(error instanceof Error ? error.message : "Unable to save signature.");
-    } finally {setSignatureSaving(false);}
-  }
   function compose(id: EmailStarterId, index: number, p: any) {
     const s = starterById(id, templates),
       v = values(p),
@@ -247,7 +226,7 @@ export default function CoachActionBar({
       lastName = coachName.trim().split(/\s+/).slice(-1)[0] || coachName;
     setBodyHtml("");
     if (id === "custom") {
-      setSubject(originalReplySubject() || (staffMode ? "" : buildRecruitingEmailSubject("Recruiting Update", v, p?.signature)));
+      setSubject(originalReplySubject() || (staffMode ? "" : buildRecruitingEmailSubject("[Subject]", v, p?.signature)));
       setBody(sig ? `\n\n${sig}` : "");
       return;
     }
@@ -305,8 +284,6 @@ export default function CoachActionBar({
       if (!r.ok) return null;
       const d = await r.json();
       setProfile(d);
-      setSignatureMode(["default","custom","none"].includes(d?.signature?.signatureMode) ? d.signature.signatureMode : "default");
-      setCustomSignature(String(d?.signature?.customSignature || ""));
       return d;
     } catch {
       return null;
@@ -545,6 +522,16 @@ export default function CoachActionBar({
       setMessage(
         "Connect Gmail before sending. Signing in with Google does not automatically give RLTNL Recruiting permission to send email.",
       );
+      return;
+    }
+    if (!subject.trim()) {
+      setEmailStatus("error");
+      setMessage("Enter a subject before sending.");
+      return;
+    }
+    if (!contextualReply && !staffMode && hasUnresolvedRecruitingSubjectFields(subject)) {
+      setEmailStatus("error");
+      setMessage("Replace [Subject] and any missing athlete details in the Subject field before sending.");
       return;
     }
     const s = starterById(starter, templates);
@@ -936,26 +923,27 @@ export default function CoachActionBar({
                         {recipientSavedNotice&&<p role="status" className="text-xs font-semibold text-slate-700">{recipientSavedNotice}</p>}
                       </div>}
                     </div>
-                    <div>
-                      <label className="text-xs uppercase font-bold muted">
-                        Subject
-                      </label>
-                      <input
-                        className="input mt-1"
-                        value={subject}
+                    {!staffMode&&!contextualReply ? (
+                      <EmailSubjectSettings
+                        profile={profile}
+                        inputId="coach-email-subject"
+                        labelClassName="text-xs uppercase font-bold muted"
+                        topic={starter==="custom"?"[Subject]":current.subjectTemplate?fill(current.subjectTemplate,profile).split("|")[0].trim():current.label}
+                        fields={values(profile)}
                         disabled={busy}
-                        maxLength={200}
-                        onChange={(e) => setSubject(e.target.value)}
-                      />
+                        onSaved={next=>setProfile((p:any)=>({...p,signature:{...(p?.signature||{}),...next}}))}
+                      >
+                        <input id="coach-email-subject" className="input mt-1" value={subject} disabled={busy}
+                          maxLength={200} onChange={(e) => setSubject(e.target.value)} />
+                      </EmailSubjectSettings>
+                    ) : (
+                      <div>
+                        <label htmlFor="coach-email-subject" className="text-xs uppercase font-bold muted">Subject</label>
+                        <input id="coach-email-subject" className="input mt-1" value={subject} disabled={busy}
+                          maxLength={200} onChange={(e) => setSubject(e.target.value)} />
+                      </div>
+                    )}
                     </div>
-                    </div>
-                    {!staffMode&&!contextualReply&&<EmailSubjectSettings
-                      profile={profile}
-                      topic={current.subjectTemplate?fill(current.subjectTemplate,profile).split("|")[0].trim():current.label}
-                      fields={values(profile)}
-                      disabled={busy}
-                      onSaved={next=>setProfile((p:any)=>({...p,signature:{...(p?.signature||{}),...next}}))}
-                    />}
                     {contextualReply?.subject && (
                       <div className="mt-3">
                         {changedReplySubject ? (
@@ -1018,24 +1006,6 @@ export default function CoachActionBar({
                       <label className="mb-1 block text-xs uppercase font-bold muted">
                         Message
                       </label>
-                      {!staffMode && <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-semibold">My Email Signature</span>
-                          <button type="button" className="text-red-700 font-semibold underline" onClick={()=>{setSignatureEditing(v=>!v);setSignatureFeedback("");}}>Manage signature</button>
-                        </div>
-                        {signatureEditing && <div className="mt-3 space-y-3">
-                          <label className="block text-xs font-semibold">Signature for future emails</label>
-                          <select aria-label="Email signature preference" className="input w-full" value={signatureMode} onChange={e=>setSignatureMode(e.target.value as "default"|"custom"|"none")}>
-                            <option value="default">RLTNL signature (default)</option>
-                            <option value="custom">My custom signature</option>
-                            <option value="none">No signature</option>
-                          </select>
-                          {signatureMode==="custom" && <textarea aria-label="Custom email signature" className="input w-full min-h-32" maxLength={4000} value={customSignature} onChange={e=>setCustomSignature(e.target.value)} placeholder="Your name, graduation year, team, contact details…" />}
-                          <button type="button" className="btn btn-red" disabled={signatureSaving || (signatureMode==="custom"&&!customSignature.trim())} onClick={saveSignaturePreference}>{signatureSaving?"Saving…":"Save signature"}</button>
-                          <p className="text-xs text-slate-500">Existing drafts will not be changed. Your signature is included automatically when starting a new email.</p>
-                        </div>}
-                        {signatureFeedback && <p role="status" className="mt-2 text-xs text-slate-600">{signatureFeedback}</p>}
-                      </div>}
                       <RichEmailEditor
                         ref={emailEditorRef}
                         videoPicker={<EmailVideoPicker athleteUserId={athleteUserId} onInsert={insertVideo}/>}
@@ -1055,6 +1025,11 @@ export default function CoachActionBar({
                         combined. Recruiting video links can be inserted
                         directly from My Videos.
                       </div>
+                      {!staffMode&&<EmailSignatureSettings
+                        profile={profile}
+                        disabled={busy}
+                        onSaved={next=>setProfile((p:any)=>({...p,signature:{...(p?.signature||{}),...next}}))}
+                      />}
                     </div>
                     {contextualReply?.originalEmail && (
                       <section aria-label={contextualReply.sentInteractionId ? "Previous sent email" : "Previous coach email"} className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
