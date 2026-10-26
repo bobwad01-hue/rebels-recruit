@@ -40,7 +40,17 @@ assert(quick.includes('<EmailSignatureSettings'), 'Quick composer must offer sig
 assert(quick.includes('<EmailSubjectSettings'), 'Quick composer must offer subject management');
 assert(coach.includes('<EmailSubjectSettings'), 'Coach composer must offer subject management');
 assert(quick.includes('appearance-none !pr-12') && coach.includes('appearance-none !pr-12'), 'Starting point arrows must be inset from the right');
-assert(subjectSettings.includes('Manage subject') && subjectSettings.includes('My custom subject format'), 'Subject preference must offer default and custom formats');
+assert(subjectSettings.includes('Manage Subject') && subjectSettings.includes('My custom subject format'), 'Subject preference must offer default and custom formats');
+assert(subjectSettings.includes('htmlFor={inputId}') && subjectSettings.includes('{children}'), 'Manage Subject link must sit beside the Subject label and above its input');
+assert(!subjectSettings.includes('My Email Subject</span>'), 'Subject preference must not render a separate settings bar');
+assert(signature.includes('Manage Signature') && !signature.includes('My Email Signature</span>'), 'Manage Signature must be a link without a settings bar');
+assert(quick.indexOf('<EmailSubjectSettings')<quick.indexOf('<RichEmailEditor'), 'Manage Subject must be beside the Subject field');
+assert(quick.indexOf('<RichEmailEditor')<quick.indexOf('<EmailSignatureSettings'), 'Manage Signature must be below the Message editor');
+assert(coach.indexOf('<RichEmailEditor')<coach.indexOf('<EmailSignatureSettings'), 'Coach Manage Signature must be below the Message editor');
+assert(quick.includes("buildRecruitingEmailSubject('[Subject]',values(),profile?.signature)"), 'Write My Own must prefill a recruiting subject');
+assert(quick.includes("setSubject(writeMyOwnSubject(profileResponse,initialSchool?.name||''))"), 'New empty drafts must start with an editable subject');
+assert(coach.includes('buildRecruitingEmailSubject("[Subject]", v, p?.signature)'), 'Coach Write My Own must use the same subject prompt');
+assert(quick.includes('hasUnresolvedRecruitingSubjectFields(subject)') && coach.includes('hasUnresolvedRecruitingSubjectFields(subject)'), 'Unreplaced subject placeholders must block sending');
 assert(subjectSettings.includes('this draft is unchanged'), 'Saving a subject preference must preserve the active draft');
 assert(subjectFormat.includes('formatRecruitingEmailGpa(fields.gpa)'), 'Both composers must format GPA through shared subject builder');
 assert(quick.includes('buildRecruitingEmailSubject(topic,v,profile?.signature)'), 'Quick composer must honor saved subject preference');
@@ -53,7 +63,7 @@ const subjectExports={};
 runInNewContext(ts.transpileModule(subjectFormat,{
  compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
 }).outputText,{exports:subjectExports});
-const {buildRecruitingEmailSubject,formatRecruitingEmailGpa,validateRecruitingSubjectTemplate}=subjectExports;
+const {buildRecruitingEmailSubject,formatRecruitingEmailGpa,validateRecruitingSubjectTemplate,hasUnresolvedRecruitingSubjectFields}=subjectExports;
 assert.equal(formatRecruitingEmailGpa(4),'4.00');
 assert.equal(formatRecruitingEmailGpa('3.5'),'3.50');
 assert.equal(formatRecruitingEmailGpa('3.85'),'3.85');
@@ -64,6 +74,10 @@ assert.equal(buildRecruitingEmailSubject('Introduce Myself',{...sample,gpa:3.5})
 assert.equal(buildRecruitingEmailSubject('Introduce Myself',{...sample,gpa:''}),'Introduce Myself | Sara Smith | 2028 | OF/RHH | [GPA]');
 assert.equal(buildRecruitingEmailSubject('Introduce Myself',sample,{subjectMode:'custom',customSubjectTemplate:'{{name}} | {{college}} | {{gpaLabel}}'}),'Sara Smith | Buena Vista University | 4.00 GPA');
 assert.equal(buildRecruitingEmailSubject('Introduce Myself',sample,{subjectMode:'default',customSubjectTemplate:'{{name}}'}),'Introduce Myself | Sara Smith | 2028 | OF/RHH | 4.00 GPA');
+assert.equal(buildRecruitingEmailSubject('[Subject]',{...sample,throwBat:''}),'[Subject] | Sara Smith | 2028 | OF/[Bats] | 4.00 GPA');
+assert.equal(buildRecruitingEmailSubject('[Subject]',sample),'[Subject] | Sara Smith | 2028 | OF/RHH | 4.00 GPA');
+assert.equal(hasUnresolvedRecruitingSubjectFields('[Subject] | Sara Smith | 2028 | OF/[Bats] | 4.00 GPA'),true);
+assert.equal(hasUnresolvedRecruitingSubjectFields('Camp Follow-Up | Sara Smith | 2028 | OF/RHH | 4.00 GPA'),false);
 assert.equal(validateRecruitingSubjectTemplate('{{topic}} | {{gpaLabel}}'),null);
 assert.match(validateRecruitingSubjectTemplate('{{unknown}}'),/Unknown field/);
 assert.match(validateRecruitingSubjectTemplate('Bad\nSubject'),/one line/);
