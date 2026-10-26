@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const manualUI=read('components/ManualCollegeEmail.tsx');
 const quick=read('components/RecruitingQuickComposer.tsx'),editor=read('components/RichEmailEditor.tsx'),picker=read('components/EmailVideoPicker.tsx'),coach=read('components/CoachActionBar.tsx'),manual=read('app/api/google/gmail/manual-send/route.ts'),home=read('app/dashboard/page.tsx'),page=read('app/compose-email/page.tsx');
 assert(quick.includes('<RichEmailEditor ref={emailEditorRef}'));
 assert(quick.includes('onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}'));
@@ -21,4 +22,7 @@ assert(home.includes('label="Open Tasks"'));
 assert(!home.includes('Saved Next Steps'));
 assert(home.indexOf('id="home-email-composer"')<home.indexOf('hidden xl:block sticky top-5'));
 assert(page.includes('<RecruitingQuickComposer/>'));
+assert(manualUI.includes('<RecruitingQuickComposer manualOnly'), 'Manual college outreach must reuse the full rich composer');
+assert(!manualUI.includes('<textarea'), 'Legacy plain-text email composer must be removed');
+assert(quick.includes('draftSchoolId=manualOnly?initialSchool?.id:undefined'), 'Manual email drafts must be scoped to the selected school');
 console.log('Quick Compose rich editor, video cursor, attachments, Home layout and labels smoke tests passed.');

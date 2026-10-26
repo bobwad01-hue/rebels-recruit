@@ -14,9 +14,11 @@ type Choice={kind:'school'|'coach'|'email';label:string;school?:School;coach?:Co
 const validEmail=(value:string)=>/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value.trim())&&value.trim().length<=254;
 const safeSearch=(value:string)=>value.replace(/[%(),]/g,' ').trim().slice(0,90);
 const nameOf=(coach:Coach)=>[coach.first_name,coach.last_name].filter(Boolean).join(' ')||'Coach';
-const draftKey=(userId:string)=>'rltnl:quick-email-draft:'+userId;
+const draftKey=(userId:string,schoolId?:string)=>'rltnl:quick-email-draft:'+userId+(schoolId?':manual:'+schoolId:'');
 
-export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:boolean}){
+type Props={readOnly?:boolean;initialSchool?:School;manualOnly?:boolean;onSent?:()=>void;onBusyChange?:(busy:boolean)=>void};
+export default function RecruitingQuickComposer({readOnly=false,initialSchool,manualOnly=false,onSent,onBusyChange}:Props){
+ const draftSchoolId=manualOnly?initialSchool?.id:undefined;
  const emailEditorRef=useRef<RichEmailEditorHandle>(null);
  const [userId,setUserId]=useState('');
  const [query,setQuery]=useState('');
@@ -43,8 +45,8 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
  const [notice,setNotice]=useState('');
  const [showResults,setShowResults]=useState(false);
  const [showSchoolCoaches,setShowSchoolCoaches]=useState(false);
- const selectedSchool=choice?.school||null;
- const selectedCoach=choice?.coach||null;
+ const selectedSchool=manualOnly?(initialSchool||null):(choice?.school||null);
+ const selectedCoach=manualOnly?null:(choice?.coach||null);
  const currentTemplate=useMemo(()=>starterById(templateId,templates),[templateId,templates]);
 
  useEffect(()=>{
@@ -67,7 +69,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
    if(!templateRows.error)setTemplates(mergeEmailStarters((templateRows.data||[]) as any[]));
    setProfile(profileResponse);
    try{
-    const saved=window.localStorage.getItem(draftKey(user.id));
+    const saved=window.localStorage.getItem(draftKey(user.id,draftSchoolId));
     if(saved){
      const d=JSON.parse(saved);
      setSubject(String(d.subject||'').slice(0,200));
@@ -82,6 +84,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
       setRecipientName(String(d.recipientName||''));
      }
     }
+   if(manualOnly&&initialSchool){setChoice({kind:'school',label:initialSchool.name,school:initialSchool});setQuery(initialSchool.name)}
    }catch{/* Private browsing can disable draft storage. */}
    setDraftReady(true);
    setLoading(false);
@@ -91,7 +94,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
 
  useEffect(()=>{
   if(!draftReady||!userId)return;
-  try{window.localStorage.setItem(draftKey(userId),JSON.stringify({
+  try{window.localStorage.setItem(draftKey(userId,draftSchoolId),JSON.stringify({
    choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName
   }))}catch{/* Draft persistence is best effort. */}
  },[draftReady,userId,choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName]);
@@ -201,9 +204,9 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
   if(connected!==true){setError('Connect Gmail in Settings before sending an email.');return}
   if(selectedCoach?.contact_verification_needed){setError('This coach has contact details that require verification before outreach.');return}
   if(selectedCoach&&selectedCoach.lifecycle_status!=='active'){setError('This coach is not currently active.');return}
-  setBusy(true);
+  setBusy(true);onBusyChange?.(true);
   try{
-   const isCoach=!!selectedCoach;
+   const isCoach=!!selectedCoach&&!manualOnly;
    const response=await fetch(isCoach?'/api/google/gmail/send':'/api/google/gmail/manual-send',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(isCoach?{
@@ -221,8 +224,9 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
    try{window.localStorage.removeItem(draftKey(userId))}catch{}
    window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
    window.dispatchEvent(new Event('rebels:data-changed'));
+   onSent?.();
   }catch(err){setError(err instanceof Error?err.message:'Could not send email. Your draft is saved.')}
-  finally{setBusy(false)}
+  finally{setBusy(false);onBusyChange?.(false)}
  }
  return <section className="card w-full min-w-0 p-4 sm:p-5" aria-label="Compose recruiting email">
   <div className="flex items-start gap-3">
@@ -242,8 +246,8 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
       onFocus={()=>{if(!choice)setShowResults(true)}}
       onChange={e=>{setQuery(e.target.value);setChoice(null);setShowResults(true);setEmailAddress('');}}
       onKeyDown={e=>{if(e.key==='Enter'&&!choice&&validEmail(query)){e.preventDefault();choose({kind:'email',label:query.trim(),email:query.trim()})}}}
-      autoComplete="off" disabled={busy||readOnly}/>
-     {choice&&<button type="button" onClick={clearChoice} aria-label="Change recipient" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"><X size={17}/></button>}
+      autoComplete="off" disabled={busy||readOnly||manualOnly}/>
+     {choice&&!manualOnly&&<button type="button" onClick={clearChoice} aria-label="Change recipient" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500"><X size={17}/></button>}
     </div>
     {!choice&&showResults&&query.trim().length>=2&&
      <div className="mt-2 max-h-60 overflow-y-auto rounded-xl border bg-white shadow-sm" role="listbox" aria-label="Recipient search results">
@@ -265,7 +269,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
       {searching&&<p className="p-3 text-xs text-slate-500">Searching directory…</p>}
       {!searching&&!schoolResults.length&&!coachResults.length&&!validEmail(query)&&<p className="p-3 text-xs text-slate-500">No matches. You can enter a complete email address directly.</p>}
      </div>}
-    {choice?.kind==='school'&&
+    {choice?.kind==='school'&&!manualOnly&&
      <div className="mt-3 rounded-xl border bg-slate-50 p-3">
       <div className="text-sm font-bold">Choose a coach at {selectedSchool?.name}, or enter an email below.</div>
       {schoolCoaches.length>0&&<div className="mt-2">
