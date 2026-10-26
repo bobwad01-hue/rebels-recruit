@@ -9,9 +9,9 @@ export default function EmailSignatureSettings({profile,onSaved,disabled=false}:
    onSaved({signatureMode:mode,customSignature:custom});setOpen(false);setFeedback('Signature saved. New emails will use it; this draft is unchanged.');
   }catch(e){setFeedback(e instanceof Error?e.message:'Unable to save signature.')}finally{setSaving(false)}
  }
- return <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
-  <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-semibold">My Email Signature</span><button type="button" className="font-semibold text-red-700 underline disabled:opacity-50" disabled={disabled||saving} onClick={()=>{setOpen(v=>!v);setFeedback('')}}>{open?'Close settings':'Manage signature'}</button></div>
-  {open&&<div className="mt-3 space-y-3"><label className="block text-xs font-semibold">Signature for future emails</label>
+ return <div className="mt-3 text-sm">
+  <button type="button" className="text-xs font-semibold text-red-700 underline underline-offset-2 disabled:opacity-50" disabled={disabled||saving} aria-expanded={open} onClick={()=>{setOpen(v=>!v);setFeedback('')}}>{open?'Close Signature Settings':'Manage Signature'}</button>
+  {open&&<div className="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3"><label className="block text-xs font-semibold">Signature for future emails</label>
    <select aria-label="Email signature preference" className="input w-full" disabled={disabled||saving} value={mode} onChange={e=>setMode(e.target.value as Mode)}><option value="default">RLTNL signature (default)</option><option value="custom">My custom signature</option><option value="none">No signature</option></select>
    {mode==='custom'&&<textarea aria-label="Custom email signature" className="input min-h-32 w-full" maxLength={4000} value={custom} disabled={disabled||saving} onChange={e=>setCustom(e.target.value)} placeholder="Your name, graduation year, team, contact details…"/>}
    <button type="button" className="btn btn-red" disabled={saving||disabled||(mode==='custom'&&!custom.trim())} onClick={()=>void save()}>{saving?'Saving…':'Save signature'}</button>

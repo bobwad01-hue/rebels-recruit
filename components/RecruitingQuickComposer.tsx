@@ -4,7 +4,7 @@ import Link from 'next/link';
 import {CheckCircle2,ChevronDown,Mail,Search,Send,Sparkles,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {EMAIL_STARTERS,mergeEmailStarters,starterById,type EmailStarter} from '@/lib/recruiting-email-playbook';
-import {buildRecruitingEmailSubject} from '@/lib/recruiting-email-format';
+import {buildRecruitingEmailSubject,hasUnresolvedRecruitingSubjectFields} from '@/lib/recruiting-email-format';
 import EmailVideoPicker from '@/components/EmailVideoPicker';
 import RichEmailEditor,{type EmailAttachment,type RichEmailEditorHandle} from '@/components/RichEmailEditor';
 import EmailSignatureSettings from '@/components/EmailSignatureSettings';
@@ -17,6 +17,15 @@ const validEmail=(value:string)=>/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value.t
 const safeSearch=(value:string)=>value.replace(/[%(),]/g,' ').trim().slice(0,90);
 const nameOf=(coach:Coach)=>[coach.first_name,coach.last_name].filter(Boolean).join(' ')||'Coach';
 const draftKey=(userId:string,schoolId?:string)=>'rltnl:quick-email-draft:'+userId+(schoolId?':manual:'+schoolId:'');
+function writeMyOwnSubject(profile:any,college=''){
+ const a=profile?.athlete||{},p=profile?.profile||{},sig=profile?.signature||{};
+ return buildRecruitingEmailSubject('[Subject]',{
+  name:p.full_name||a.full_name||'',grad:a.class_year||a.grad_year||'',
+  positions:Array.isArray(a.positions)?a.positions.join('/'):a.position||'',
+  throwBat:sig.throwBat||a.throw_bat||'',gpa:a.gpa??'',college,
+  jersey:a.jersey_number||'',
+ },sig);
+}
 
 type Props={readOnly?:boolean;initialSchool?:School;manualOnly?:boolean;onSent?:()=>void;onBusyChange?:(busy:boolean)=>void};
 export default function RecruitingQuickComposer({readOnly=false,initialSchool,manualOnly=false,onSent,onBusyChange}:Props){
@@ -73,10 +82,12 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    setConnected(!connection.error&&connection.data?.gmail_connected===true);
    if(!templateRows.error)setTemplates(mergeEmailStarters((templateRows.data||[]) as any[]));
    setProfile(profileResponse);
+   let restoreBlankCustom=true;
    try{
     const saved=window.localStorage.getItem(draftKey(user.id,draftSchoolId));
     if(saved){
      const d=JSON.parse(saved);
+     restoreBlankCustom=String(d.templateId||'custom')==='custom'&&!String(d.subject||'').trim()&&!String(d.body||'').trim()&&!String(d.bodyHtml||'').trim();
      setSubject(String(d.subject||'').slice(0,200));
      setBody(String(d.body||'').slice(0,20000));
      setBodyHtml(String(d.bodyHtml||'').slice(0,100000));
@@ -91,6 +102,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      }
     }
    }catch{/* Private browsing can disable draft storage. */}
+   if(restoreBlankCustom)setSubject(writeMyOwnSubject(profileResponse,initialSchool?.name||''));
    if(manualOnly&&initialSchool){setChoice({kind:'school',label:initialSchool.name,school:initialSchool});setQuery(initialSchool.name)}
    setDraftReady(true);
    setLoading(false);
@@ -204,7 +216,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  function applyTemplate(id:string,index=0){
   setTemplateId(id);setOpening(index);setNotice('');
   setBodyHtml('');
-  if(id==='custom'){setSubject('');setBody('');return}
+  if(id==='custom'){setSubject(buildRecruitingEmailSubject('[Subject]',values(),profile?.signature));setBody('');return}
   const template=starterById(id,templates),v=values();
   const topic=template.subjectTemplate?fill(template.subjectTemplate,v).split('|')[0].trim():template.label;
   setSubject(buildRecruitingEmailSubject(topic,v,profile?.signature));
@@ -221,6 +233,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   const to=emailAddress.trim().toLowerCase();
   if(!validEmail(to)){setError('Select a coach or enter a valid recipient email address.');return}
   if(!subject.trim()||!body.trim()){setError('Enter a subject and message before sending.');return}
+  if(hasUnresolvedRecruitingSubjectFields(subject)){
+   setError('Replace [Subject] and any missing athlete details in the Subject field before sending.');return;
+  }
   if(bodyHtml.length>100000){setError('This formatted email is too long.');return}
   if(templateId!=='custom'&&/\[[A-Z][A-Z0-9 ’'&/.,-]{2,}\]/.test(body)){
    setError('Replace the bracketed template prompts with your own details before sending.');return;
@@ -247,7 +262,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    const result=await response.json().catch(()=>({}));
    if(!response.ok||!result.messageId)throw new Error(result.error||'Gmail could not confirm the send.');
    setNotice(result.logged===false?'Email sent through Gmail, but recruiting activity could not be recorded.':'Email sent through Gmail and recorded in Recruiting Activity.');
-   setSubject('');setBody('');setBodyHtml('');setAttachments([]);setCcCoachIds([]);setTemplateId('custom');setOpening(0);
+   setSubject(writeMyOwnSubject(profile,selectedSchool?.name||''));setBody('');setBodyHtml('');setAttachments([]);setCcCoachIds([]);setTemplateId('custom');setOpening(0);
    try{window.localStorage.removeItem(draftKey(userId,draftSchoolId))}catch{}
    window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
    window.dispatchEvent(new Event('rebels:data-changed'));
@@ -345,13 +360,11 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
        className={'rounded-lg border px-2.5 py-1.5 text-xs font-bold '+(opening===i?'border-red-600 bg-red-50 text-red-700':'bg-white')}>{o.label}</button>)}</div>}
     </div>}
    </div>
-   <label className="block text-sm font-black">Subject
-    <input required className="input mt-2 w-full" maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)} disabled={busy||readOnly} placeholder="Email subject"/>
-   </label>
-   <EmailSubjectSettings profile={profile} disabled={busy||readOnly}
-    topic={templateId==='custom'?'Recruiting Update':currentTemplate.subjectTemplate?fill(currentTemplate.subjectTemplate,values()).split('|')[0].trim():currentTemplate.label}
-    fields={values()} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
-   <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
+   <EmailSubjectSettings profile={profile} disabled={busy||readOnly} inputId="quick-email-subject"
+    topic={templateId==='custom'?'[Subject]':currentTemplate.subjectTemplate?fill(currentTemplate.subjectTemplate,values()).split('|')[0].trim():currentTemplate.label}
+    fields={values()} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}>
+    <input id="quick-email-subject" required className="input mt-2 w-full" maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)} disabled={busy||readOnly} placeholder="Email subject"/>
+   </EmailSubjectSettings>
    <div>
     <label className="text-sm font-black">Message</label>
     <RichEmailEditor ref={emailEditorRef} value={body} html={bodyHtml}
@@ -359,6 +372,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}}
      attachments={attachments} onAttachmentsChange={setAttachments} disabled={busy||readOnly}/>
     <p className="mt-2 text-xs text-slate-500">Choose a font and size, format selected text, add links or attachments. Place the cursor in the message before choosing Add Video to insert the link at that spot. Up to 5 attachments (2.5 MB each, 3 MB total).</p>
+    <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    </div>
    {connected===false&&<p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
     Connect Gmail before sending. <Link href="/settings" className="font-bold underline">Gmail settings</Link>
