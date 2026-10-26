@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
+import ts from 'typescript';
+import {runInNewContext} from 'node:vm';
 import {readFileSync} from 'node:fs';
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 const manualUI=read('components/ManualCollegeEmail.tsx');
 const signature=read('components/EmailSignatureSettings.tsx');
+const subjectSettings=read('components/EmailSubjectSettings.tsx');
+const subjectFormat=read('lib/recruiting-email-format.ts');
+const preferencesApi=read('app/api/profile/email-signature/route.ts');
 const quick=read('components/RecruitingQuickComposer.tsx'),editor=read('components/RichEmailEditor.tsx'),picker=read('components/EmailVideoPicker.tsx'),coach=read('components/CoachActionBar.tsx'),manual=read('app/api/google/gmail/manual-send/route.ts'),home=read('app/dashboard/page.tsx'),page=read('app/compose-email/page.tsx');
 assert(quick.includes('<RichEmailEditor ref={emailEditorRef}'));
 assert(quick.includes('onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}'));
@@ -32,5 +37,34 @@ assert(!manualUI.includes('<textarea'), 'Legacy plain-text email composer must b
 assert(quick.includes('draftSchoolId=manualOnly?initialSchool?.id:undefined'), 'Manual email drafts must be scoped to the selected school');
 assert(quick.includes('ccCoachIds:allowedCc'), 'CC recipients must be sent only when eligible');
 assert(quick.includes('<EmailSignatureSettings'), 'Quick composer must offer signature management');
+assert(quick.includes('<EmailSubjectSettings'), 'Quick composer must offer subject management');
+assert(coach.includes('<EmailSubjectSettings'), 'Coach composer must offer subject management');
+assert(quick.includes('appearance-none !pr-12') && coach.includes('appearance-none !pr-12'), 'Starting point arrows must be inset from the right');
+assert(subjectSettings.includes('Manage subject') && subjectSettings.includes('My custom subject format'), 'Subject preference must offer default and custom formats');
+assert(subjectSettings.includes('this draft is unchanged'), 'Saving a subject preference must preserve the active draft');
+assert(subjectFormat.includes('formatRecruitingEmailGpa(fields.gpa)'), 'Both composers must format GPA through shared subject builder');
+assert(quick.includes('buildRecruitingEmailSubject(topic,v,profile?.signature)'), 'Quick composer must honor saved subject preference');
+assert(coach.includes('buildRecruitingEmailSubject(topic, v, p?.signature)'), 'Coach composer must honor saved subject preference');
+assert(preferencesApi.includes('metadata.subjectMode = body.subjectMode'), 'Subject preferences must persist in the athlete profile');
+assert(preferencesApi.includes('const metadata: Record<string, unknown> = {...prior}'), 'Saving preferences must preserve existing profile and signature fields');
 assert(signature.includes("fetch('/api/profile/email-signature'"), 'Signature management must persist through existing endpoint');
+// Exercise the actual TypeScript formatter so regressions in GPA and custom tokens fail the build.
+const subjectExports={};
+runInNewContext(ts.transpileModule(subjectFormat,{
+ compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}
+}).outputText,{exports:subjectExports});
+const {buildRecruitingEmailSubject,formatRecruitingEmailGpa,validateRecruitingSubjectTemplate}=subjectExports;
+assert.equal(formatRecruitingEmailGpa(4),'4.00');
+assert.equal(formatRecruitingEmailGpa('3.5'),'3.50');
+assert.equal(formatRecruitingEmailGpa('3.85'),'3.85');
+assert.equal(formatRecruitingEmailGpa(''),'');
+const sample={name:'Sara Smith',grad:2028,positions:'OF',throwBat:'R/R',gpa:4,college:'Buena Vista University',jersey:14};
+assert.equal(buildRecruitingEmailSubject('Introduce Myself',sample),'Introduce Myself | Sara Smith | 2028 | OF/RHH | 4.00 GPA');
+assert.equal(buildRecruitingEmailSubject('Introduce Myself',{...sample,gpa:3.5}),'Introduce Myself | Sara Smith | 2028 | OF/RHH | 3.50 GPA');
+assert.equal(buildRecruitingEmailSubject('Introduce Myself',{...sample,gpa:''}),'Introduce Myself | Sara Smith | 2028 | OF/RHH | [GPA]');
+assert.equal(buildRecruitingEmailSubject('Introduce Myself',sample,{subjectMode:'custom',customSubjectTemplate:'{{name}} | {{college}} | {{gpaLabel}}'}),'Sara Smith | Buena Vista University | 4.00 GPA');
+assert.equal(buildRecruitingEmailSubject('Introduce Myself',sample,{subjectMode:'default',customSubjectTemplate:'{{name}}'}),'Introduce Myself | Sara Smith | 2028 | OF/RHH | 4.00 GPA');
+assert.equal(validateRecruitingSubjectTemplate('{{topic}} | {{gpaLabel}}'),null);
+assert.match(validateRecruitingSubjectTemplate('{{unknown}}'),/Unknown field/);
+assert.match(validateRecruitingSubjectTemplate('Bad\nSubject'),/one line/);
 console.log('Quick Compose rich editor, video cursor, attachments, Home layout and labels smoke tests passed.');

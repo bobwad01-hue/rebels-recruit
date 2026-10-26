@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
+import {validateRecruitingSubjectTemplate} from "@/lib/recruiting-email-format";
 
 const ENTITY = "athlete_email_signature_profile";
 const FIELDS = [
@@ -100,29 +101,40 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
-  const metadata: any = {};
-  for (const key of FIELDS) {
-    const value = String(body?.[key] || "").trim();
-    if (value) metadata[key] = value;
-  }
   const admin = createAdminClient();
   const signatureMode = body?.signatureMode;
   if (signatureMode !== undefined && !["default","custom","none"].includes(signatureMode))
     return NextResponse.json({ error: "Invalid signature preference." }, { status: 400 });
   if (body?.customSignature !== undefined && (typeof body.customSignature !== "string" || body.customSignature.length > 4000))
     return NextResponse.json({ error: "Signature must be under 4,000 characters." }, { status: 400 });
-  const { data: previous } = await admin.from("audit_log").select("metadata")
+  if (body?.subjectMode !== undefined && !["default","custom"].includes(body.subjectMode))
+    return NextResponse.json({ error: "Invalid subject preference." }, { status: 400 });
+  if (body?.customSubjectTemplate !== undefined &&
+      (typeof body.customSubjectTemplate !== "string" || validateRecruitingSubjectTemplate(body.customSubjectTemplate)))
+    return NextResponse.json({ error: validateRecruitingSubjectTemplate(body?.customSubjectTemplate) || "Invalid subject format." }, { status: 400 });
+  if (body?.subjectMode === "custom" && !body?.customSubjectTemplate)
+    return NextResponse.json({ error: "Choose a custom subject format." }, { status: 400 });
+  const { data: previous, error: previousError } = await admin.from("audit_log").select("metadata")
     .eq("entity_type", ENTITY).eq("entity_id", user.id)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (previousError) return NextResponse.json({ error: "Unable to load existing email preferences." }, { status: 500 });
   const prior = (previous?.metadata || {}) as Record<string, unknown>;
-  if (body?.signatureMode !== undefined || body?.customSignature !== undefined) {
-    Object.assign(metadata, prior);
-    if (body?.signatureMode !== undefined) metadata.signatureMode = body.signatureMode;
-    if (body?.customSignature !== undefined) metadata.customSignature = body.customSignature;
-  } else {
-    metadata.signatureMode = prior.signatureMode || "default";
-    metadata.customSignature = prior.customSignature || "";
+  const metadata: Record<string, unknown> = {...prior};
+  // The profile form submits all profile fields; preference-only saves must not erase them.
+  const isProfileUpdate = FIELDS.some(key => Object.prototype.hasOwnProperty.call(body, key));
+  if (isProfileUpdate) {
+    for (const key of FIELDS) {
+      const value = String(body?.[key] || "").trim();
+      if (value) metadata[key] = value;
+      else delete metadata[key];
+    }
   }
+  if (signatureMode !== undefined) metadata.signatureMode = signatureMode;
+  if (body?.customSignature !== undefined) metadata.customSignature = body.customSignature;
+  if (body?.subjectMode !== undefined) metadata.subjectMode = body.subjectMode;
+  if (body?.customSubjectTemplate !== undefined) metadata.customSubjectTemplate = body.customSubjectTemplate;
+  if (!metadata.signatureMode) metadata.signatureMode = "default";
+  if (metadata.customSignature === undefined) metadata.customSignature = "";
   const requestedOrganizationId = String(body?.organizationId || "");
   const memberQuery = admin
     .from("organization_members")
