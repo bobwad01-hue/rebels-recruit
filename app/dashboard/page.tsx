@@ -378,7 +378,7 @@ export default async function Dashboard({
               </div>
             </Link>)}
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 mt-5 min-w-0 rounded-xl border bg-slate-50/60 divide-x divide-y md:divide-y-0 overflow-hidden">
+          <div className="grid grid-cols-2 md:grid-cols-3 mt-5 min-w-0 rounded-xl border bg-slate-50/60 divide-x divide-y md:divide-y-0 overflow-hidden">
             <SnapshotMetric
               label="Active Schools"
               value={intelligence.activeSchools}
@@ -390,14 +390,9 @@ export default async function Dashboard({
               href={ph("/connections")}
             />
             <SnapshotMetric
-              label="Open Next Steps"
+              label="Saved Next Steps"
               value={intelligence.openNextMoves}
               href={ph("/game-plan#next-moves")}
-            />
-            <SnapshotMetric
-              label="Upcoming Events"
-              value={intelligence.upcomingEvents}
-              href={ph("/events")}
             />
           </div>
           {smartMoves[0] ? (
@@ -428,16 +423,16 @@ export default async function Dashboard({
           ) : (
             <div className="mt-5 rounded-2xl border p-4">
               <div className="font-bold">
-                Nothing urgent needs your attention right now.
+                Start a recruiting conversation.
               </div>
               <div className="muted text-sm mt-1">
-                Keep working your current Next Steps and getting ready for
-                upcoming opportunities.
+                Explore schools, reach out to a coach, or continue a relationship.
+                <a href="#home-email-composer" className="ml-1 font-bold text-red-700 underline">Compose an email</a>.
               </div>
             </div>
           )}
         </section>
-        {!fitProfile.data?.completed_at && (
+        {!fitProfile.data?.completed_at && intelligence.activeSchools > 0 && (
           <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 sm:px-5">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1 min-w-0">
               <div className="rr-eyebrow">COLLEGE FIT SURVEY</div><div className="font-black text-lg mt-1">Tell us what matters to you in a college.</div>
@@ -446,7 +441,9 @@ export default async function Dashboard({
           </section>
         )}
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
-        <div className="mt-6 w-full min-w-0"><RecruitingQuickComposer readOnly={preview.active}/></div>
+        <div id="home-email-composer" className="mt-6 w-full min-w-0">{preview.active
+          ? <div className="card p-5 text-sm text-slate-600">Compose Email is unavailable in read-only preview.</div>
+          : <RecruitingQuickComposer/>}</div>
      </div>
     </AppShell>
   );
