@@ -25,6 +25,7 @@ assert(send.includes("om.threadId!==outgoing.gmail_thread_id"), 'Gmail send must
 assert(send.includes("om.labelIds?.includes('SENT')"), 'Gmail send must verify that the original Gmail message was sent');
 assert(send.includes("addresses(header('To')).includes(originalRecipient)"), 'Gmail send must preserve the original verified recipient');
 assert(send.includes('replyMeta={threadId:outgoing.gmail_thread_id'), 'Gmail send must retain Gmail thread and Message-ID headers');
-assert(send.includes('...(replyMeta?{threadId:replyMeta.threadId}:{})'), 'Gmail send must use the original threadId in messages.send');
+assert(send.includes('...(threadReplyMeta?{threadId:threadReplyMeta.threadId}:{})'), 'Gmail send must retain threadId only when the subject is unchanged');
+assert(send.includes('const threadReplyMeta=startedNewConversation?null:replyMeta'), 'Changing subject must never send old Gmail threading metadata');
 
 console.log('Sent Gmail thread continuation security, routing, and history smoke tests passed.');
