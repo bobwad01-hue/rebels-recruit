@@ -44,9 +44,9 @@ assert(subjectSettings.includes('Manage Subject') && subjectSettings.includes('M
 assert(subjectSettings.includes('htmlFor={inputId}') && subjectSettings.includes('{children}'), 'Manage Subject link must sit beside the Subject label and above its input');
 assert(!subjectSettings.includes('My Email Subject</span>'), 'Subject preference must not render a separate settings bar');
 assert(signature.includes('Manage Signature') && !signature.includes('My Email Signature</span>'), 'Manage Signature must be a link without a settings bar');
-assert(quick.indexOf('<EmailSubjectSettings')<quick.indexOf('<RichEmailEditor'), 'Manage Subject must be beside the Subject field');
-assert(quick.indexOf('<RichEmailEditor')<quick.indexOf('<EmailSignatureSettings'), 'Manage Signature must be below the Message editor');
-assert(coach.indexOf('<RichEmailEditor')<coach.indexOf('<EmailSignatureSettings'), 'Coach Manage Signature must be below the Message editor');
+assert(quick.indexOf('<EmailSubjectSettings')<quick.indexOf('<RichEmailEditor ref={emailEditorRef}'), 'Manage Subject must be beside the Subject field');
+assert(quick.indexOf('<RichEmailEditor ref={emailEditorRef}')<quick.indexOf('<EmailSignatureSettings'), 'Manage Signature must be below the Message editor');
+assert(coach.indexOf('<RichEmailEditor\n')<coach.indexOf('<EmailSignatureSettings'), 'Coach Manage Signature must be below the Message editor');
 assert(quick.includes("buildRecruitingEmailSubject('[Subject]',values(),profile?.signature)"), 'Write My Own must prefill a recruiting subject');
 assert(quick.includes("setSubject(writeMyOwnSubject(profileResponse,initialSchool?.name||''))"), 'New empty drafts must start with an editable subject');
 assert(coach.includes('buildRecruitingEmailSubject("[Subject]", v, p?.signature)'), 'Coach Write My Own must use the same subject prompt');
