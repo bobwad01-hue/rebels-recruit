@@ -66,11 +66,12 @@ function replyUrl(email: CoachEmail) {
 
 const fields = 'id,coach_id,subject,summary,received_at,reviewed_at,interaction_id,recruiting_intent,extracted_data,college_coaches(first_name,last_name),colleges(name)';
 
-export default function CoachEmailAlerts({ variant = 'bell', compact = false }: { variant?: Variant; compact?: boolean }) {
+export default function CoachEmailAlerts({ variant = 'bell', compact = false, messageUnread = 0 }: { variant?: Variant; compact?: boolean; messageUnread?: number }) {
   const router = useRouter();
   const [items, setItems] = useState<CoachEmail[]>([]);
   const [reviewedItems, setReviewedItems] = useState<CoachEmail[]>([]);
   const [count, setCount] = useState(0);
+  const [directUnread, setDirectUnread] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [syncHealth, setSyncHealth] = useState<SyncHealth>('unknown');
@@ -218,6 +219,30 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
       document.removeEventListener('keydown', closeEscape);
     };
   }, [open]);
+
+  useEffect(() => {
+    if(variant!=='bell')return;
+    let active=true;
+    const client=createClient();
+    async function loadUnread(){
+      const {data:{user}}=await client.auth.getUser();
+      if(!active||!user)return;
+      const {data:members,error:membersError}=await client.from('advisor_conversation_members')
+        .select('conversation_id').eq('user_id',user.id);
+      if(!active||membersError)return;
+      const ids=[...new Set((members||[]).map((m:any)=>String(m.conversation_id)))];
+      if(!ids.length){setDirectUnread(0);return}
+      const {count:unread,error}=await client.from('advisor_messages').select('id',{count:'exact',head:true})
+        .in('conversation_id',ids).neq('sender_user_id',user.id).is('read_at',null);
+      if(active&&!error)setDirectUnread(Math.max(0,unread||0));
+    }
+    void loadUnread();
+    const timer=window.setInterval(()=>void loadUnread(),30000);
+    window.addEventListener('focus',loadUnread);
+    window.addEventListener('rltnl:messages-updated',loadUnread);
+    return()=>{active=false;window.clearInterval(timer);window.removeEventListener('focus',loadUnread);window.removeEventListener('rltnl:messages-updated',loadUnread)};
+  },[variant]);
+  const totalCount=count+messageUnread+directUnread;
 
   if (variant === 'home') {
     if (!loaded || error || !count || !items.length) return null;
@@ -381,18 +406,18 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
 
   return (
     <div ref={popoverRef} className="relative">
-      <button type="button" aria-label={'Coach email alerts, ' + count + ' to review'} aria-expanded={open}
+      <button type="button" aria-label={'Alerts, ' + totalCount + ' to review'} aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={'relative flex items-center gap-2 rounded-xl border bg-white p-3 text-sm font-bold transition-colors hover:bg-slate-50 ' + (compact ? 'h-11 w-11 justify-center' : 'w-full')}>
         <Bell size={19} />
-        {!compact && 'Coach Emails'}
-        {count > 0 && <span className={'rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white ' + (compact ? 'absolute -right-1 -top-1' : 'ml-auto')}>{count > 99 ? '99+' : count}</span>}
+        {!compact && 'Alerts'}
+        {totalCount > 0 && <span className={'rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-black text-white ' + (compact ? 'absolute -right-1 -top-1' : 'ml-auto')}>{totalCount > 99 ? '99+' : totalCount}</span>}
       </button>
       {open && (
         <div className="absolute right-0 top-full z-[85] mt-2 max-h-[70vh] w-[min(88vw,350px)] overflow-y-auto rounded-2xl border bg-white p-3 shadow-xl lg:left-0 lg:right-auto">
           <div className="flex items-center justify-between gap-2 px-1 pb-3">
-            <div className="font-black">Coach email alerts</div>
-            {count > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">{count} new</span>}
+            <div className="font-black">Alerts</div>
+            {totalCount > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">{totalCount} to review</span>}
           </div>
           {(syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncError || syncing) && (
             <div className="mb-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900" role="status">
@@ -412,7 +437,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
           )}
           {error ? <p className="p-2 text-sm text-red-700">Could not load alerts.</p>
             : !loaded ? <p className="p-2 text-sm text-slate-600">Loading…</p>
-            : count === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">{syncHealth === 'healthy' ? "You're all caught up. No emails need review." : 'No imported coach emails currently need review.'}</p>
+            : count === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">No coach emails currently need review.</p>
             : <div className="space-y-2">{items.slice(0, 5).map((email) =>
                 <Link key={email.id} href={detailsUrl(email)} onClick={() => setOpen(false)}
                   className="block rounded-xl border p-3 transition-colors hover:border-red-200 hover:bg-red-50">
@@ -421,6 +446,10 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false }: 
                   <div className="mt-2 line-clamp-2 break-words text-xs text-slate-700">{email.subject || 'New recruiting email'}</div>
                   <div className="mt-2 flex items-center gap-1 text-xs font-bold text-red-700">Review email <ChevronRight size={14} /></div>
                 </Link>)}</div>}
+          {(messageUnread+directUnread)>0&&<Link href="/messages" onClick={()=>setOpen(false)} className="mt-3 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
+            <span>Unread RLTNL messages</span><span className="rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{messageUnread+directUnread}</span>
+          </Link>}
+          <Link href="/messages" onClick={()=>setOpen(false)} className="mt-2 block text-center text-xs font-bold text-red-700 underline">Open Messages</Link>
           <Link href="/coach-emails" onClick={() => setOpen(false)} className="btn btn-red mt-3 w-full justify-center text-sm">
             Open Coach Emails <ArrowRight size={15} />
           </Link>
