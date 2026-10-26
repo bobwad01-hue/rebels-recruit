@@ -95,6 +95,11 @@ export function buildRecruitingEmailSubject(
   ).trim().slice(0, 200);
 }
 
+/** Do not send the example labels from a generated recruiting subject to a coach. */
+export function hasUnresolvedRecruitingSubjectFields(subject: string): boolean {
+  return /\[(?:Subject|Full Name|Graduation Year|Positions|Bats|GPA|College|Jersey)\]/i.test(subject);
+}
+
 /** Refresh only phone values inside an existing draft's profile-summary footer. */
 export function formatDraftSignaturePhones(body: string, name: string, phones: unknown[]): string {
   const marker = name ? `${name} Profile Summary` : "";

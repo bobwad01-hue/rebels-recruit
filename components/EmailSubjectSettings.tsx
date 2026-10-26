@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useState,type ReactNode} from 'react';
 import {
   buildRecruitingEmailSubject,DEFAULT_RECRUITING_SUBJECT_TEMPLATE,
   validateRecruitingSubjectTemplate,
@@ -8,9 +8,9 @@ import {
 
 type Mode='default'|'custom';
 type Preference={subjectMode:Mode;customSubjectTemplate:string};
-type Props={profile:any;topic:string;fields:RecruitingEmailSubjectFields;onSaved:(next:Preference)=>void;disabled?:boolean};
+type Props={profile:any;topic:string;fields:RecruitingEmailSubjectFields;onSaved:(next:Preference)=>void;disabled?:boolean;inputId:string;labelClassName?:string;children:ReactNode};
 
-export default function EmailSubjectSettings({profile,topic,fields,onSaved,disabled=false}:Props){
+export default function EmailSubjectSettings({profile,topic,fields,onSaved,disabled=false,inputId,labelClassName='text-sm font-black',children}:Props){
  const [open,setOpen]=useState(false);
  const [mode,setMode]=useState<Mode>('default');
  const [custom,setCustom]=useState(DEFAULT_RECRUITING_SUBJECT_TEMPLATE);
@@ -40,14 +40,15 @@ export default function EmailSubjectSettings({profile,topic,fields,onSaved,disab
   }catch(error){setFeedback(error instanceof Error?error.message:'Unable to save subject preference.')}
   finally{setSaving(false)}
  }
- return <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+ return <div className="min-w-0 text-sm">
   <div className="flex flex-wrap items-center justify-between gap-2">
-   <span className="font-semibold">My Email Subject</span>
-   <button type="button" className="font-semibold text-red-700 underline disabled:opacity-50"
-    disabled={disabled||saving} aria-expanded={open}
-    onClick={()=>{setOpen(v=>!v);setFeedback('')}}>{open?'Close settings':'Manage subject'}</button>
+   <label htmlFor={inputId} className={labelClassName}>Subject</label>
+   <button type="button" className="text-xs font-semibold text-red-700 underline underline-offset-2 disabled:opacity-50"
+    disabled={disabled||saving} aria-expanded={open} aria-controls={inputId+'-settings'}
+    onClick={()=>{setOpen(v=>!v);setFeedback('')}}>{open?'Close Subject Settings':'Manage Subject'}</button>
   </div>
-  {open&&<div className="mt-3 space-y-3">
+  {children}
+  {open&&<div id={inputId+'-settings'} className="mt-3 space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
    <label className="block text-xs font-semibold" htmlFor="email-subject-mode">Subject format for future emails</label>
    <select id="email-subject-mode" aria-label="Email subject preference" className="input w-full"
     disabled={disabled||saving} value={mode} onChange={e=>setMode(e.target.value as Mode)}>
