@@ -47,5 +47,5 @@ assert(composer.includes('previewOnly:true,coachId'), 'Reply preview must use au
 assert(composer.includes('Preview previous conversation'), 'Quoted history preview must be accessible');
 assert(composer.includes('quotedPreview.text.trim()'), 'Quoted history must display the generated plain-text quote');
 assert(composer.includes('setIncludePreviousConversation(saved.includePreviousConversation!==false)'), 'Reply draft must restore quoting preference');
-assert(composer.includes('disabled={busy}\n                        maxLength={200}'), 'Reply subject must be editable but locked during send');
+assert(composer.includes('id="coach-email-subject" className="input mt-1" value={subject} disabled={busy}') && composer.includes('maxLength={200} onChange={(e) => setSubject(e.target.value)}'), 'Reply subject must be editable but locked during send');
 console.log('Gmail subject-change: same-thread preservation, new-thread isolation, safe quote, failures and UI smoke tests passed.');
