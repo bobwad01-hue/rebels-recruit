@@ -99,6 +99,10 @@ export default function CoachActionBar({
     [subject, setSubject] = useState(""),
     [includePreviousConversation,setIncludePreviousConversation]=useState(true),
     [startedNewConversation,setStartedNewConversation]=useState(false),
+    [quotedPreview,setQuotedPreview]=useState<{text:string;messageCount:number;omittedCount:number}|null>(null),
+    [quotedPreviewOpen,setQuotedPreviewOpen]=useState(false),
+    [quotedPreviewLoading,setQuotedPreviewLoading]=useState(false),
+    [quotedPreviewError,setQuotedPreviewError]=useState(""),
     [body, setBody] = useState(""),
     [bodyHtml, setBodyHtml] = useState(""),
     [attachments, setAttachments] = useState<EmailAttachment[]>([]),
@@ -262,6 +266,33 @@ export default function CoachActionBar({
   function insertVideo(video: { title: string; url: string }) {
     emailEditorRef.current?.insertVideo(video);
   }
+  async function previewPreviousConversation(){
+    if(quotedPreviewLoading||busy||!contextualReply||!changedReplySubject||!includePreviousConversation)return;
+    if(quotedPreview){setQuotedPreviewOpen(v=>!v);return}
+    setQuotedPreviewLoading(true);
+    setQuotedPreviewError("");
+    try{
+      const ctx=await context();
+      if(!ctx)throw new Error("Please sign in again to preview the conversation.");
+      const r=await fetch("/api/google/gmail/send",{
+        method:"POST",headers:{"Content-Type":"application/json"},cache:"no-store",
+        body:JSON.stringify({
+          previewOnly:true,coachId,athleteUserId:ctx.athlete,staffMode,
+          recipientEmail:!email?recipientEmail.trim().toLowerCase():undefined,
+          subject,includePreviousConversation:true,
+          recruitingInteractionId:contextualReply.sentInteractionId?null:contextualReply.interactionId||null,
+          sentInteractionId:contextualReply.sentInteractionId||null,
+          recruitingMessageId:contextualReply.sentInteractionId?null:contextualReply.emailId||null
+        })
+      });
+      const result=await r.json().catch(()=>({}));
+      if(!r.ok||!result.previousConversation?.text)throw new Error(result.error||"Unable to preview the previous conversation.");
+      setQuotedPreview(result.previousConversation);
+      setQuotedPreviewOpen(true);
+    }catch(error){
+      setQuotedPreviewError(error instanceof Error?error.message:"Unable to preview the previous conversation.");
+    }finally{setQuotedPreviewLoading(false)}
+  }
   async function loadProfile() {
     const ctx = await context();
     if (!ctx) return null;
@@ -344,6 +375,10 @@ export default function CoachActionBar({
     setEmailStatus("idle");
     setStartedNewConversation(false);
     setIncludePreviousConversation(true);
+    setQuotedPreview(null);
+    setQuotedPreviewOpen(false);
+    setQuotedPreviewError("");
+    setQuotedPreviewLoading(false);
     setAttachments([]);
     setCcCoachIds([]);
     setEmailOpen(true);
@@ -918,11 +953,24 @@ export default function CoachActionBar({
                             <p className="mt-1 text-xs leading-5 text-slate-700">Your earlier Gmail thread stays intact. RLTNL keeps both conversations under this coach.</p>
                             <label className="mt-3 flex cursor-pointer items-start gap-3">
                               <input type="checkbox" className="mt-1" checked={includePreviousConversation} disabled={busy}
-                                onChange={e=>setIncludePreviousConversation(e.target.checked)} />
+                                onChange={e=>{setIncludePreviousConversation(e.target.checked);setQuotedPreviewOpen(false);setQuotedPreviewError("");}} />
                               <span><span className="block font-semibold">Include previous conversation</span>
                                 <span className="mt-1 block text-xs leading-5 text-slate-700">Recommended. RLTNL adds up to 12 previous emails from this coach's Gmail conversation as quoted context below your new message. This is visible to everyone receiving the email, including CC recipients.</span>
                               </span>
                             </label>
+                            {includePreviousConversation&&<div className="mt-3 border-t border-amber-200 pt-3">
+                              <button type="button" className="text-xs font-bold text-red-700 underline underline-offset-2 disabled:opacity-50"
+                                disabled={busy||quotedPreviewLoading} aria-expanded={quotedPreviewOpen}
+                                onClick={()=>void previewPreviousConversation()}>
+                                {quotedPreviewLoading?"Loading quoted conversation…":quotedPreviewOpen?"Hide quoted conversation":"Preview previous conversation"}
+                              </button>
+                              {quotedPreviewError&&<p role="alert" className="mt-2 text-xs font-semibold text-red-800">{quotedPreviewError}</p>}
+                              {quotedPreviewOpen&&quotedPreview&&<div className="mt-3 rounded-lg border border-amber-200 bg-white p-3">
+                                <p className="mb-2 text-xs font-bold text-slate-800">Quoted history · {quotedPreview.messageCount} {quotedPreview.messageCount===1?"message":"messages"}{quotedPreview.omittedCount>0?` · ${quotedPreview.omittedCount} older omitted`:""}</p>
+                                <p className="mb-2 text-xs text-slate-600">This text will appear after your new message. Earlier attachments are not copied. Gmail history is checked again when you send.</p>
+                                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-50 p-3 font-sans text-xs leading-5 text-slate-700">{quotedPreview.text.trim()}</pre>
+                              </div>}
+                            </div>}
                             {!includePreviousConversation&&<p className="mt-2 text-xs font-semibold text-amber-900">The coach will receive only your new message, without the earlier conversation attached.</p>}
                           </section>
                         ) : <p className="text-xs font-semibold text-slate-500">Keeping this subject continues the original Gmail thread. You can edit it to reflect a new topic.</p>}
@@ -956,15 +1004,9 @@ export default function CoachActionBar({
                       </details>
                     )}
                     <div>
-                      <div className="flex items-center justify-between gap-3 mb-1">
-                        <label className="text-xs uppercase font-bold muted">
-                          Message
-                        </label>
-                        <EmailVideoPicker
-                          athleteUserId={athleteUserId}
-                          onInsert={insertVideo}
-                        />
-                      </div>
+                      <label className="mb-1 block text-xs uppercase font-bold muted">
+                        Message
+                      </label>
                       {!staffMode && <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-semibold">My Email Signature</span>
@@ -985,6 +1027,7 @@ export default function CoachActionBar({
                       </div>}
                       <RichEmailEditor
                         ref={emailEditorRef}
+                        videoPicker={<EmailVideoPicker athleteUserId={athleteUserId} onInsert={insertVideo}/>}
                         value={body}
                         html={bodyHtml}
                         onChange={(plain, html) => {

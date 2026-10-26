@@ -39,6 +39,13 @@ assert(send.includes('const sendSubject=startedNewConversation?subject:'), 'New 
 assert(send.includes('if(startedNewConversation&&includePreviousConversation&&replyMeta)'), 'History quoting must be optional');
 assert(send.includes('return NextResponse.json({error:error instanceof Error?error.message'), 'Quote retrieval failure must block sending');
 assert(composer.includes('checked={includePreviousConversation}'), 'User must be able to opt out of quoting');
+assert(send.includes('const previewOnly=payload?.previewOnly===true'), 'Preview-only requests must be explicitly gated');
+assert(send.includes('if(previewOnly){'), 'Preview must return before Gmail sends anything');
+assert(send.indexOf('if(previewOnly){')<send.indexOf("const sendRes=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send'"), 'Preview must not send Gmail');
+assert(send.includes('if(!coachId||!subject||(!previewOnly&&!body.trim()))'), 'Preview must work before message is written');
+assert(composer.includes('previewOnly:true,coachId'), 'Reply preview must use authenticated Gmail send validation');
+assert(composer.includes('Preview previous conversation'), 'Quoted history preview must be accessible');
+assert(composer.includes('quotedPreview.text.trim()'), 'Quoted history must display the generated plain-text quote');
 assert(composer.includes('setIncludePreviousConversation(saved.includePreviousConversation!==false)'), 'Reply draft must restore quoting preference');
 assert(composer.includes('disabled={busy}\n                        maxLength={200}'), 'Reply subject must be editable but locked during send');
 console.log('Gmail subject-change: same-thread preservation, new-thread isolation, safe quote, failures and UI smoke tests passed.');
