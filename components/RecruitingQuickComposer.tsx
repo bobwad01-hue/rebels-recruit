@@ -97,10 +97,14 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
   const timer=window.setTimeout(async()=>{
    setSearching(true);
    const c=createClient(),term=safeSearch(query);
+   const tokens=term.split(/\s+/).filter(Boolean);
+   const coachQuery=c.from('college_coaches').select('id,first_name,last_name,email,college_id,contact_verification_needed,lifecycle_status,colleges(name)');
+   const coachSearch=tokens.length>1
+    ? coachQuery.ilike('first_name','%'+tokens[0]+'%').ilike('last_name','%'+tokens.slice(1).join(' ')+'%').limit(12)
+    : coachQuery.or('first_name.ilike.%'+term+'%,last_name.ilike.%'+term+'%,email.ilike.%'+term+'%').limit(12);
    const [schools,coaches]=await Promise.all([
     c.from('colleges').select('id,name,city,state').ilike('name','%'+term+'%').limit(8),
-    c.from('college_coaches').select('id,first_name,last_name,email,college_id,contact_verification_needed,lifecycle_status,colleges(name)')
-     .or('first_name.ilike.%'+term+'%,last_name.ilike.%'+term+'%,email.ilike.%'+term+'%').limit(12)
+    coachSearch
    ]);
    if(!active)return;
    setSchoolResults((schools.data||[]) as School[]);
