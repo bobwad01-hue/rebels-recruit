@@ -346,11 +346,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    </label>
    <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    <div>
-    <div className="flex items-center justify-between gap-2">
-     <label className="text-sm font-black">Message</label>
-     <EmailVideoPicker athleteUserId={userId||undefined} onInsert={video=>emailEditorRef.current?.insertVideo(video)}/>
-    </div>
+    <label className="text-sm font-black">Message</label>
     <RichEmailEditor ref={emailEditorRef} value={body} html={bodyHtml}
+     videoPicker={<EmailVideoPicker athleteUserId={userId||undefined} onInsert={video=>emailEditorRef.current?.insertVideo(video)}/>}
      onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}}
      attachments={attachments} onAttachmentsChange={setAttachments} disabled={busy||readOnly}/>
     <p className="mt-2 text-xs text-slate-500">Choose a font and size, format selected text, add links or attachments. Place the cursor in the message before choosing Add Video to insert the link at that spot. Up to 5 attachments (2.5 MB each, 3 MB total).</p>
