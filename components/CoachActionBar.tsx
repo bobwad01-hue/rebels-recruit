@@ -28,6 +28,7 @@ import {
 } from "@/lib/recruiting-email-playbook";
 import RichEmailEditor, {
   type EmailAttachment,
+  type RichEmailEditorHandle,
 } from "@/components/RichEmailEditor";
 import EmailVideoPicker from "@/components/EmailVideoPicker";
 import RecruitingEmailReader from "@/components/RecruitingEmailReader";
@@ -75,6 +76,7 @@ export default function CoachActionBar({
   staffMode = false,
   athleteEntitlement = "full",
 }: Props) {
+  const emailEditorRef=useRef<RichEmailEditorHandle>(null);
   const c = createClient(),
     params = useSearchParams(),
     openedKey = useRef(""),
@@ -254,13 +256,7 @@ export default function CoachActionBar({
     );
   }
   function insertVideo(video: { title: string; url: string }) {
-    const line = `${video.title}: ${video.url}`;
-    setBody(current => `${current.trimEnd()}\n\n${line}`);
-    // Appending a recruiting video must not discard the athlete's font,
-    // text-size, or other rich-text formatting.
-    setBodyHtml(current => current
-      ? `${current}<br><br>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}`
-      : "");
+    emailEditorRef.current?.insertVideo(video);
   }
   async function loadProfile() {
     const ctx = await context();
@@ -959,6 +955,7 @@ export default function CoachActionBar({
                         {signatureFeedback && <p role="status" className="mt-2 text-xs text-slate-600">{signatureFeedback}</p>}
                       </div>}
                       <RichEmailEditor
+                        ref={emailEditorRef}
                         value={body}
                         html={bodyHtml}
                         onChange={(plain, html) => {

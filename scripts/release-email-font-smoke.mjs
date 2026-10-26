@@ -45,7 +45,8 @@ assert.equal(chooseEmailEditorRange('fontSize', caret, previousWholeBody), previ
 assert.equal(chooseEmailEditorRange('createLink', null, previousWholeBody), previousWholeBody, 'Link popup must restore the captured selection');
 assert(editor.includes('onPaste={e=>{e.preventDefault()'), 'Pasted HTML must not inject unsafe markup into drafts');
 assert(composer.includes('html={bodyHtml}'), 'Saved formatted HTML must be restored in the composer');
-assert(composer.includes('setBodyHtml(current => current'), 'Adding video links must not erase formatting');
+assert(composer.includes('emailEditorRef.current?.insertVideo(video)'), 'Coach composer must insert videos at the editor cursor without overwriting rich text');
+assert(editor.includes('useImperativeHandle(forwardedRef'), 'Rich editor must expose cursor-safe video insertion');
 assert(gmailSend.includes('renderEmailHtml(body,bodyHtml)'), 'Outgoing Gmail MIME HTML must use the formatted body');
 assert(gmailSend.includes('font-size:16px;line-height:1.5'), 'Default Gmail text size must match the composer');
 

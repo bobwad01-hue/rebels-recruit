@@ -1,11 +1,12 @@
 'use client';
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import Link from 'next/link';
 import {CheckCircle2,Mail,Search,Send,Sparkles,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {EMAIL_STARTERS,mergeEmailStarters,starterById,type EmailStarter} from '@/lib/recruiting-email-playbook';
 import {buildRecruitingEmailSubject} from '@/lib/recruiting-email-format';
 import EmailVideoPicker from '@/components/EmailVideoPicker';
+import RichEmailEditor,{type EmailAttachment,type RichEmailEditorHandle} from '@/components/RichEmailEditor';
 
 type School={id:string;name:string;city?:string|null;state?:string|null};
 type Coach={id:string;first_name:string|null;last_name:string|null;email:string|null;college_id:string;contact_verification_needed?:boolean|null;lifecycle_status?:string|null;colleges?:{name:string}|null};
@@ -16,6 +17,7 @@ const nameOf=(coach:Coach)=>[coach.first_name,coach.last_name].filter(Boolean).j
 const draftKey=(userId:string)=>'rltnl:quick-email-draft:'+userId;
 
 export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:boolean}){
+ const emailEditorRef=useRef<RichEmailEditorHandle>(null);
  const [userId,setUserId]=useState('');
  const [query,setQuery]=useState('');
  const [choice,setChoice]=useState<Choice|null>(null);
@@ -31,6 +33,8 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
  const [profile,setProfile]=useState<any>(null);
  const [subject,setSubject]=useState('');
  const [body,setBody]=useState('');
+ const [bodyHtml,setBodyHtml]=useState('');
+ const [attachments,setAttachments]=useState<EmailAttachment[]>([]);
  const [connected,setConnected]=useState<boolean|null>(null);
  const [loading,setLoading]=useState(true);
  const [draftReady,setDraftReady]=useState(false);
@@ -68,6 +72,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
      const d=JSON.parse(saved);
      setSubject(String(d.subject||'').slice(0,200));
      setBody(String(d.body||'').slice(0,20000));
+     setBodyHtml(String(d.bodyHtml||'').slice(0,100000));
      setTemplateId(String(d.templateId||'custom'));
      setOpening(Number(d.opening)||0);
      if(d.choice&&['school','coach','email'].includes(d.choice.kind)){
@@ -87,9 +92,9 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
  useEffect(()=>{
   if(!draftReady||!userId)return;
   try{window.localStorage.setItem(draftKey(userId),JSON.stringify({
-   choice,subject,body,templateId,opening,emailAddress,recipientName
+   choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName
   }))}catch{/* Draft persistence is best effort. */}
- },[draftReady,userId,choice,subject,body,templateId,opening,emailAddress,recipientName]);
+ },[draftReady,userId,choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName]);
 
  useEffect(()=>{
   if(choice||!showResults||safeSearch(query).length<2){setSchoolResults([]);setCoachResults([]);setSearching(false);return}
@@ -171,6 +176,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
  }
  function applyTemplate(id:string,index=0){
   setTemplateId(id);setOpening(index);setNotice('');
+  setBodyHtml('');
   if(id==='custom'){setSubject('');setBody('');return}
   const template=starterById(id,templates),v=values();
   const topic=template.subjectTemplate?fill(template.subjectTemplate,v).split('|')[0].trim():template.label;
@@ -188,6 +194,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
   const to=emailAddress.trim().toLowerCase();
   if(!validEmail(to)){setError('Select a coach or enter a valid recipient email address.');return}
   if(!subject.trim()||!body.trim()){setError('Enter a subject and message before sending.');return}
+  if(bodyHtml.length>100000){setError('This formatted email is too long.');return}
   if(templateId!=='custom'&&/\[[A-Z][A-Z0-9 ’'&/.,-]{2,}\]/.test(body)){
    setError('Replace the bracketed template prompts with your own details before sending.');return;
   }
@@ -201,16 +208,16 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(isCoach?{
      coachId:selectedCoach.id,athleteUserId:userId,recipientEmail:to,
-     subject:subject.trim(),body,emailPurpose:templateId
+     subject:subject.trim(),body,bodyHtml,attachments,emailPurpose:templateId
     }:{
      collegeId:selectedSchool?.id||null,recipientEmail:to,recipientName,
-     subject:subject.trim(),body,emailPurpose:templateId
+     subject:subject.trim(),body,bodyHtml,attachments,emailPurpose:templateId
     })
    });
    const result=await response.json().catch(()=>({}));
    if(!response.ok||!result.messageId)throw new Error(result.error||'Gmail could not confirm the send.');
    setNotice(result.logged===false?'Email sent through Gmail, but recruiting activity could not be recorded.':'Email sent through Gmail and recorded in Recruiting Activity.');
-   setSubject('');setBody('');setTemplateId('custom');setOpening(0);
+   setSubject('');setBody('');setBodyHtml('');setAttachments([]);setTemplateId('custom');setOpening(0);
    try{window.localStorage.removeItem(draftKey(userId))}catch{}
    window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
    window.dispatchEvent(new Event('rebels:data-changed'));
@@ -302,11 +309,14 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
     <input required className="input mt-2 w-full" maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)} disabled={busy||readOnly} placeholder="Email subject"/>
    </label>
    <div>
-    <div className="flex items-center justify-between gap-2"><label htmlFor="quick-email-message" className="text-sm font-black">Message</label>
-     <EmailVideoPicker athleteUserId={userId||undefined} onInsert={video=>setBody(v=>v.trimEnd()+'\n\n'+video.title+': '+video.url)}/>
+    <div className="flex items-center justify-between gap-2">
+     <label className="text-sm font-black">Message</label>
+     <EmailVideoPicker athleteUserId={userId||undefined} onInsert={video=>emailEditorRef.current?.insertVideo(video)}/>
     </div>
-    <textarea id="quick-email-message" required className="input mt-2 w-full min-h-52 resize-y" rows={9} maxLength={20000}
-     value={body} onChange={e=>setBody(e.target.value)} disabled={busy||readOnly} placeholder="Write your email to the coach…"/>
+    <RichEmailEditor ref={emailEditorRef} value={body} html={bodyHtml}
+     onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}}
+     attachments={attachments} onAttachmentsChange={setAttachments} disabled={busy||readOnly}/>
+    <p className="mt-2 text-xs text-slate-500">Choose a font and size, format selected text, add links or attachments. Place the cursor in the message before choosing Add Video to insert the link at that spot. Up to 5 attachments (2.5 MB each, 3 MB total).</p>
    </div>
    {connected===false&&<p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
     Connect Gmail before sending. <Link href="/settings" className="font-bold underline">Gmail settings</Link>
@@ -314,7 +324,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
    {error&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
    {notice&&<p role="status" className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-800"><CheckCircle2 size={17}/>{notice}</p>}
    <div className="flex flex-wrap items-center justify-between gap-3">
-    <p className="text-xs text-slate-500">Your draft is saved on this device. Sending is tracked in RLTNL.</p>
+    <p className="text-xs text-slate-500">Your message draft is saved on this device (attachments are not saved). Sending is tracked in RLTNL.</p>
     <button type="submit" className="btn btn-red" disabled={busy||loading||readOnly||connected!==true||!validEmail(emailAddress)||!subject.trim()||!body.trim()}>
      <Send size={16}/>{readOnly?'Read-only preview':busy?'Sending…':'Send Email'}
     </button>

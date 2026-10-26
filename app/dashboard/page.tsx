@@ -363,7 +363,7 @@ export default async function Dashboard({
         <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
             <div className="min-w-0">
-              <div className="rr-eyebrow">YOUR RECRUITING · {stageCopy.label.toUpperCase()}</div>
+              <div className="rr-eyebrow">RECRUITING OVERVIEW</div>
               <h2 className="text-xl sm:text-2xl font-black mt-1">{stageCopy.title}</h2>
               <p className="muted text-sm mt-1">{stageCopy.detail}</p>
             </div>
@@ -390,7 +390,7 @@ export default async function Dashboard({
               href={ph("/connections")}
             />
             <SnapshotMetric
-              label="Saved Next Steps"
+              label="Open Tasks"
               value={intelligence.openNextMoves}
               href={ph("/game-plan#next-moves")}
             />
@@ -440,10 +440,11 @@ export default async function Dashboard({
             </div><Link href={ph("/fit-profile")} className="btn shrink-0">Complete College Fit Survey <ArrowRight size={15} /></Link></div>
           </section>
         )}
-        </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
-        <div id="home-email-composer" className="mt-6 w-full min-w-0">{preview.active
+        <div id="home-email-composer" className="w-full min-w-0 mb-6">{preview.active
           ? <div className="card p-5 text-sm text-slate-600">Compose Email is unavailable in read-only preview.</div>
           : <RecruitingQuickComposer/>}</div>
+        </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div>
+        <div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
      </div>
     </AppShell>
   );
