@@ -61,9 +61,9 @@ const NavLinks=()=> <>{nav.map(([href,label,Icon]:any,index:number)=>{
   {platformContext&&index===0&&<div className="px-3 pb-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-600">Platform Admin</div>}
   {platformContext&&index===1&&<div className="mx-3 mt-2 mb-1 border-t border-slate-200 pt-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Sections</div>}
   {coreDivider&&<div className="px-3 pb-1 text-[10px] font-black uppercase tracking-[0.14em] text-red-600">Core</div>}
-  {moreStart&&<button type="button" aria-expanded={moreOpen} aria-controls="athlete-more-links"
+  {moreStart&&<button type="button" aria-expanded={moreOpen}
     onClick={()=>setMoreOpen(v=>!v)} className="mt-3 flex w-full items-center gap-3 rounded-xl border-t px-3 py-3 text-left text-sm font-bold text-slate-700 hover:bg-red-50">
-    {moreOpen?<X size={17}/>:<UserPlus size={17}/>} More {moreOpen?'−':'+'}
+    <MoreHorizontal size={17}/> More {moreOpen?'−':'+'}
    </button>}
   {visible&&<Link href={dest} aria-current={isActive(href)?'page':undefined}
    className={'flex items-center gap-3 rounded-xl px-3 py-2 '+(isMore?'ml-2 ':'')+(platformSub?'ml-2 text-[13px]':'text-[14px]')+' '+(isActive(href)?'bg-red-600 text-white font-bold shadow-sm':'text-slate-700 hover:bg-red-50 hover:text-red-700')}>
