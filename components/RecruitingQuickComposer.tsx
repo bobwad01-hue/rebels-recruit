@@ -247,7 +247,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    if(!response.ok||!result.messageId)throw new Error(result.error||'Gmail could not confirm the send.');
    setNotice(result.logged===false?'Email sent through Gmail, but recruiting activity could not be recorded.':'Email sent through Gmail and recorded in Recruiting Activity.');
    setSubject('');setBody('');setBodyHtml('');setAttachments([]);setCcCoachIds([]);setTemplateId('custom');setOpening(0);
-   try{window.localStorage.removeItem(draftKey(userId))}catch{}
+   try{window.localStorage.removeItem(draftKey(userId,draftSchoolId))}catch{}
    window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
    window.dispatchEvent(new Event('rebels:data-changed'));
    onSent?.();
@@ -326,7 +326,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
     <div className="space-y-2 border-t px-3 py-3"><p className="text-xs text-slate-600">Only eligible coaches already in My Coach Connections appear. All recipients can see who was copied.</p>
      {ccOptions.map(co=><label key={co.id} className="flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm"><input type="checkbox" className="mt-1" checked={ccCoachIds.includes(co.id)} disabled={busy||readOnly||ccLoading} onChange={e=>setCcCoachIds(current=>e.target.checked?[...current,co.id]:current.filter(id=>id!==co.id))}/><span><span className="block font-semibold">{nameOf(co)}</span><span className="block break-all text-xs text-slate-500">{co.email}</span></span></label>)}
     </div>
-   </details>
+   </details>}
    <div>
     <label htmlFor="quick-email-template" className="block text-sm font-black">Email starting point (optional)</label>
     <select id="quick-email-template" className="input mt-2 w-full" value={templateId} disabled={busy||readOnly}
