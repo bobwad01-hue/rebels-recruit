@@ -77,7 +77,7 @@ const RichEmailEditor=forwardRef<RichEmailEditorHandle,Props>(function RichEmail
   const editor=ref.current;
   if(!editor||disabled||!/^https?:\/\//i.test(video.url))return;
   const range=currentEditorRange(editor)||(rangeIsInEditor(editor,savedRange.current)?savedRange.current.cloneRange():null)||document.createRange();
-  if(!rangeIsInEditor(editor,range)){range.selectNodeContents(editor);range.collapse(false)}
+  if(!editor.contains(range.startContainer)||!editor.contains(range.endContainer)){range.selectNodeContents(editor);range.collapse(false)}
   range.deleteContents();
   const fragment=document.createDocumentFragment();
   fragment.appendChild(document.createTextNode('\n'+video.title+': '));
