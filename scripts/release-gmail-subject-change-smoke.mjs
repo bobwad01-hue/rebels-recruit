@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+import ts from 'typescript';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const compiled=ts.transpileModule(read('lib/gmail-reply-context.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const exports={};
+vm.runInNewContext(compiled,{exports,Buffer,AbortSignal,encodeURIComponent,fetch},{timeout:1500});
+const {gmailSubjectChanged,buildPreviousConversation,loadPreviousConversation}=exports;
+assert.equal(gmailSubjectChanged('Re: Fall Schedule','Fall Schedule'),false);
+assert.equal(gmailSubjectChanged('Re: Fall Schedule','Re: FALL   schedule'),false);
+assert.equal(gmailSubjectChanged('Re: Fall Schedule','November Camp Update'),true);
+assert.equal(gmailSubjectChanged('Re: Fall Schedule','Re: November Camp Update'),true);
+const part=body=>({mimeType:'text/plain',body:{data:Buffer.from(body).toString('base64url')}});
+const msg=(id,from,to,body,stamp)=>({id,internalDate:String(stamp),labelIds:['INBOX'],payload:{mimeType:'multipart/alternative',headers:[{name:'From',value:from},{name:'To',value:to},{name:'Date',value:'Wed, 21 Oct 2026 12:00:00 -0500'}],parts:[part(body)]}});
+const messages=[
+ msg('one','Coach <coach@college.edu>','Athlete <athlete@example.com>','Thanks for your video.',1),
+ msg('two','Athlete <athlete@example.com>','coach@college.edu','Here is my fall schedule.\nOn Wed, Coach wrote:\nOld quoted copy',2),
+ msg('three','unrelated@example.com','athlete@example.com','Private unrelated message',3)
+];
+const q=buildPreviousConversation(messages,'coach@college.edu','two');
+assert.equal(q.messageCount,2);
+assert(q.text.includes('Thanks for your video.'));
+assert(q.text.includes('Here is my fall schedule.'));
+assert(!q.text.includes('Old quoted copy'));
+assert(!q.text.includes('Private unrelated'));
+assert(!q.html.includes('Private unrelated'));
+assert.throws(()=>buildPreviousConversation(messages,'coach@college.edu','missing'),/original email/i);
+const injected=async(url,opts)=>{assert(String(url).includes('/threads/thread-123?format=full'));assert.equal(opts.headers.Authorization,'Bearer token');return {ok:true,json:async()=>({id:'thread-123',messages})}};
+const fetched=await loadPreviousConversation('token','thread-123','coach@college.edu','two',injected);
+assert.equal(fetched.messageCount,2);
+const fail=async()=>({ok:false});
+await assert.rejects(()=>loadPreviousConversation('token','thread-123','coach@college.edu','two',fail),/No email was sent/);
+const send=read('app/api/google/gmail/send/route.ts'),composer=read('components/CoachActionBar.tsx');
+assert(send.includes('const threadReplyMeta=startedNewConversation?null:replyMeta'), 'New subject must not carry old reply headers or thread ID');
+assert(send.includes('previousConversation=await loadPreviousConversation'), 'New subject must load original Gmail history');
+assert(send.includes('...(threadReplyMeta?{threadId:threadReplyMeta.threadId}:{})'), 'Unchanged subject must retain existing Gmail thread');
+assert(send.includes('const sendSubject=startedNewConversation?subject:'), 'New subject must be honored by Gmail');
+assert(send.includes('if(startedNewConversation&&includePreviousConversation&&replyMeta)'), 'History quoting must be optional');
+assert(send.includes('return NextResponse.json({error:error instanceof Error?error.message'), 'Quote retrieval failure must block sending');
+assert(composer.includes('checked={includePreviousConversation}'), 'User must be able to opt out of quoting');
+assert(composer.includes('setIncludePreviousConversation(saved.includePreviousConversation!==false)'), 'Reply draft must restore quoting preference');
+assert(composer.includes('disabled={busy}\n                        maxLength={200}'), 'Reply subject must be editable but locked during send');
+console.log('Gmail subject-change: same-thread preservation, new-thread isolation, safe quote, failures and UI smoke tests passed.');

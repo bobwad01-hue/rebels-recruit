@@ -33,6 +33,7 @@ import RichEmailEditor, {
 import EmailVideoPicker from "@/components/EmailVideoPicker";
 import RecruitingEmailReader from "@/components/RecruitingEmailReader";
 import { buildRecruitingEmailSubject, formatDraftSignaturePhones, formatEmailPhone } from "@/lib/recruiting-email-format";
+import {gmailSubjectChanged} from "@/lib/gmail-reply-context";
 type PrimaryAction = "email" | "text" | "call" | "log" | "reminder" | null;
 type Props = {
   coachId: string;
@@ -96,6 +97,8 @@ export default function CoachActionBar({
     [recipientSavedNotice, setRecipientSavedNotice] = useState(""),
     [templates, setTemplates] = useState(() => mergeEmailStarters([])),
     [subject, setSubject] = useState(""),
+    [includePreviousConversation,setIncludePreviousConversation]=useState(true),
+    [startedNewConversation,setStartedNewConversation]=useState(false),
     [body, setBody] = useState(""),
     [bodyHtml, setBodyHtml] = useState(""),
     [attachments, setAttachments] = useState<EmailAttachment[]>([]),
@@ -119,6 +122,7 @@ export default function CoachActionBar({
     [schoolCoaches, setSchoolCoaches] = useState<any[]>([]),
     [ccCoachIds, setCcCoachIds] = useState<string[]>([]),
     [actionPrompt, setActionPrompt] = useState<null | "connect-gmail" | "upgrade-gmail" | "desktop-text" | "desktop-call">(null);
+  const changedReplySubject=!!contextualReply?.subject&&gmailSubjectChanged(contextualReply.subject,subject);
   useEffect(() => {
     let alive = true;
     void c.from("recruiting_email_templates")
@@ -338,6 +342,8 @@ export default function CoachActionBar({
     setMessage("");
     setDraftNotice("");
     setEmailStatus("idle");
+    setStartedNewConversation(false);
+    setIncludePreviousConversation(true);
     setAttachments([]);
     setCcCoachIds([]);
     setEmailOpen(true);
@@ -360,6 +366,7 @@ export default function CoachActionBar({
         const nextBody = formatDraftSignaturePhones(String(saved.body), v.name, signaturePhones);
         const nextHtml = formatDraftSignaturePhones(String(saved.bodyHtml || ""), v.name, signaturePhones);
         setSubject(nextSubject);
+        setIncludePreviousConversation(saved.includePreviousConversation!==false);
         setBody(nextBody);
         setBodyHtml(nextHtml);
         setStarter(
@@ -423,6 +430,7 @@ export default function CoachActionBar({
           subject,
           body,
           bodyHtml,
+          includePreviousConversation,
           starter,
           openingIndex,
           ccCoachIds,
@@ -437,6 +445,7 @@ export default function CoachActionBar({
     subject,
     body,
     bodyHtml,
+    includePreviousConversation,
     starter,
     openingIndex,
     ccCoachIds,
@@ -532,6 +541,7 @@ export default function CoachActionBar({
           subject,
           body,
           bodyHtml,
+          includePreviousConversation:changedReplySubject?includePreviousConversation:false,
           emailPurpose: starter,
           attachments,
           recruitingInteractionId: contextualReply?.sentInteractionId ? null : contextualReply?.interactionId || null,
@@ -549,6 +559,7 @@ export default function CoachActionBar({
         setMessage(d.error || `Could not send email (error ${r.status}).`);
         return;
       }
+      setStartedNewConversation(d.startedNewConversation===true);
       setEmailStatus("success");
       if(!staffMode){emitDataChanged('athlete_coaches','update',coachId);emitDataChanged('interaction','create',coachId)}
       window.dispatchEvent(new CustomEvent('rltnl:coach-emails-updated', { detail: { emailId: d.repliedToEmailId || null } }));
@@ -790,7 +801,7 @@ export default function CoachActionBar({
                     {contextualReply ? "Reply to" : "Email"} {coachName}
                   </h2>
                   <p className="muted text-sm mt-1">
-                    {contextualReply ? 'Your reply stays in the Gmail conversation and is logged in RLTNL.' : 'Write your own email or start with a RLTNL template. You can also CC other coaches at this school.'}
+                    {contextualReply ? (changedReplySubject?'Changing the subject starts a new Gmail conversation. Both conversations remain in your RLTNL coach history.':'Your reply stays in the Gmail conversation and is logged in RLTNL.') : 'Write your own email or start with a RLTNL template. You can also CC other coaches at this school.'}
                   </p>
                   {draftNotice && (
                     <p className="mt-2 text-xs font-bold text-green-700">
@@ -814,7 +825,7 @@ export default function CoachActionBar({
                   </div>
                   <h3 id="email-dialog-title" className="mt-4 text-xl font-black">Email sent</h3>
                   <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
-                  {contextualReply && <p className="mt-2 text-xs font-semibold text-slate-500">Your reply stays in the existing Gmail conversation.</p>}
+                  {contextualReply && <p className="mt-2 text-xs font-semibold text-slate-500">{startedNewConversation?"Your updated subject started a new Gmail conversation. Both conversations are associated with this coach in RLTNL.":"Your reply stays in the existing Gmail conversation."}</p>}
                   <button type="button" className="btn btn-red mt-6 min-w-28" onClick={closeEmail}>Done</button>
                 </div>
               ) : (
@@ -893,12 +904,30 @@ export default function CoachActionBar({
                       <input
                         className="input mt-1"
                         value={subject}
-                        readOnly={!!contextualReply?.subject}
+                        disabled={busy}
                         maxLength={200}
                         onChange={(e) => setSubject(e.target.value)}
                       />
                     </div>
                     </div>
+                    {contextualReply?.subject && (
+                      <div className="mt-3">
+                        {changedReplySubject ? (
+                          <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-slate-800" aria-label="New subject and conversation history">
+                            <div className="font-bold">New subject = new Gmail conversation</div>
+                            <p className="mt-1 text-xs leading-5 text-slate-700">Your earlier Gmail thread stays intact. RLTNL keeps both conversations under this coach.</p>
+                            <label className="mt-3 flex cursor-pointer items-start gap-3">
+                              <input type="checkbox" className="mt-1" checked={includePreviousConversation} disabled={busy}
+                                onChange={e=>setIncludePreviousConversation(e.target.checked)} />
+                              <span><span className="block font-semibold">Include previous conversation</span>
+                                <span className="mt-1 block text-xs leading-5 text-slate-700">Recommended. RLTNL adds up to 12 previous emails from this coach's Gmail conversation as quoted context below your new message. This is visible to everyone receiving the email, including CC recipients.</span>
+                              </span>
+                            </label>
+                            {!includePreviousConversation&&<p className="mt-2 text-xs font-semibold text-amber-900">The coach will receive only your new message, without the earlier conversation attached.</p>}
+                          </section>
+                        ) : <p className="text-xs font-semibold text-slate-500">Keeping this subject continues the original Gmail thread. You can edit it to reflect a new topic.</p>}
+                      </div>
+                    )}
                     {schoolCoaches.length > 0 && (
                       <details className="group rounded-xl border bg-white">
                         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
@@ -986,7 +1015,7 @@ export default function CoachActionBar({
                           </div>
                           <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">Reference only</span>
                         </div>
-                        <p className="mt-2 text-xs leading-5 text-slate-600">{contextualReply.sentInteractionId ? 'Your earlier email is shown for reference. It will not be added to your follow-up.' : "Read the coach's message while composing. It will not be added to your outgoing reply."}</p>
+                        <p className="mt-2 text-xs leading-5 text-slate-600">{changedReplySubject&&includePreviousConversation ? "This message is a reference preview. When you send, RLTNL will quote prior messages from the Gmail conversation below your new email." : contextualReply.sentInteractionId ? "Your earlier email is shown for reference. It will not be added to your follow-up." : "Read the coach\'s message while composing. It will not be added to your outgoing reply."}</p>
                         <RecruitingEmailReader body={contextualReply.originalEmail.body} summary={contextualReply.originalEmail.summary} compact />
                       </section>
                     )}
