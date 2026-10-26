@@ -9,18 +9,27 @@ export default function AthleteFirstRun({athleteId,fitComplete,hasSchools}:{
  const [dismissed,setDismissed]=useState(true);
  const [expanded,setExpanded]=useState(false);
  const [ready,setReady]=useState(false);
+ const [eligible,setEligible]=useState(false);
  const key='rltnl:first-run-skipped:'+athleteId;
+ const startedKey='rltnl:first-run-started:'+athleteId;
  useEffect(()=>{
   let skipped=false,force=false;
-  try{skipped=localStorage.getItem(key)==='1';force=new URLSearchParams(window.location.search).get('setup')==='1'}catch{}
+  try{
+   skipped=localStorage.getItem(key)==='1';
+   force=new URLSearchParams(window.location.search).get('setup')==='1';
+   const started=localStorage.getItem(startedKey)==='1';
+   const firstRun=!hasSchools&&!fitComplete;
+   if(firstRun&&!started)localStorage.setItem(startedKey,'1');
+   setEligible(force||started||firstRun);
+  }catch{setEligible(!hasSchools&&!fitComplete||force)}
   setDismissed(skipped&&!force);
   setExpanded(force);
   setReady(true);
- },[key]);
+ },[key,startedKey,hasSchools,fitComplete]);
  const completed=1+Number(fitComplete)+Number(hasSchools);
  const nextHref=!fitComplete?'/fit-profile':!hasSchools?'/discover':'/game-plan';
  const nextLabel=!fitComplete?'Set my college preferences':!hasSchools?'Find my first schools':'Open Game Plan';
- if(!ready||dismissed||(fitComplete&&hasSchools))return null;
+ if(!ready||!eligible||dismissed||(fitComplete&&hasSchools))return null;
  return <section aria-label="Optional getting started checklist" className="mb-6 rounded-2xl border border-red-200 bg-white p-4 shadow-sm sm:p-5">
   <div className="flex flex-wrap items-start justify-between gap-3">
    <div className="min-w-0">
