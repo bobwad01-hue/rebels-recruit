@@ -104,7 +104,7 @@ export default function RecruitingQuickComposer({readOnly=false}:{readOnly?:bool
    ]);
    if(!active)return;
    setSchoolResults((schools.data||[]) as School[]);
-   setCoachResults((coaches.data||[]) as Coach[]);
+   setCoachResults((coaches.data||[]).map((co:any)=>({...co,colleges:Array.isArray(co.colleges)?co.colleges[0]:co.colleges})) as Coach[]);
    setSearching(false);
   },250);
   return()=>{active=false;window.clearTimeout(timer)};
