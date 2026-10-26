@@ -31,6 +31,7 @@ import RichEmailEditor, {
   type RichEmailEditorHandle,
 } from "@/components/RichEmailEditor";
 import EmailVideoPicker from "@/components/EmailVideoPicker";
+import EmailSubjectSettings from "@/components/EmailSubjectSettings";
 import RecruitingEmailReader from "@/components/RecruitingEmailReader";
 import { buildRecruitingEmailSubject, formatDraftSignaturePhones, formatEmailPhone } from "@/lib/recruiting-email-format";
 import {gmailSubjectChanged} from "@/lib/gmail-reply-context";
@@ -246,14 +247,14 @@ export default function CoachActionBar({
       lastName = coachName.trim().split(/\s+/).slice(-1)[0] || coachName;
     setBodyHtml("");
     if (id === "custom") {
-      setSubject(originalReplySubject() || (staffMode ? "" : buildRecruitingEmailSubject("Recruiting Update", v)));
+      setSubject(originalReplySubject() || (staffMode ? "" : buildRecruitingEmailSubject("Recruiting Update", v, p?.signature)));
       setBody(sig ? `\n\n${sig}` : "");
       return;
     }
     // The template label is the topic (e.g. "Upcoming Weekend"), not its internal purpose.
     // Admin subject overrides supply a custom topic; the recruiting details remain consistent.
     const topic = s.subjectTemplate ? fill(s.subjectTemplate, p).split("|")[0].trim() : s.label;
-    setSubject(originalReplySubject() || buildRecruitingEmailSubject(topic, v));
+    setSubject(originalReplySubject() || buildRecruitingEmailSubject(topic, v, p?.signature));
     const opening = fill(
         s.openings[index]?.text || s.openings[0]?.text || "",
         p,
@@ -396,7 +397,7 @@ export default function CoachActionBar({
         // Upgrade only a recognizable generated subject; never overwrite an edited subject or a reply.
         const shouldUpdateSubject = !contextualReply && !staffMode && saved.starter !== "custom" && savedSubject === oldAutoSubject;
         const topic = savedStarter.subjectTemplate ? fill(savedStarter.subjectTemplate, p).split("|")[0].trim() : savedStarter.label;
-        const nextSubject = shouldUpdateSubject ? buildRecruitingEmailSubject(topic, v) : savedSubject;
+        const nextSubject = shouldUpdateSubject ? buildRecruitingEmailSubject(topic, v, p?.signature) : savedSubject;
         const signaturePhones = [p?.profile?.phone, p?.signature?.travelTeamCoachPhone, p?.signature?.highSchoolCoachPhone];
         const nextBody = formatDraftSignaturePhones(String(saved.body), v.name, signaturePhones);
         const nextHtml = formatDraftSignaturePhones(String(saved.bodyHtml || ""), v.name, signaturePhones);
@@ -872,17 +873,20 @@ export default function CoachActionBar({
                       <label htmlFor="coach-email-starter" className="text-xs uppercase font-bold muted">
                         Email starting point
                       </label>
-                      <select
-                        id="coach-email-starter"
-                        value={starter}
-                        disabled={busy}
-                        onChange={(event) => { void buildStarter(event.target.value as EmailStarterId); }}
-                        className="input mt-2 max-w-xl text-sm font-semibold"
-                      >
-                        {(staffMode ? templates.filter((item) => item.id === "custom") : templates).map((item) => (
-                          <option key={item.id} value={item.id}>{item.label}</option>
-                        ))}
-                      </select>
+                      <div className="relative mt-2 max-w-xl">
+                        <select
+                          id="coach-email-starter"
+                          value={starter}
+                          disabled={busy}
+                          onChange={(event) => { void buildStarter(event.target.value as EmailStarterId); }}
+                          className="input w-full appearance-none !pr-12 text-sm font-semibold"
+                        >
+                          {(staffMode ? templates.filter((item) => item.id === "custom") : templates).map((item) => (
+                            <option key={item.id} value={item.id}>{item.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600"/>
+                      </div>
                       <div className="mt-3 flex items-start gap-2 rounded-xl border bg-slate-50 px-3 py-2.5 text-sm">
                         <Sparkles size={16} className="mt-0.5 shrink-0 text-red-600" />
                         <div>
@@ -945,6 +949,13 @@ export default function CoachActionBar({
                       />
                     </div>
                     </div>
+                    {!staffMode&&!contextualReply&&<EmailSubjectSettings
+                      profile={profile}
+                      topic={current.subjectTemplate?fill(current.subjectTemplate,profile).split("|")[0].trim():current.label}
+                      fields={values(profile)}
+                      disabled={busy}
+                      onSaved={next=>setProfile((p:any)=>({...p,signature:{...(p?.signature||{}),...next}}))}
+                    />}
                     {contextualReply?.subject && (
                       <div className="mt-3">
                         {changedReplySubject ? (
@@ -1072,17 +1083,20 @@ export default function CoachActionBar({
                           <p className="text-xs text-slate-600">{contextualReply.sentInteractionId ? 'You can use a template to draft a follow-up. Selecting one will' : 'Your reply is already drafted. Selecting a template will'} replace the current message, but keep the original Gmail conversation.</p>
                           <div>
                             <label htmlFor="coach-reply-starter" className="text-xs font-bold uppercase text-slate-500">Email starting point</label>
-                            <select
-                              id="coach-reply-starter"
-                              value={starter}
-                              disabled={busy}
-                              onChange={(event) => { void buildStarter(event.target.value as EmailStarterId); }}
-                              className="input mt-1 text-sm font-semibold"
-                            >
-                              {(staffMode ? templates.filter((item) => item.id === "custom") : templates).map((item) => (
-                                <option key={item.id} value={item.id}>{item.label}</option>
-                              ))}
-                            </select>
+                            <div className="relative mt-1">
+                              <select
+                                id="coach-reply-starter"
+                                value={starter}
+                                disabled={busy}
+                                onChange={(event) => { void buildStarter(event.target.value as EmailStarterId); }}
+                                className="input w-full appearance-none !pr-12 text-sm font-semibold"
+                              >
+                                {(staffMode ? templates.filter((item) => item.id === "custom") : templates).map((item) => (
+                                  <option key={item.id} value={item.id}>{item.label}</option>
+                                ))}
+                              </select>
+                              <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600"/>
+                            </div>
                           </div>
                           <p className="text-sm text-slate-600">{current.guidance}</p>
                           {current.openings.length > 1 && (

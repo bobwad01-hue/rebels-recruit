@@ -1,13 +1,14 @@
 'use client';
 import {useEffect,useMemo,useRef,useState} from 'react';
 import Link from 'next/link';
-import {CheckCircle2,Mail,Search,Send,Sparkles,X} from 'lucide-react';
+import {CheckCircle2,ChevronDown,Mail,Search,Send,Sparkles,X} from 'lucide-react';
 import {createClient} from '@/lib/supabase-browser';
 import {EMAIL_STARTERS,mergeEmailStarters,starterById,type EmailStarter} from '@/lib/recruiting-email-playbook';
 import {buildRecruitingEmailSubject} from '@/lib/recruiting-email-format';
 import EmailVideoPicker from '@/components/EmailVideoPicker';
 import RichEmailEditor,{type EmailAttachment,type RichEmailEditorHandle} from '@/components/RichEmailEditor';
 import EmailSignatureSettings from '@/components/EmailSignatureSettings';
+import EmailSubjectSettings from '@/components/EmailSubjectSettings';
 
 type School={id:string;name:string;city?:string|null;state?:string|null};
 type Coach={id:string;first_name:string|null;last_name:string|null;email:string|null;college_id:string;contact_verification_needed?:boolean|null;lifecycle_status?:string|null;colleges?:{name:string}|null};
@@ -206,7 +207,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   if(id==='custom'){setSubject('');setBody('');return}
   const template=starterById(id,templates),v=values();
   const topic=template.subjectTemplate?fill(template.subjectTemplate,v).split('|')[0].trim():template.label;
-  setSubject(buildRecruitingEmailSubject(topic,v));
+  setSubject(buildRecruitingEmailSubject(topic,v,profile?.signature));
   const coachLastName=selectedCoach?.last_name||'';
   const greeting=coachLastName?'Hello Coach '+coachLastName+',':'Hello Coach,';
   const openingText=fill(template.openings[index]?.text||template.openings[0]?.text||'',v);
@@ -329,10 +330,13 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    </details>}
    <div>
     <label htmlFor="quick-email-template" className="block text-sm font-black">Email starting point (optional)</label>
-    <select id="quick-email-template" className="input mt-2 w-full" value={templateId} disabled={busy||readOnly}
-     onChange={e=>applyTemplate(e.target.value)}>
-     {templates.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
-    </select>
+    <div className="relative mt-2">
+     <select id="quick-email-template" className="input w-full appearance-none !pr-12" value={templateId} disabled={busy||readOnly}
+      onChange={e=>applyTemplate(e.target.value)}>
+      {templates.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+     </select>
+     <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600"/>
+    </div>
     {templateId!=='custom'&&<div className="mt-2 rounded-lg border bg-slate-50 p-3 text-xs text-slate-600">
      <div className="flex items-center gap-2 font-bold text-slate-800"><Sparkles size={15} className="text-red-600"/>RLTNL Email Playbook</div>
      <p className="mt-1">{currentTemplate.guidance}</p>
@@ -344,6 +348,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    <label className="block text-sm font-black">Subject
     <input required className="input mt-2 w-full" maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)} disabled={busy||readOnly} placeholder="Email subject"/>
    </label>
+   <EmailSubjectSettings profile={profile} disabled={busy||readOnly}
+    topic={templateId==='custom'?'Recruiting Update':currentTemplate.subjectTemplate?fill(currentTemplate.subjectTemplate,values()).split('|')[0].trim():currentTemplate.label}
+    fields={values()} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    <div>
     <label className="text-sm font-black">Message</label>
