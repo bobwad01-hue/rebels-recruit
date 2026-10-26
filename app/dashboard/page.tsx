@@ -18,12 +18,12 @@ import PageHeader from "@/components/PageHeader";
 import SmartNextMoves, {
   buildSmartNextMoves,
 } from "@/components/SmartNextMoves";
-import HomeUpcomingEvents from "@/components/HomeUpcomingEvents";
 import HomeTopTargets from "@/components/HomeTopTargets";
 import QuickAddMenu from "@/components/QuickAddMenu";
+import RecruitingQuickComposer from "@/components/RecruitingQuickComposer";
+import AthleteFirstRun from "@/components/AthleteFirstRun";
 import PendingParentApprovals, { type PendingParentRequest } from "@/components/PendingParentApprovals";
 import ReminderStickyBoard from "@/components/ReminderStickyBoard";
-import WeeklyRecruitingMomentum from "@/components/WeeklyRecruitingMomentum";
 import { createClient } from "@/lib/supabase-server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import {
@@ -358,6 +358,7 @@ export default async function Dashboard({
         {!preview.active && <CoachEmailAlerts variant="home" />}
         {parentRequestError && !preview.active && <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Parent / Guardian requests could not be loaded. <Link href="/manage-access" className="underline">Review them in Manage Access</Link>.</div>}
         {pendingParentRequests.length > 0 && <PendingParentApprovals requests={pendingParentRequests} />}
+        {!preview.active && <AthleteFirstRun athleteId={uid} fitComplete={!!fitProfile.data?.completed_at} hasSchools={intelligence.activeSchools > 0} />}
         <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">
         <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
@@ -445,12 +446,7 @@ export default async function Dashboard({
           </section>
         )}
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div><div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
-        {(recruitingStage==="recruit"||recruitingStage==="decide")&&(<div className="mb-6 w-full min-w-0">
-          <WeeklyRecruitingMomentum athleteId={preview.active ? uid : undefined} roleOverride={preview.active && preview.role === "athlete" ? "athlete" : undefined} />
-        </div>)}
-        <div className="mt-6 w-full min-w-0">
-          <HomeUpcomingEvents personalEvents={eventRows} />
-        </div>
+        <div className="mt-6 w-full min-w-0"><RecruitingQuickComposer readOnly={preview.active}/></div>
      </div>
     </AppShell>
   );
