@@ -11,13 +11,13 @@ export async function POST(req:NextRequest){
  const collegeId=String(p?.collegeId||''),recipient=String(p?.recipientEmail||'').trim().toLowerCase();
  const recipientName=String(p?.recipientName||'').trim(),subject=String(p?.subject||'').trim();
  const body=String(p?.body||'').replace(/\r\n?/g,'\n');
- if(!/^[0-9a-f-]{36}$/i.test(collegeId))return NextResponse.json({error:'Select a valid school.'},{status:400});
+ if(collegeId&&!/^[0-9a-f-]{36}$/i.test(collegeId))return NextResponse.json({error:'Select a valid school.'},{status:400});
  if(recipient.length>254||!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(recipient))
   return NextResponse.json({error:'Enter a valid recipient email address.'},{status:400});
  if(!subject||subject.length>200||!body.trim()||body.length>20000||recipientName.length>120)
   return NextResponse.json({error:'A subject and message are required. Check the field lengths.'},{status:400});
- const {data:college,error:schoolError}=await c.from('colleges').select('id,name').eq('id',collegeId).maybeSingle();
- if(schoolError||!college)return NextResponse.json({error:'School not found.'},{status:404});
+ if(collegeId){const {data:college,error:schoolError}=await c.from('colleges').select('id,name').eq('id',collegeId).maybeSingle();
+ if(schoolError||!college)return NextResponse.json({error:'School not found.'},{status:404});}
  // This route is athlete-only. It never modifies the shared coach directory.
  const {data:roleRows}=await c.from('user_roles').select('role').eq('user_id',user.id);
  if(!(roleRows||[]).some((r:any)=>r.role==='athlete'))return NextResponse.json({error:'Only athletes can use this composer.'},{status:403});
@@ -41,7 +41,7 @@ export async function POST(req:NextRequest){
   if(!response.ok||!sent.id)return NextResponse.json({error:sent.error?.message||'Gmail could not send the message.'},{status:502});
   // Only after a confirmed send, save the school target. Do not create a coach.
   let schoolSaved=true;
-  try{
+  if(collegeId)try{
    const {data:existing,error:lookupError}=await c.from('athlete_colleges').select('id,archived_at')
     .eq('athlete_user_id',user.id).eq('college_id',collegeId).maybeSingle();
    if(lookupError)throw lookupError;
@@ -55,11 +55,11 @@ export async function POST(req:NextRequest){
   }catch(e){schoolSaved=false;console.error('[gmail/manual-send] School save failed after Gmail send',e)}
   // Preserve the exact recipient on the athlete's private activity record.
   const logged=await c.from('interactions').insert({
-   athlete_user_id:user.id,actor_user_id:user.id,college_id:collegeId,coach_id:null,
+   athlete_user_id:user.id,actor_user_id:user.id,college_id:collegeId||null,coach_id:null,
    type:'Email Sent',initiated_by:'Athlete',date:new Date().toISOString().slice(0,10),
    source:'automatic',gmail_message_id:sent.id,gmail_thread_id:sent.threadId||null,
    gmail_recipient_email:recipient,email_subject:safeSubject,email_content:body,
-   email_type:'Custom',note:recipientName?'Recipient: '+recipientName:null
+   email_type:String(p?.emailPurpose||'custom').slice(0,60),note:recipientName?'Recipient: '+recipientName:null
   }).select('id').single();
   if(logged.error)console.error('[gmail/manual-send] Activity log failed after Gmail send',logged.error);
   return NextResponse.json({ok:true,messageId:sent.id,logged:!logged.error,schoolSaved,
