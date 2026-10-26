@@ -7,6 +7,7 @@ import {EMAIL_STARTERS,mergeEmailStarters,starterById,type EmailStarter} from '@
 import {buildRecruitingEmailSubject} from '@/lib/recruiting-email-format';
 import EmailVideoPicker from '@/components/EmailVideoPicker';
 import RichEmailEditor,{type EmailAttachment,type RichEmailEditorHandle} from '@/components/RichEmailEditor';
+import EmailSignatureSettings from '@/components/EmailSignatureSettings';
 
 type School={id:string;name:string;city?:string|null;state?:string|null};
 type Coach={id:string;first_name:string|null;last_name:string|null;email:string|null;college_id:string;contact_verification_needed?:boolean|null;lifecycle_status?:string|null;colleges?:{name:string}|null};
@@ -26,6 +27,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  const [schoolResults,setSchoolResults]=useState<School[]>([]);
  const [coachResults,setCoachResults]=useState<Coach[]>([]);
  const [schoolCoaches,setSchoolCoaches]=useState<Coach[]>([]);
+ const [ccOptions,setCcOptions]=useState<Coach[]>([]);
+ const [ccCoachIds,setCcCoachIds]=useState<string[]>([]);
+ const [ccLoading,setCcLoading]=useState(false);
  const [searching,setSearching]=useState(false);
  const [emailAddress,setEmailAddress]=useState('');
  const [recipientName,setRecipientName]=useState('');
@@ -77,6 +81,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      setBodyHtml(String(d.bodyHtml||'').slice(0,100000));
      setTemplateId(String(d.templateId||'custom'));
      setOpening(Number(d.opening)||0);
+     if(!manualOnly&&Array.isArray(d.ccCoachIds))setCcCoachIds(d.ccCoachIds.map(String).slice(0,10));
      if(d.choice&&['school','coach','email'].includes(d.choice.kind)){
       setChoice(d.choice);
       setQuery(String(d.choice.label||''));
@@ -95,9 +100,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  useEffect(()=>{
   if(!draftReady||!userId)return;
   try{window.localStorage.setItem(draftKey(userId,draftSchoolId),JSON.stringify({
-   choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName
+   choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName,ccCoachIds
   }))}catch{/* Draft persistence is best effort. */}
- },[draftReady,userId,choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName]);
+ },[draftReady,userId,choice,subject,body,bodyHtml,templateId,opening,emailAddress,recipientName,ccCoachIds]);
 
  useEffect(()=>{
   if(choice||!showResults||safeSearch(query).length<2){setSchoolResults([]);setCoachResults([]);setSearching(false);return}
@@ -133,7 +138,24 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   return()=>{active=false};
  },[selectedSchool?.id,selectedCoach?.id]);
 
+ useEffect(()=>{
+  if(!selectedCoach||!selectedSchool||!userId){setCcOptions([]);setCcLoading(false);return}
+  let active=true;setCcLoading(true);
+  void (async()=>{
+   const c=createClient();
+   const {data:coaches,error:coachError}=await c.from('college_coaches').select('id,first_name,last_name,email,college_id,contact_verification_needed,lifecycle_status').eq('college_id',selectedSchool.id).eq('lifecycle_status','active').limit(100);
+   const eligible=((coaches||[]) as Coach[]).filter(co=>co.id!==selectedCoach.id&&!!co.email&&!co.contact_verification_needed);
+   if(!active)return;
+   if(coachError||!eligible.length){setCcOptions([]);setCcLoading(false);return}
+   const {data:linked,error:linkError}=await c.from('athlete_coaches').select('coach_id').eq('athlete_user_id',userId).in('coach_id',eligible.map(co=>co.id)).is('archived_at',null);
+   if(!active)return;
+   const ids=new Set((linked||[]).map((row:any)=>row.coach_id));
+   setCcOptions(linkError?[]:eligible.filter(co=>ids.has(co.id)));setCcLoading(false);
+  })();
+  return()=>{active=false};
+ },[selectedCoach?.id,selectedSchool?.id,userId]);
  function choose(next:Choice){
+  setCcCoachIds([]);
   setChoice(next);
   setQuery(next.label);
   setShowResults(false);
@@ -143,6 +165,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   setError('');setNotice('');
  }
  function clearChoice(){
+  setCcCoachIds([]);
   setChoice(null);setQuery('');setEmailAddress('');setRecipientName('');
   setSchoolCoaches([]);setShowSchoolCoaches(false);setShowResults(true);
  }
@@ -202,15 +225,18 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    setError('Replace the bracketed template prompts with your own details before sending.');return;
   }
   if(connected!==true){setError('Connect Gmail in Settings before sending an email.');return}
+  if(ccLoading){setError('Wait for additional coach recipients to load.');return}
   if(selectedCoach?.contact_verification_needed){setError('This coach has contact details that require verification before outreach.');return}
   if(selectedCoach&&selectedCoach.lifecycle_status!=='active'){setError('This coach is not currently active.');return}
   setBusy(true);onBusyChange?.(true);
   try{
    const isCoach=!!selectedCoach&&!manualOnly;
+   const allowedCc=ccCoachIds.filter(id=>ccOptions.some(co=>co.id===id));
+   if(isCoach&&allowedCc.length!==ccCoachIds.length)throw new Error('Some CC recipients are no longer available. Please reselect them.');
    const response=await fetch(isCoach?'/api/google/gmail/send':'/api/google/gmail/manual-send',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(isCoach?{
-     coachId:selectedCoach.id,athleteUserId:userId,recipientEmail:to,
+     coachId:selectedCoach.id,athleteUserId:userId,recipientEmail:to,ccCoachIds:allowedCc,
      subject:subject.trim(),body,bodyHtml,attachments,emailPurpose:templateId
     }:{
      collegeId:selectedSchool?.id||null,recipientEmail:to,recipientName,
@@ -220,7 +246,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    const result=await response.json().catch(()=>({}));
    if(!response.ok||!result.messageId)throw new Error(result.error||'Gmail could not confirm the send.');
    setNotice(result.logged===false?'Email sent through Gmail, but recruiting activity could not be recorded.':'Email sent through Gmail and recorded in Recruiting Activity.');
-   setSubject('');setBody('');setBodyHtml('');setAttachments([]);setTemplateId('custom');setOpening(0);
+   setSubject('');setBody('');setBodyHtml('');setAttachments([]);setCcCoachIds([]);setTemplateId('custom');setOpening(0);
    try{window.localStorage.removeItem(draftKey(userId))}catch{}
    window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
    window.dispatchEvent(new Event('rebels:data-changed'));
@@ -295,6 +321,12 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      </div>}
     {selectedCoach?.contact_verification_needed&&<p className="mt-2 text-xs font-bold text-amber-800">This coach's contact details need verification before sending.</p>}
    </div>
+   {selectedCoach&&ccOptions.length>0&&<details className="rounded-xl border bg-white">
+    <summary className="cursor-pointer px-3 py-3 text-sm font-bold">CC another coach at {selectedSchool?.name||'this school'}{ccCoachIds.length>0?' ('+ccCoachIds.length+' selected)':''}</summary>
+    <div className="space-y-2 border-t px-3 py-3"><p className="text-xs text-slate-600">Only eligible coaches already in My Coach Connections appear. All recipients can see who was copied.</p>
+     {ccOptions.map(co=><label key={co.id} className="flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-sm"><input type="checkbox" className="mt-1" checked={ccCoachIds.includes(co.id)} disabled={busy||readOnly||ccLoading} onChange={e=>setCcCoachIds(current=>e.target.checked?[...current,co.id]:current.filter(id=>id!==co.id))}/><span><span className="block font-semibold">{nameOf(co)}</span><span className="block break-all text-xs text-slate-500">{co.email}</span></span></label>)}
+    </div>
+   </details>
    <div>
     <label htmlFor="quick-email-template" className="block text-sm font-black">Email starting point (optional)</label>
     <select id="quick-email-template" className="input mt-2 w-full" value={templateId} disabled={busy||readOnly}
@@ -312,6 +344,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    <label className="block text-sm font-black">Subject
     <input required className="input mt-2 w-full" maxLength={200} value={subject} onChange={e=>setSubject(e.target.value)} disabled={busy||readOnly} placeholder="Email subject"/>
    </label>
+   <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    <div>
     <div className="flex items-center justify-between gap-2">
      <label className="text-sm font-black">Message</label>
@@ -329,7 +362,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    {notice&&<p role="status" className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm font-semibold text-green-800"><CheckCircle2 size={17}/>{notice}</p>}
    <div className="flex flex-wrap items-center justify-between gap-3">
     <p className="text-xs text-slate-500">Your message draft is saved on this device (attachments are not saved). Sending is tracked in RLTNL.</p>
-    <button type="submit" className="btn btn-red" disabled={busy||loading||readOnly||connected!==true||!validEmail(emailAddress)||!subject.trim()||!body.trim()}>
+    <button type="submit" className="btn btn-red" disabled={busy||loading||ccLoading||readOnly||connected!==true||!validEmail(emailAddress)||!subject.trim()||!body.trim()}>
      <Send size={16}/>{readOnly?'Read-only preview':busy?'Sending…':'Send Email'}
     </button>
    </div>
