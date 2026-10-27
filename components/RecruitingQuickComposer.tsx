@@ -372,14 +372,18 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
     </div>
    </details>}
    <div>
-    <label htmlFor="quick-email-template" className="block text-sm font-black">Email starting point (optional)</label>
-    <div className="relative mt-2">
-     <select id="quick-email-template" className="input w-full appearance-none !pr-12" value={templateId} disabled={busy||readOnly}
-      onChange={e=>applyTemplate(e.target.value)}>
-      {templates.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
-     </select>
-     <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-600"/>
+    <label className="block text-sm font-black">How would you like to start?</label>
+    <div className="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Email writing approach">
+     <button type="button" disabled={busy||readOnly} aria-pressed={templateId==='custom'} onClick={()=>{if(templateId!=='custom')applyTemplate('custom')}} className={`rounded-xl border px-3 py-3 text-left text-sm font-bold transition ${templateId==='custom'?'border-red-500 bg-red-50 text-red-800':'border-slate-200 bg-white text-slate-700 hover:border-red-300'}`}>Write My Own<span className="mt-1 block text-xs font-normal">Use your own words</span></button>
+     <button type="button" disabled={busy||readOnly} aria-pressed={templateId!=='custom'} onClick={()=>{if(templateId==='custom')applyTemplate(templates.find(t=>t.id!=='custom')?.id||'custom')}} className={`rounded-xl border px-3 py-3 text-left text-sm font-bold transition ${templateId!=='custom'?'border-red-500 bg-red-50 text-red-800':'border-slate-200 bg-white text-slate-700 hover:border-red-300'}`}>Start With a Template<span className="mt-1 block text-xs font-normal">A helpful starting point</span></button>
     </div>
+    {templateId!=='custom'&&<div className="relative mt-3">
+     <label htmlFor="quick-email-template" className="block text-xs font-bold text-slate-700">Choose a starting point</label>
+     <select id="quick-email-template" className="input mt-1 w-full appearance-none !pr-12" value={templateId} disabled={busy||readOnly} onChange={e=>applyTemplate(e.target.value)}>
+      {templates.filter(t=>t.id!=='custom').map(t=><option key={t.id} value={t.id}>{t.label}</option>)}
+     </select>
+     <ChevronDown aria-hidden="true" size={18} className="pointer-events-none absolute right-4 bottom-3 text-slate-600"/>
+    </div>}
     {templateId!=='custom'&&<div className="mt-2 rounded-lg border bg-slate-50 p-3 text-xs text-slate-600">
      <div className="flex items-center gap-2 font-bold text-slate-800"><Sparkles size={15} className="text-red-600"/>RLTNL Email Playbook</div>
      <p className="mt-1">{currentTemplate.guidance}</p>
@@ -402,6 +406,20 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
     <p className="mt-2 text-xs text-slate-500">Choose a font and size, format selected text, add links or attachments. Place the cursor in the message before choosing Add Video to insert the link at that spot. Up to 5 attachments (2.5 MB each, 3 MB total).</p>
     <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    </div>
+   {!readOnly&&<section className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 sm:p-4">
+    <h3 className="text-sm font-black text-slate-900">My Templates</h3>
+    <p className="mt-1 text-xs text-slate-600">Save your own email to reuse with other coaches. Your templates are private and sync across devices.</p>
+    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+     <input aria-label="Template name" className="input min-w-0 flex-1" maxLength={80} placeholder="Name this message (e.g. Tournament introduction)" value={templateName} onChange={e=>setTemplateName(e.target.value)} disabled={busy||templateBusy}/>
+     <button type="button" className="btn border bg-white font-bold" onClick={()=>void savePersonalTemplate()} disabled={busy||templateBusy}>{templateBusy?'Saving…':'Save as Template'}</button>
+    </div>
+    {!!personalTemplates.length&&<div className="mt-3 space-y-2">
+     <label htmlFor="quick-personal-template" className="block text-xs font-bold text-slate-700">Reuse one of My Templates</label>
+     <select id="quick-personal-template" className="input w-full" value="" disabled={busy||templateBusy} onChange={e=>loadPersonalTemplate(e.target.value)}><option value="">Choose a saved template…</option>{personalTemplates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
+     <div className="flex flex-wrap gap-1.5">{personalTemplates.map(t=><button type="button" key={t.id} disabled={busy||templateBusy} onClick={()=>void removePersonalTemplate(t.id)} className="rounded-lg border bg-white px-2 py-1 text-xs text-slate-600 hover:text-red-700" title={`Remove ${t.name}`}>Remove {t.name}</button>)}</div>
+    </div>}
+    {templateNotice&&<p role="status" className="mt-2 text-xs font-semibold text-slate-700">{templateNotice}</p>}
+   </section>}
    {connected===false&&<p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
     Connect Gmail before sending. <Link href="/settings" className="font-bold underline">Gmail settings</Link>
    </p>}
