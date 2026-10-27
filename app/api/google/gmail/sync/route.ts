@@ -120,12 +120,12 @@ export async function POST(req:NextRequest){
    const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});
    if(stored.error){persistenceFailures++;await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
    if(intel.nextAction){
-    await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);
+    const stepUpdate=await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);if(stepUpdate.error)persistenceFailures++;
    }
    logged++;
   }
   if(persistenceFailures)return NextResponse.json({error:'Some Gmail messages could not be safely synchronized. Retry required.',retryable:true,matched,logged,persistenceFailures},{status:503});
-  await admin.from('google_workspace_connections').update({gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);
+  const checkpoint=await admin.from('google_workspace_connections').update({gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);if(checkpoint.error)return NextResponse.json({error:'Gmail messages processed but sync checkpoint could not be saved.',retryable:true},{status:503});
   return NextResponse.json({ok:true,matched,logged,attachmentMetadataBackfilled:backfilled});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Could not sync incoming Gmail.'},{status:500})}
 }
