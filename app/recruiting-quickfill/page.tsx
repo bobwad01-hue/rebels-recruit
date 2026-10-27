@@ -35,9 +35,9 @@ export default function RecruitingQuickFill(){
   ].map(section=>({title:section.title,fields:section.fields.map(([label,value])=>({label:clean(label),value:clean(value)}))}));
   if(active)setGroups(sections);
  }catch(e){if(active)setError(e instanceof Error?e.message:"Unable to load your information.")}finally{if(active)setLoading(false)}})();return()=>{active=false}},[]);
- async function copy(value:string,label:string){try{await navigator.clipboard.writeText(value);setCopied(label)}catch{setCopied("")}}
+ async function copy(value:string,label:string){try{await navigator.clipboard.writeText(value);setCopied(label)}catch{setCopied("");setError("Copy failed. Please select and copy the answer manually.")}}
  return <AppShell><div className="max-w-5xl mx-auto">
-  <PageHeader title="Recruiting QuickFill" subtitle="Your recruiting information, ready to copy into college questionnaires."/>
+  <PageHeader title="Recruiting QuickFill" subtitle="Copy your saved recruiting details into college questionnaires—one answer at a time."/>
   <div className="card p-4 sm:p-5 mb-5 flex flex-wrap items-center justify-between gap-3">
    <div><p className="font-bold text-slate-900">No second profile to fill out.</p><p className="text-sm text-slate-600 mt-1">Open a college's recruiting form in another tab, then copy your saved answers from here. Always review before submitting.</p></div>
    <Link href="/profile" className="btn inline-flex items-center gap-2"><ExternalLink size={16}/>Complete or Update Profile</Link>
