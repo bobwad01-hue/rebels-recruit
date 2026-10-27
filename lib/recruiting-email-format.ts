@@ -48,7 +48,7 @@ export function formatRecruitingEmailGpa(value: unknown): string {
   if (!raw) return "";
   if (/^\d+(?:\.\d+)?$/.test(raw)) {
     const numeric = Number(raw);
-    if (Number.isFinite(numeric) && numeric >= 0 && numeric <= 5) return numeric.toFixed(2);
+    if (Number.isFinite(numeric) && numeric >= 0 && numeric <= 5) return numeric.toFixed(1);
   }
   return raw;
 }
