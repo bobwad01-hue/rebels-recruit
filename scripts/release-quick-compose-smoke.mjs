@@ -48,7 +48,7 @@ assert(quick.indexOf('<EmailSubjectSettings')<quick.indexOf('<RichEmailEditor re
 assert(quick.indexOf('<RichEmailEditor ref={emailEditorRef}')<quick.indexOf('<EmailSignatureSettings'), 'Manage Signature must be below the Message editor');
 assert(coach.indexOf('<RichEmailEditor\n')<coach.indexOf('<EmailSignatureSettings'), 'Coach Manage Signature must be below the Message editor');
 assert(quick.includes("if(id==='custom'){setSubject('');setBody('');return}"), 'Switching back to Write My Own must clear the template subject and message');
-assert(quick.includes("setSubject(writeMyOwnSubject(profileResponse,initialSchool?.name||''))"), 'New empty drafts must start with an editable subject');
+assert(quick.includes("if(restoreBlankCustom)setSubject('')"), 'A blank Write My Own subject must remain blank on reload');
 assert(coach.includes('buildRecruitingEmailSubject("[Subject]", v, p?.signature)'), 'Coach Write My Own must use the same subject prompt');
 assert(quick.includes('hasUnresolvedRecruitingSubjectFields(subject)') && coach.includes('hasUnresolvedRecruitingSubjectFields(subject)'), 'Unreplaced subject placeholders must block sending');
 assert(subjectSettings.includes('this draft is unchanged'), 'Saving a subject preference must preserve the active draft');
