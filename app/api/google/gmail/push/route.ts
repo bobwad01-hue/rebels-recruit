@@ -43,7 +43,7 @@ export async function POST(req:NextRequest){
   const syncUrl=new URL('/api/google/gmail/sync',req.nextUrl.origin);
   const sync=await fetch(syncUrl,{method:'POST',headers:{'Content-Type':'application/json','x-gmail-push-user':userId,'x-gmail-push-secret':process.env.GMAIL_PUSH_SECRET||''},cache:'no-store',redirect:'manual'});
   if(!sync.ok){const detail=await sync.text().catch(()=> '');if(sync.status===409&&/reconnectRequired|Reconnect Gmail/i.test(detail))return NextResponse.json({ok:true,skipped:'gmail-read-permission-required'});const throttled=sync.status===429||/quota exceeded|rate limit/i.test(detail);if(throttled){console.warn('Gmail push sync deferred due to provider quota',sync.status);return NextResponse.json({ok:true,deferred:true},{status:202})}console.error('Gmail push sync failed',sync.status,detail);return NextResponse.json({error:'sync failed'},{status:500})}
-  await admin.from('google_workspace_connections').update({gmail_history_id:historyId,gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);
+  const checkpoint=await admin.from('google_workspace_connections').update({gmail_history_id:historyId}).eq('user_id',userId);if(checkpoint.error){console.error('Gmail push checkpoint failed',checkpoint.error);return NextResponse.json({error:'push checkpoint failed'},{status:500})}
   return NextResponse.json({ok:true});
  }catch(e){console.error('Gmail push failed',e);return NextResponse.json({error:'push failed'},{status:500})}
 }
