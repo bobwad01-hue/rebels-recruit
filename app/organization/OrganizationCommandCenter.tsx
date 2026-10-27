@@ -758,6 +758,38 @@ export default function OrganizationCommandCenter() {
           </section>
         </div>
       )}
+      {tab === "overview" && (
+        <section className="card mt-4 overflow-hidden">
+          <div className="border-b px-4 py-4 sm:px-5">
+            <h2 className="font-black text-lg">Recruiting by Team</h2>
+            <p className="muted text-sm mt-1">Team-level recruiting coverage and follow-through. Select a team to see its athletes.</p>
+          </div>
+          {recruitingByTeam.length ? (
+            <div className="divide-y">
+              {recruitingByTeam.map((team) => (
+                <div key={team.id}>
+                  <button type="button" aria-expanded={expandedTeamId === team.id} onClick={() => setExpandedTeamId(expandedTeamId === team.id ? null : team.id)} className="w-full px-4 py-3 sm:px-5 text-left hover:bg-slate-50">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] sm:items-center">
+                      <div className="col-span-2 sm:col-span-1 min-w-0"><div className="font-black">{team.name}</div>{team.age && <div className="muted text-xs">{team.age}</div>}</div>
+                      {([["Athletes",team.ids.length],["Coach Relationships",team.relationships],["Need Attention",team.needsAttention],["Overdue",team.overdue]] as const).map(([label,value])=><div key={label}><div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</div><div className="text-base font-black">{value}</div></div>)}
+                      <ArrowRight size={16} className={`hidden sm:block text-slate-400 transition-transform ${expandedTeamId === team.id ? "rotate-90" : ""}`}/>
+                    </div>
+                  </button>
+                  {expandedTeamId === team.id && (
+                    <div className="border-t bg-slate-50 px-4 py-3 sm:px-5">
+                      <p className="text-xs text-slate-600 mb-2">Athletes without coach relationships: <b>{team.withoutCoaches}</b>. Attention includes athletes without coaches or with overdue follow-through.</p>
+                      <div className="flex flex-wrap gap-2">
+                        {team.ids.length ? team.ids.map((id: string) => <Link key={id} href={`/players/${id}`} className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold hover:border-slate-400">{pm.get(id)?.full_name || "Athlete"} <ArrowRight size={12} className="inline"/></Link>) : <span className="text-sm text-slate-500">No active athletes assigned to this team.</span>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : <p className="px-5 py-6 text-sm text-slate-500">No active teams found for this organization.</p>}
+          <p className="border-t px-4 py-3 sm:px-5 text-xs text-slate-500">Athletes on multiple teams appear in each relevant team, but organization totals count each athlete once.</p>
+        </section>
+      )}
       {tab === "players" && (
         <section className="card p-4 sm:p-5">
           <Header
