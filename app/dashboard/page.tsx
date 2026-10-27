@@ -11,11 +11,6 @@ import {
   Flag,
   Target,
   Clock3,
-  Mail,
-  MessageCircle,
-  ChevronRight,
-  BookOpen,
-  HeartHandshake,
 } from "lucide-react";
 import AppShell from "@/components/AppShell";
 import CoachEmailAlerts from "@/components/CoachEmailAlerts";
@@ -346,7 +341,7 @@ export default async function Dashboard({
   }
   return (
     <AppShell>
-      <div className="w-full min-w-0 max-w-[1540px] mx-auto px-4 sm:px-5 md:px-7 py-5 sm:py-7">
+      <div className="w-full min-w-0 max-w-7xl mx-auto px-4 sm:px-5 md:px-8 py-5 sm:py-6">
         {sourceIssues.length > 0 && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
             Some information is temporarily unavailable:{" "}
@@ -354,87 +349,102 @@ export default async function Dashboard({
             information that could be loaded.
           </div>
         )}
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div><h1 className="text-[clamp(1.7rem,2.5vw,2.3rem)] font-extrabold tracking-tight text-[#101936]">{greeting}{name ? `, ${name}` : ""} <span aria-hidden="true">👋</span></h1>
-          <p className="mt-1 text-sm sm:text-base text-slate-500">Keep building your relationships. Every step forward counts.</p></div>
-          {!preview.active && <QuickAddMenu />}
-        </div>
+        <PageHeader
+          title={`${greeting}${name ? `, ${name}` : ""}.`}
+          subtitle="Here’s what matters today."
+          eyebrow={null}
+          action={preview.active ? undefined : <QuickAddMenu />}
+        />
         {!preview.active && <CoachEmailAlerts variant="home" />}
         {parentRequestError && !preview.active && <div role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Parent / Guardian requests could not be loaded. <Link href="/manage-access" className="underline">Review them in Manage Access</Link>.</div>}
         {pendingParentRequests.length > 0 && <PendingParentApprovals requests={pendingParentRequests} />}
         {!preview.active && <AthleteFirstRun athleteId={uid} fitComplete={!!fitProfile.data?.completed_at} hasSchools={intelligence.activeSchools > 0} />}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4 mb-4">
-          {[
-            {label:"Next Steps",value:smartMoves.length,sub:"Your recruiting priorities",href:"/game-plan#next-moves",icon:CheckCircle2,tone:"rose"},
-            {label:"Coach Relationships",value:activeCoaches.length,sub:"Connections you're building",href:"/connections",icon:Users,tone:"green"},
-            {label:"Upcoming Events",value:eventRows.filter((e:any)=>e.date && String(e.date).slice(0,10)>=new Date().toISOString().slice(0,10)).length,sub:"On your recruiting calendar",href:"/events",icon:CalendarDays,tone:"blue"},
-            {label:"My Schools",value:activeColleges.length,sub:"Schools on your list",href:"/connections",icon:School,tone:"purple"},
-          ].map((metric)=>(
-            <Link key={metric.label} href={ph(metric.href)} className="group flex min-w-0 items-start gap-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] transition hover:-translate-y-0.5 hover:shadow-md sm:p-5">
-              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${metric.tone==="rose"?"bg-rose-50 text-red-600":metric.tone==="green"?"bg-emerald-50 text-emerald-600":metric.tone==="blue"?"bg-blue-50 text-blue-600":"bg-violet-50 text-violet-600"}`}><metric.icon size={22}/></span>
-              <span className="min-w-0 flex-1"><span className="block text-3xl font-extrabold tracking-tight text-[#101936]">{metric.value}</span><span className="mt-0.5 block text-sm font-bold text-[#101936]">{metric.label}</span><span className="mt-1 block text-xs leading-relaxed text-slate-500">{metric.sub}</span></span>
-              <ChevronRight size={16} className="mt-7 hidden shrink-0 text-slate-400 group-hover:text-red-600 sm:block"/>
-            </Link>
-          ))}
-        </div>
-        <div className="grid items-start gap-4 lg:grid-cols-12">
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-5 lg:row-span-1">
-            <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-4"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><CheckCircle2 size={21}/>Your Next Steps</h2><Link href={ph("/game-plan#next-moves")} className="text-xs font-bold text-blue-600 hover:underline">View all</Link></div>
-            <div className="divide-y divide-slate-100">
-              {smartMoves.slice(0,5).map((move:any,i:number)=><Link key={i} href={ph(move.href||"/game-plan#next-moves")} className="group flex items-center gap-3 py-3.5 hover:bg-slate-50/60">
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${i===0?"bg-rose-50 text-red-600":"bg-blue-50 text-blue-600"}`}><Target size={19}/></span>
-                <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-[#101936]">{move.title}</span><span className="mt-1 block line-clamp-2 text-xs leading-relaxed text-slate-500">{move.detail}</span></span><ChevronRight size={16} className="shrink-0 text-slate-400 group-hover:text-red-600"/>
-              </Link>)}
-              {!smartMoves.length&&<div className="py-6 text-sm text-slate-500">You're all caught up. Explore schools or start a new coach conversation.</div>}
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_250px] gap-6 items-start"><div className="min-w-0">
+        <section className="card w-full min-w-0 p-4 sm:p-5 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 min-w-0">
+            <div className="min-w-0">
+              <div className="rr-eyebrow">RECRUITING OVERVIEW</div>
+              <h2 className="text-xl sm:text-2xl font-black mt-1">{stageCopy.title}</h2>
+              <p className="muted text-sm mt-1">{stageCopy.detail}</p>
             </div>
-          </section>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-4">
-            <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-4"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><MessageCircle size={21}/>Recent Coach Activity</h2><Link href={ph("/activity")} className="text-xs font-bold text-blue-600 hover:underline">View all</Link></div>
-            <div className="divide-y divide-slate-100">
-              {recent.slice(0,5).map((item:any,i:number)=>{const school=one(item.colleges)?.name||collegeMap.get(item.college_id)||"Recruiting activity";const coach=one(item.college_coaches);return <Link key={item.id||i} href={ph("/activity")} className="group flex items-center gap-3 py-3.5 hover:bg-slate-50/60">
-                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold ${["bg-violet-100 text-violet-700","bg-sky-100 text-sky-700","bg-emerald-100 text-emerald-700","bg-amber-100 text-amber-700"][i%4]}`}>{String(school).slice(0,2).toUpperCase()}</span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold text-[#101936]">{school}</span><span className="block truncate text-xs text-slate-500">{coach?[coach.first_name,coach.last_name].filter(Boolean).join(" "):"Coach interaction"}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{cleanDisplayNote(item.note)||item.type||"Recruiting update"}</span></span><span className="shrink-0 text-[11px] text-slate-400">{fmt(item.date||item.created_at)}</span>
-              </Link>})}
-              {!recent.length&&<p className="py-6 text-sm text-slate-500">Your coach conversations will appear here as you connect.</p>}
-            </div>
-          </section>
-          <div className="space-y-4 lg:col-span-3 lg:row-span-2">
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5">
-              <h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><TrendingUp size={20}/>My Recruiting Journey</h2>
-              <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Your current focus</p>
-              <div className="mt-1 text-lg font-extrabold text-[#101936]">{stageCopy.title}</div>
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">{stageCopy.detail}</p>
-              <div className="mt-4 flex flex-wrap gap-1.5">{RECRUITING_JOURNEY.map((stage)=><span key={stage} className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">{stage}: {stageCounts[stage]}</span>)}</div>
-              <Link href={ph("/game-plan")} className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-600">View Game Plan <ArrowRight size={13}/></Link>
-            </section>
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5">
-              <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><School size={20}/>My Schools</h2><Link href={ph("/connections")} className="text-xs font-bold text-blue-600">View all</Link></div>
-              <div className="mt-3 divide-y divide-slate-100">{activeColleges.slice(0,5).map((row:any)=><Link key={row.id} href={ph("/connections")} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:text-red-600"><span className="min-w-0 truncate font-semibold">{one(row.colleges)?.name||"School"}</span><span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{normalizeJourneyStage(row.status)}</span></Link>)}{!activeColleges.length&&<p className="py-4 text-xs text-slate-500">Your school list starts here.</p>}</div>
-            </section>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 ">
-            <h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><BookOpen size={20}/>Helpful Tools</h2>
-            <div className="mt-3 divide-y divide-slate-100">
-              <Link href={ph("/game-plan")} className="flex items-center justify-between py-3 text-sm font-semibold">Your Game Plan <ChevronRight size={15}/></Link>
-              <Link href={ph("/fit-profile")} className="flex items-center justify-between py-3 text-sm font-semibold">Find your college fit <ChevronRight size={15}/></Link>
-              <Link href={ph("/connections")} className="flex items-center justify-between py-3 text-sm font-semibold">Manage school relationships <ChevronRight size={15}/></Link>
-            </div>
-          </section>
+            {(recruitingStage==="recruit"||recruitingStage==="decide")&&(<Link
+              href={ph("/health")}
+              className="rounded-xl border bg-slate-50 px-4 py-3 w-full min-w-0 lg:w-auto lg:min-w-[160px] block hover:bg-slate-100 transition-colors"
+            >
+              <div className="rr-metric-label">Recruiting Health</div>
+              <div className="mt-2"><RecruitingHealthScore score={intelligence.score} health={intelligence.health} size="sm"/></div>
+              <div className="text-xs font-black mt-2 inline-flex items-center gap-1">
+                See what affects it <ArrowRight size={12} />
+              </div>
+            </Link>)}
           </div>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-5">
-            <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><CalendarDays size={20}/>Upcoming Events</h2><Link href={ph("/events")} className="text-xs font-bold text-blue-600">View all</Link></div>
-            <div className="mt-3 divide-y divide-slate-100">{eventRows.filter((e:any)=>e.date&&String(e.date).slice(0,10)>=new Date().toISOString().slice(0,10)).sort((a:any,b:any)=>String(a.date).localeCompare(String(b.date))).slice(0,3).map((event:any)=><Link key={event.id} href={ph("/events")} className="flex items-center gap-3 py-3"><span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-rose-50 text-xs font-extrabold text-red-600">{fmt(event.date)}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{event.name}</span><span className="block truncate text-xs text-slate-500">{event.location||event.type||"Event"}</span></span><ChevronRight size={15} className="text-slate-400"/></Link>)}{!eventRows.some((e:any)=>e.date&&String(e.date).slice(0,10)>=new Date().toISOString().slice(0,10))&&<p className="py-5 text-sm text-slate-500">No upcoming events yet.</p>}</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 mt-5 min-w-0 rounded-xl border bg-slate-50/60 divide-x divide-y md:divide-y-0 overflow-hidden">
+            <SnapshotMetric
+              label="Active Schools"
+              value={intelligence.activeSchools}
+              href={ph("/connections")}
+            />
+            <SnapshotMetric
+              label="Needs Follow-Up"
+              value={needsFollowUp}
+              href={ph("/connections")}
+            />
+            <SnapshotMetric
+              label="Open Tasks"
+              value={intelligence.openNextMoves}
+              href={ph("/game-plan#next-moves")}
+            />
+          </div>
+          {smartMoves[0] ? (
+            <Link
+              href={ph(
+                smartMoves[0].href || "/game-plan#next-moves",
+              )}
+              className="mt-5 rr-priority-card p-4 sm:p-5 block rr-interactive-card min-w-0"
+            >
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="h-9 w-9 rounded-xl bg-white border border-red-200 flex items-center justify-center shrink-0">
+                  <Target size={18} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="rr-eyebrow !mb-1">DO THIS NEXT</div>
+                  <div className="font-black text-lg mt-1">
+                    {smartMoves[0].title}
+                  </div>
+                  <p className="text-sm mt-1">
+                    {smartMoves[0].detail}
+                  </p>
+                  <div className="btn btn-red mt-4">
+                    Do This Next <ArrowRight size={15} />
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ) : (
+            <div className="mt-5 rounded-2xl border p-4">
+              <div className="font-bold">
+                Start a recruiting conversation.
+              </div>
+              <div className="muted text-sm mt-1">
+                Explore schools, reach out to a coach, or continue a relationship.
+                <a href="#home-email-composer" className="ml-1 font-bold text-red-700 underline">Compose an email</a>.
+              </div>
+            </div>
+          )}
+        </section>
+        {!fitProfile.data?.completed_at && intelligence.activeSchools > 0 && (
+          <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 sm:px-5">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3"><div className="flex-1 min-w-0">
+              <div className="rr-eyebrow">COLLEGE FIT SURVEY</div><div className="font-black text-lg mt-1">Tell us what matters to you in a college.</div>
+              <p className="text-sm text-slate-700 mt-1">Your answers help shape school discovery and other recommendations throughout your recruiting journey.</p>
+            </div><Link href={ph("/fit-profile")} className="btn shrink-0">Complete College Fit Survey <ArrowRight size={15} /></Link></div>
           </section>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-4">
-            <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><Target size={20}/>Your Recruiting Progress</h2><Link href={ph("/health")} className="text-xs font-bold text-blue-600">View details</Link></div>
-            <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center"><RecruitingHealthScore score={intelligence.score} health={intelligence.health} size="sm"/><div className="min-w-0 flex-1"><div className="text-sm font-bold text-[#101936]">Keep building momentum</div><p className="mt-1 text-xs leading-relaxed text-slate-500">Your recruiting health reflects the relationships and follow-through you can influence. See what to work on next.</p></div></div>
-            {!fitProfile.data?.completed_at&&<Link href={ph("/fit-profile")} className="mt-4 flex items-center justify-between rounded-xl bg-blue-50 p-3 text-xs font-semibold text-blue-800">Complete your College Fit Survey <ArrowRight size={15}/></Link>}
-          </section>
-
-        </div>
-        <div className="mt-5 mb-6"><ReminderStickyBoard initial={reminders.data||[]} athleteId={uid} editable={!preview.active}/></div>
+        )}
         <div id="home-email-composer" className="w-full min-w-0 mb-6">{preview.active
           ? <div className="card p-5 text-sm text-slate-600">Compose Email is unavailable in read-only preview.</div>
           : <RecruitingQuickComposer/>}</div>
+        </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div>
+        <div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
      </div>
     </AppShell>
   );
