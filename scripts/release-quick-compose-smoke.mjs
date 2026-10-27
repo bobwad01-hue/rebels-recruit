@@ -49,7 +49,8 @@ assert(signature.includes('Manage Signature') && !signature.includes('My Email S
 assert(quick.indexOf('<EmailSubjectSettings')<quick.indexOf('<RichEmailEditor ref={emailEditorRef}'), 'Manage Subject must be beside the Subject field');
 assert(quick.indexOf('<RichEmailEditor ref={emailEditorRef}')<quick.indexOf('<EmailSignatureSettings'), 'Manage Signature must be below the Message editor');
 assert(coach.indexOf('<RichEmailEditor\n')<coach.indexOf('<EmailSignatureSettings'), 'Coach Manage Signature must be below the Message editor');
-assert(quick.includes("buildRecruitingEmailSubject('[Subject]',values(),profile?.signature)"), 'Write My Own must prefill a recruiting subject');
+assert(quick.includes("buildRecruitingEmailSubject('Introduction',values(),profile?.signature)"), 'Write My Own must prefill a usable recruiting subject');
+assert(quick.includes('Start With a Template') && quick.includes('Save as Template') && quick.includes('athlete_email_templates'), 'Home composer must expose private reusable templates');
 assert(quick.includes("setSubject(writeMyOwnSubject(profileResponse,initialSchool?.name||''))"), 'New empty drafts must start with an editable subject');
 assert(coach.includes('buildRecruitingEmailSubject("[Subject]", v, p?.signature)'), 'Coach Write My Own must use the same subject prompt');
 assert(quick.includes('hasUnresolvedRecruitingSubjectFields(subject)') && coach.includes('hasUnresolvedRecruitingSubjectFields(subject)'), 'Unreplaced subject placeholders must block sending');
