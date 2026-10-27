@@ -14,7 +14,7 @@ export async function GET(){const {c,user}=await owner();if(!user)return NextRes
   .eq('status','pending').order('created_at',{ascending:true});
  if(conflictError)return NextResponse.json({error:conflictError.message},{status:500});
  const {data:recent,error:recentError}=await c.from('college_coach_update_suggestions')
-  .select('id,coach_id,submitted_by_user_id,suggestion_type,details,proposed_first_name,proposed_last_name,proposed_email,proposed_phone,proposed_title,proposed_x_url,status,created_at,reviewed_at,college_coaches(id,first_name,last_name,title,email,phone,x_url,lifecycle_status,colleges!college_coaches_college_id_fkey(name))')
+  .select('id,coach_id,submitted_by_user_id,suggestion_type,details,proposed_first_name,proposed_last_name,proposed_email,proposed_phone,proposed_title,proposed_x_url,status,created_at,reviewed_at,verification_note,verification_source_url,college_coaches(id,first_name,last_name,title,email,phone,x_url,lifecycle_status,colleges!college_coaches_college_id_fkey(name))')
   .neq('status','pending').order('reviewed_at',{ascending:false}).limit(40);
  if(recentError)return NextResponse.json({error:recentError.message},{status:500});
  const ids=[...new Set([...(data||[]),...(recent||[])].map((s:any)=>s.submitted_by_user_id).filter(Boolean))];

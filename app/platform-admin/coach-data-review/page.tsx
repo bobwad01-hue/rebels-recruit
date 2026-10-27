@@ -27,6 +27,8 @@ export default function CoachDataReview(){const[loading,setLoading]=useState(tru
      </div>
     </div>
     {s.details&&<p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{s.details}</p>}
+    {s.verification_note&&<p className="mt-2 whitespace-pre-wrap text-sm text-slate-600"><b>Verification notes:</b> {s.verification_note}</p>}
+    {s.verification_source_url&&<a href={s.verification_source_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-sm font-semibold text-red-700 underline">View verification source</a>}
     <PlatformReplyComposer sourceType="coach_suggestion" sourceId={s.id}
      recipientName={p?.full_name||p?.email||'the submitter'} context={s.status==='accepted'?'This correction was applied.':s.status==='resolved'?'This report was verified without changing the shared directory.':'This correction was not applied; explain what was verified and why.'}/>
    </article>})}</div>

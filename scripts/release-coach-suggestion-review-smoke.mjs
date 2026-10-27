@@ -9,6 +9,7 @@ const sql=read('supabase/migrations/20261027023000_coach_suggestion_review_v2.sq
 
 assert.match(page,/decision:'verify_only'/,'Verify Only must be offered in the queue');
 assert.match(page,/s\.status==='resolved'\?'Verified, no changes'/,'Verify Only must be distinguished from applied updates');
+assert.match(page,/View verification source/,'Owner must be able to revisit verification evidence');
 assert.match(modal,/Notify .* in RLTNL Messages/,'Notification must be an explicit independent choice');
 assert.match(modal,/useState\(approved\)/,'Approval notification default should remain enabled');
 assert.match(modal,/setPersonalize/,'Personal message must be optional');
@@ -19,7 +20,7 @@ assert.match(route,/review_college_coach_suggestion_v2/,'API must call the new a
 assert.match(route,/p_notify:typeof b\.notify==='boolean'\?b\.notify:b\.decision!=='reject'/,'Notification choice must reach the database');
 assert.match(route,/p_review_note:b\.review_note\|\|null/,'Verification notes must be saved');
 assert.match(route,/p_message_source_url/,'Personal source links must reach the database');
-assert.match(sql,/p_decision in \('accept','verify_only','reject'\)/,'RPC must accept three distinct decisions');
+assert.match(sql,/p_decision not in \('accept','verify_only','reject'\)/,'RPC must accept three distinct decisions');
 assert.match(sql,/v_status='resolved'/,'Verify Only must not mark the directory changed');
 assert.match(sql,/v_suggestion\.proposed_email/,'Email corrections must apply regardless of report category');
 assert.match(sql,/v_suggestion\.proposed_phone/,'Phone corrections must apply regardless of report category');
