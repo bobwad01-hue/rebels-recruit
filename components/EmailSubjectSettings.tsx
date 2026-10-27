@@ -41,7 +41,7 @@ export default function EmailSubjectSettings({profile,topic,fields,onSaved,disab
   finally{setSaving(false)}
  }
  return <div className="min-w-0 text-sm">
-  <div className="flex flex-wrap items-center justify-between gap-2">
+  <div className="flex flex-wrap items-center justify-start gap-3">
    <label htmlFor={inputId} className={labelClassName}>Subject</label>
    <button type="button" className="text-xs font-semibold text-red-700 underline underline-offset-2 disabled:opacity-50"
     disabled={disabled||saving} aria-expanded={open} aria-controls={inputId+'-settings'}
