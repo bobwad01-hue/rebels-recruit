@@ -47,4 +47,13 @@ assert(sync.includes('retryable:true'),
 assert(sync.indexOf('if(persistenceFailures)return NextResponse.json(')<sync.indexOf("gmail_last_synced_at:new Date().toISOString()"),
   'Never advance Gmail last-synced timestamp after partial persistence failure');
 
+assert(sync.includes('if(stepUpdate.error)persistenceFailures++'),
+  'A failed coach Next Step update must require Gmail sync retry');
+assert(sync.includes('if(checkpoint.error)return NextResponse.json('),
+  'A failed Gmail sync checkpoint must return an error');
+assert(push.includes('if(checkpoint.error)'),
+  'Gmail push checkpoint persistence failures must not be acknowledged as success');
+assert(!push.includes('gmail_last_synced_at:new Date().toISOString()'),
+  'Gmail push must not overwrite the synchronization checkpoint');
+
 console.log('Gmail watch renewal, security, catch-up and push delivery smoke tests passed.');
