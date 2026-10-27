@@ -99,6 +99,7 @@ export default function CoachActionBar({
     [recipientSavedNotice, setRecipientSavedNotice] = useState(""),
     [templates, setTemplates] = useState(() => mergeEmailStarters([])),
     [personalTemplates, setPersonalTemplates] = useState<{id:string;name:string;subject:string;body:string}[]>([]),
+    [personalTemplateOwner,setPersonalTemplateOwner] = useState(""),
     [templateName,setTemplateName] = useState(""),
     [templateNotice,setTemplateNotice] = useState(""),
     [subject, setSubject] = useState(""),
@@ -136,16 +137,23 @@ export default function CoachActionBar({
       });
     return () => { alive = false; };
   }, []);
-  const personalTemplateKey = `rr-personal-email-templates:${athleteUserId || "self"}`;
+  const personalTemplateKey = `rr-personal-email-templates:${personalTemplateOwner}`;
   useEffect(() => {
     if (staffMode) return;
+    let active = true;
+    void c.auth.getUser().then(({data}) => { if(active) setPersonalTemplateOwner(data.user?.id || ""); });
+    return () => { active = false; };
+  }, [staffMode]);
+  useEffect(() => {
+    if (staffMode || !personalTemplateOwner) return;
     try {
       const saved = JSON.parse(window.localStorage.getItem(personalTemplateKey) || "[]");
       setPersonalTemplates(Array.isArray(saved) ? saved.filter((t: any) => typeof t?.id === "string" && typeof t?.name === "string" && typeof t?.body === "string" && typeof t?.subject === "string").slice(0, 30) : []);
     } catch { setPersonalTemplates([]); }
-  }, [personalTemplateKey, staffMode]);
+  }, [personalTemplateKey, personalTemplateOwner, staffMode]);
   function savePersonalTemplate() {
     const name = templateName.trim();
+    if (!personalTemplateOwner) { setTemplateNotice("Sign in to save your templates."); return; }
     if (!name || !body.trim() || !subject.trim()) {
       setTemplateNotice("Add a template name, subject and message before saving.");
       return;
