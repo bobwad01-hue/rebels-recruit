@@ -37,4 +37,14 @@ assert(watch.includes('client.auth.getUser()'),
 assert(watch.includes("startGmailWatch(user.id)"),
   'Manual watch repair must only renew the current user watch');
 
+const sync=read('app/api/google/gmail/sync/route.ts');
+assert(sync.includes('let persistenceFailures=0'),
+  'Incoming Gmail sync must track partial persistence failures');
+assert(sync.includes('if(persistenceFailures)return NextResponse.json('),
+  'Partial Gmail failures must return a retryable error before advancing sync success');
+assert(sync.includes('retryable:true'),
+  'Gmail partial failures must be explicitly retryable');
+assert(sync.indexOf('if(persistenceFailures)return NextResponse.json(')<sync.indexOf("gmail_last_synced_at:new Date().toISOString()"),
+  'Never advance Gmail last-synced timestamp after partial persistence failure');
+
 console.log('Gmail watch renewal, security, catch-up and push delivery smoke tests passed.');
