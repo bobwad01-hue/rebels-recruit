@@ -244,7 +244,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  function applyTemplate(id:string,index=0){
   setTemplateId(id);setOpening(index);setNotice('');
   setBodyHtml('');
-  if(id==='custom'){setSubject(buildRecruitingEmailSubject('Introduction',values(),profile?.signature));setBody('');return}
+  if(id==='custom'){setSubject('');setBody('');return}
   const template=starterById(id,templates),v=values();
   const topic=template.subjectTemplate?fill(template.subjectTemplate,v).split('|')[0].trim():template.label;
   setSubject(buildRecruitingEmailSubject(topic,v,profile?.signature));
