@@ -21,7 +21,18 @@ export async function GET(){const {c,user}=await owner();if(!user)return NextRes
  const {data:people,error:peopleError}=ids.length?await c.from('profiles').select('id,full_name,email').in('id',ids):{data:[],error:null};
  if(peopleError)return NextResponse.json({error:peopleError.message},{status:500});
  const names=new Map((people||[]).map((p:any)=>[p.id,{full_name:p.full_name,email:p.email}]));
- const enrich=(items:any[])=>items.map(s=>({...s,submitter:names.get(s.submitted_by_user_id)||null}));
+ const recentIds=(recent||[]).map((s:any)=>s.id);
+ const {data:evidence,error:evidenceError}=recentIds.length?await c.from('college_coach_suggestion_review_evidence')
+  .select('suggestion_id,verification_note,verification_source_url').in('suggestion_id',recentIds):{data:[],error:null};
+ if(evidenceError)return NextResponse.json({error:evidenceError.message},{status:500});
+ const reviewEvidence=new Map((evidence||[]).map((e:any)=>[e.suggestion_id,{verification_note:e.verification_note,verification_source_url:e.verification_source_url}]));
+ const schoolIds=[...new Set((data||[]).map((s:any)=>s.proposed_college_id).filter(Boolean))];
+ const {data:proposedSchools,error:schoolError}=schoolIds.length?await c.from('colleges').select('id,name').in('id',schoolIds):{data:[],error:null};
+ if(schoolError)return NextResponse.json({error:schoolError.message},{status:500});
+ const schoolNames=new Map((proposedSchools||[]).map((s:any)=>[s.id,s.name]));
+ const enrich=(items:any[])=>items.map(s=>({...s,submitter:names.get(s.submitted_by_user_id)||null,
+  proposed_college_name:schoolNames.get(s.proposed_college_id)||null,
+  ...(reviewEvidence.get(s.id)||{})}));
  return NextResponse.json({suggestions:enrich(data||[]),recent:enrich(recent||[]),contactConflicts:conflicts||[]},
   {headers:{'Cache-Control':'private, no-store'}})}
 export async function POST(req:Request){const {c,user}=await owner();if(!user)return NextResponse.json({error:'Forbidden'},{status:403});const b=await req.json();
@@ -54,19 +65,24 @@ export async function POST(req:Request){const {c,user}=await owner();if(!user)re
  }
  if(!b||typeof b.id!=='string'||! /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(b.id))
   return NextResponse.json({error:'Invalid suggestion identifier.'},{status:400});
- if(!['accept','reject'].includes(b.decision))
+ if(!['accept','verify_only','reject'].includes(b.decision))
   return NextResponse.json({error:'Invalid review decision.'},{status:400});
+ if(b.notify!==undefined&&typeof b.notify!=='boolean')return NextResponse.json({error:'Invalid notification preference.'},{status:400});
+ if(b.review_note!==undefined&&b.review_note!==null&&(typeof b.review_note!=='string'||b.review_note.length>2000))return NextResponse.json({error:'Invalid verification note.'},{status:400});
  if(b.message!==undefined&&b.message!==null&&typeof b.message!=='string')
   return NextResponse.json({error:'Invalid message.'},{status:400});
+ if(b.message_source_url!==undefined&&b.message_source_url!==null&&typeof b.message_source_url!=='string')return NextResponse.json({error:'Invalid message source URL.'},{status:400});
  if(b.source_url!==undefined&&b.source_url!==null&&typeof b.source_url!=='string')
   return NextResponse.json({error:'Invalid official source URL.'},{status:400});
- const {data,error}=await c.rpc('review_college_coach_suggestion_with_message',{
-  p_id:b.id,p_decision:b.decision,p_message:b.message||null,p_source_url:b.source_url||null
+ const {data,error}=await c.rpc('review_college_coach_suggestion_v2',{
+  p_id:b.id,p_decision:b.decision,p_notify:typeof b.notify==='boolean'?b.notify:b.decision!=='reject',
+  p_message:b.message||null,p_source_url:b.source_url||null,p_review_note:b.review_note||null,
+  p_message_source_url:b.message_source_url||null
  });
  if(error){
   const message=error.message||'Could not review coach submission.';
   const status=/Super Owner access required/.test(message)?403:/already been reviewed/.test(message)?409:
-   /Suggestion not found/.test(message)?404:/manual investigation|Invalid|must be|Add a message|Official source/.test(message)?400:500;
+   /Suggestion not found/.test(message)?404:/No directory changes|Invalid|must be|at least|message|source|notes/i.test(message)?400:500;
   return NextResponse.json({error:message},{status,headers:{'Cache-Control':'private, no-store'}});
  }
  return NextResponse.json(data,{headers:{'Cache-Control':'private, no-store'}});
