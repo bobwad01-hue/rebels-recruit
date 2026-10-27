@@ -137,7 +137,6 @@ export default function CoachActionBar({
       });
     return () => { alive = false; };
   }, []);
-  const personalTemplateKey = `rr-personal-email-templates:${personalTemplateOwner}`;
   useEffect(() => {
     if (staffMode) return;
     let active = true;
@@ -146,26 +145,35 @@ export default function CoachActionBar({
   }, [staffMode]);
   useEffect(() => {
     if (staffMode || !personalTemplateOwner) return;
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(personalTemplateKey) || "[]");
-      setPersonalTemplates(Array.isArray(saved) ? saved.filter((t: any) => typeof t?.id === "string" && typeof t?.name === "string" && typeof t?.body === "string" && typeof t?.subject === "string").slice(0, 30) : []);
-    } catch { setPersonalTemplates([]); }
-  }, [personalTemplateKey, personalTemplateOwner, staffMode]);
-  function savePersonalTemplate() {
+    let active = true;
+    void c.from("athlete_email_templates").select("id,name,subject,body").eq("athlete_user_id",personalTemplateOwner).order("created_at",{ascending:false}).limit(30)
+      .then(({data,error}) => {
+        if (!active) return;
+        if (error) { setTemplateNotice("Could not load My Templates. Try refreshing."); return; }
+        setPersonalTemplates(data || []);
+      });
+    return () => { active = false; };
+  }, [personalTemplateOwner,staffMode]);
+  async function savePersonalTemplate() {
     const name = templateName.trim();
     if (!personalTemplateOwner) { setTemplateNotice("Sign in to save your templates."); return; }
     if (!name || !body.trim() || !subject.trim()) {
       setTemplateNotice("Add a template name, subject and message before saving.");
       return;
     }
-    const item = {id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,name:name.slice(0,80),subject,body};
-    const next = [item,...personalTemplates].slice(0,30);
-    try {
-      window.localStorage.setItem(personalTemplateKey,JSON.stringify(next));
-      setPersonalTemplates(next);
-      setTemplateName("");
-      setTemplateNotice("Saved to My Templates on this browser. Your current draft is unchanged.");
-    } catch { setTemplateNotice("Could not save the template on this browser."); }
+    if (personalTemplates.length >= 30) { setTemplateNotice("You have 30 templates. Delete an old template before saving another."); return; }
+    const {data,error}=await c.from("athlete_email_templates").insert({athlete_user_id:personalTemplateOwner,name:name.slice(0,80),subject:subject.slice(0,200),body:body.slice(0,30000)}).select("id,name,subject,body").single();
+    if (error || !data) { setTemplateNotice("Could not save your template. Please try again."); return; }
+    setPersonalTemplates(current=>[data,...current].slice(0,30));
+    setTemplateName("");
+    setTemplateNotice("Saved to My Templates. You can use it on your other devices.");
+  }
+  async function deletePersonalTemplate(id:string) {
+    if (!window.confirm("Delete this saved template? Your current email draft will not change.")) return;
+    const {error}=await c.from("athlete_email_templates").delete().eq("id",id).eq("athlete_user_id",personalTemplateOwner);
+    if (error) { setTemplateNotice("Could not delete the template. Try again."); return; }
+    setPersonalTemplates(current=>current.filter(item=>item.id!==id));
+    setTemplateNotice("Template deleted.");
   }
   function usePersonalTemplate(id: string) {
     const selected = personalTemplates.find((t) => t.id === id);
@@ -1072,10 +1080,10 @@ export default function CoachActionBar({
                         {!staffMode && (
                         <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
                           <h3 className="text-sm font-black text-slate-900">My Templates</h3>
-                          <p className="mt-1 text-xs text-slate-600">Like what you wrote? Save it and reuse it for another coach. Templates are stored on this browser only.</p>
+                          <p className="mt-1 text-xs text-slate-600">Like what you wrote? Save it and reuse it for another coach. Templates are private and available across your devices.</p>
                           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                             <input aria-label="New template name" className="input min-w-0 flex-1" placeholder="Name this message (e.g. Tournament introduction)" maxLength={80} value={templateName} onChange={(event)=>setTemplateName(event.target.value)} disabled={busy}/>
-                            <button type="button" className="btn border bg-white font-bold" onClick={savePersonalTemplate} disabled={busy}>Save as Template</button>
+                            <button type="button" className="btn border bg-white font-bold" onClick={()=>void savePersonalTemplate()} disabled={busy}>Save as Template</button>
                           </div>
                           {personalTemplates.length > 0 && (
                             <div className="mt-3">
@@ -1084,6 +1092,9 @@ export default function CoachActionBar({
                                 <option value="">Choose one of My Templates…</option>
                                 {personalTemplates.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}
                               </select>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {personalTemplates.map(item=><button key={item.id} type="button" disabled={busy} onClick={()=>void deletePersonalTemplate(item.id)} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 hover:border-red-200 hover:text-red-700" title={`Delete ${item.name}`}>Remove {item.name}</button>)}
+                              </div>
                             </div>
                           )}
                           {templateNotice && <p role="status" className="mt-2 text-xs font-semibold text-slate-700">{templateNotice}</p>}
