@@ -434,8 +434,6 @@ export default async function Dashboard({
         <div id="home-email-composer" className="w-full min-w-0 mb-6">{preview.active
           ? <div className="card p-5 text-sm text-slate-600">Compose Email is unavailable in read-only preview.</div>
           : <RecruitingQuickComposer/>}</div>
-        </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div>
-        <div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
      </div>
     </AppShell>
   );
