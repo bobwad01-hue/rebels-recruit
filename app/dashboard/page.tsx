@@ -378,7 +378,7 @@ export default async function Dashboard({
           ))}
         </div>
         <div className="grid items-start gap-4 lg:grid-cols-12">
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-5">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-5 lg:row-span-1">
             <div className="mb-3 flex items-center justify-between gap-2 border-b border-slate-100 pb-4"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><CheckCircle2 size={21}/>Your Next Steps</h2><Link href={ph("/game-plan#next-moves")} className="text-xs font-bold text-blue-600 hover:underline">View all</Link></div>
             <div className="divide-y divide-slate-100">
               {smartMoves.slice(0,5).map((move:any,i:number)=><Link key={i} href={ph(move.href||"/game-plan#next-moves")} className="group flex items-center gap-3 py-3.5 hover:bg-slate-50/60">
@@ -398,7 +398,7 @@ export default async function Dashboard({
               {!recent.length&&<p className="py-6 text-sm text-slate-500">Your coach conversations will appear here as you connect.</p>}
             </div>
           </section>
-          <div className="space-y-4 lg:col-span-3">
+          <div className="space-y-4 lg:col-span-3 lg:row-span-2">
             <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5">
               <h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><TrendingUp size={20}/>My Recruiting Journey</h2>
               <p className="mt-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Your current focus</p>
@@ -412,11 +412,11 @@ export default async function Dashboard({
               <div className="mt-3 divide-y divide-slate-100">{activeColleges.slice(0,5).map((row:any)=><Link key={row.id} href={ph("/connections")} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:text-red-600"><span className="min-w-0 truncate font-semibold">{one(row.colleges)?.name||"School"}</span><span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{normalizeJourneyStage(row.status)}</span></Link>)}{!activeColleges.length&&<p className="py-4 text-xs text-slate-500">Your school list starts here.</p>}</div>
             </section>
           </div>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-4">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-5">
             <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><CalendarDays size={20}/>Upcoming Events</h2><Link href={ph("/events")} className="text-xs font-bold text-blue-600">View all</Link></div>
             <div className="mt-3 divide-y divide-slate-100">{eventRows.filter((e:any)=>e.date&&String(e.date).slice(0,10)>=new Date().toISOString().slice(0,10)).sort((a:any,b:any)=>String(a.date).localeCompare(String(b.date))).slice(0,3).map((event:any)=><Link key={event.id} href={ph("/events")} className="flex items-center gap-3 py-3"><span className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-rose-50 text-xs font-extrabold text-red-600">{fmt(event.date)}</span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-bold">{event.name}</span><span className="block truncate text-xs text-slate-500">{event.location||event.type||"Event"}</span></span><ChevronRight size={15} className="text-slate-400"/></Link>)}{!eventRows.some((e:any)=>e.date&&String(e.date).slice(0,10)>=new Date().toISOString().slice(0,10))&&<p className="py-5 text-sm text-slate-500">No upcoming events yet.</p>}</div>
           </section>
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-5">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_5px_22px_rgba(15,23,42,0.035)] sm:p-5 lg:col-span-4">
             <div className="flex items-center justify-between gap-2"><h2 className="flex items-center gap-2 text-lg font-extrabold tracking-tight text-[#101936]"><Target size={20}/>Your Recruiting Progress</h2><Link href={ph("/health")} className="text-xs font-bold text-blue-600">View details</Link></div>
             <div className="mt-5 flex flex-wrap items-center gap-5"><RecruitingHealthScore score={intelligence.score} health={intelligence.health} size="sm"/><div className="min-w-0 flex-1"><div className="text-sm font-bold text-[#101936]">Keep building momentum</div><p className="mt-1 text-xs leading-relaxed text-slate-500">Your recruiting health reflects the relationships and follow-through you can influence. See what to work on next.</p></div></div>
             {!fitProfile.data?.completed_at&&<Link href={ph("/fit-profile")} className="mt-4 flex items-center justify-between rounded-xl bg-blue-50 p-3 text-xs font-semibold text-blue-800">Complete your College Fit Survey <ArrowRight size={15}/></Link>}
