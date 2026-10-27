@@ -14,19 +14,25 @@ export async function GET(){const {c,user}=await owner();if(!user)return NextRes
   .eq('status','pending').order('created_at',{ascending:true});
  if(conflictError)return NextResponse.json({error:conflictError.message},{status:500});
  const {data:recent,error:recentError}=await c.from('college_coach_update_suggestions')
-  .select('id,coach_id,submitted_by_user_id,suggestion_type,details,proposed_first_name,proposed_last_name,proposed_email,proposed_phone,proposed_title,proposed_x_url,status,created_at,reviewed_at,verification_note,verification_source_url,college_coaches(id,first_name,last_name,title,email,phone,x_url,lifecycle_status,colleges!college_coaches_college_id_fkey(name))')
+  .select('id,coach_id,submitted_by_user_id,suggestion_type,details,proposed_first_name,proposed_last_name,proposed_email,proposed_phone,proposed_title,proposed_x_url,status,created_at,reviewed_at,college_coaches(id,first_name,last_name,title,email,phone,x_url,lifecycle_status,colleges!college_coaches_college_id_fkey(name))')
   .neq('status','pending').order('reviewed_at',{ascending:false}).limit(40);
  if(recentError)return NextResponse.json({error:recentError.message},{status:500});
  const ids=[...new Set([...(data||[]),...(recent||[])].map((s:any)=>s.submitted_by_user_id).filter(Boolean))];
  const {data:people,error:peopleError}=ids.length?await c.from('profiles').select('id,full_name,email').in('id',ids):{data:[],error:null};
  if(peopleError)return NextResponse.json({error:peopleError.message},{status:500});
  const names=new Map((people||[]).map((p:any)=>[p.id,{full_name:p.full_name,email:p.email}]));
+ const recentIds=(recent||[]).map((s:any)=>s.id);
+ const {data:evidence,error:evidenceError}=recentIds.length?await c.from('college_coach_suggestion_review_evidence')
+  .select('suggestion_id,verification_note,verification_source_url').in('suggestion_id',recentIds):{data:[],error:null};
+ if(evidenceError)return NextResponse.json({error:evidenceError.message},{status:500});
+ const reviewEvidence=new Map((evidence||[]).map((e:any)=>[e.suggestion_id,{verification_note:e.verification_note,verification_source_url:e.verification_source_url}]));
  const schoolIds=[...new Set((data||[]).map((s:any)=>s.proposed_college_id).filter(Boolean))];
  const {data:proposedSchools,error:schoolError}=schoolIds.length?await c.from('colleges').select('id,name').in('id',schoolIds):{data:[],error:null};
  if(schoolError)return NextResponse.json({error:schoolError.message},{status:500});
  const schoolNames=new Map((proposedSchools||[]).map((s:any)=>[s.id,s.name]));
  const enrich=(items:any[])=>items.map(s=>({...s,submitter:names.get(s.submitted_by_user_id)||null,
-  proposed_college_name:schoolNames.get(s.proposed_college_id)||null}));
+  proposed_college_name:schoolNames.get(s.proposed_college_id)||null,
+  ...(reviewEvidence.get(s.id)||{})}));
  return NextResponse.json({suggestions:enrich(data||[]),recent:enrich(recent||[]),contactConflicts:conflicts||[]},
   {headers:{'Cache-Control':'private, no-store'}})}
 export async function POST(req:Request){const {c,user}=await owner();if(!user)return NextResponse.json({error:'Forbidden'},{status:403});const b=await req.json();

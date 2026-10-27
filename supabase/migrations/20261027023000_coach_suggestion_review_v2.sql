@@ -1,8 +1,22 @@
 -- RLTNL coach data review: verify, apply and notify are independent decisions.
 -- Backward-compatible RPC: the existing function remains available during rollout.
-alter table public.college_coach_update_suggestions
- add column if not exists verification_note text,
- add column if not exists verification_source_url text;
+-- Evidence is owner-only; suggestion rows themselves are readable by their submitters.
+create table if not exists public.college_coach_suggestion_review_evidence (
+ suggestion_id uuid primary key references public.college_coach_update_suggestions(id) on delete cascade,
+ verification_note text,
+ verification_source_url text,
+ reviewed_by_user_id uuid references auth.users(id) on delete set null,
+ reviewed_at timestamptz not null default now()
+);
+alter table public.college_coach_suggestion_review_evidence enable row level security;
+drop policy if exists coach_suggestion_evidence_super_owner_read on public.college_coach_suggestion_review_evidence;
+create policy coach_suggestion_evidence_super_owner_read
+ on public.college_coach_suggestion_review_evidence for select to authenticated
+ using (exists(
+  select 1 from public.platform_roles where user_id=auth.uid() and role='super_owner'
+ ));
+revoke all on public.college_coach_suggestion_review_evidence from anon,authenticated;
+grant select on public.college_coach_suggestion_review_evidence to authenticated;
 
 create or replace function public.review_college_coach_suggestion_v2(
  p_id uuid,
@@ -133,9 +147,17 @@ begin
  end if;
 
  update public.college_coach_update_suggestions set
-  status=v_status,reviewed_at=now(),reviewed_by_user_id=v_actor,
-  verification_note=v_review_note,verification_source_url=v_source
+  status=v_status,reviewed_at=now(),reviewed_by_user_id=v_actor
  where id=v_suggestion.id;
+
+ insert into public.college_coach_suggestion_review_evidence(
+  suggestion_id,verification_note,verification_source_url,reviewed_by_user_id,reviewed_at
+ ) values(v_suggestion.id,v_review_note,v_source,v_actor,now())
+ on conflict(suggestion_id) do update set
+  verification_note=excluded.verification_note,
+  verification_source_url=excluded.verification_source_url,
+  reviewed_by_user_id=excluded.reviewed_by_user_id,
+  reviewed_at=excluded.reviewed_at;
 
  if p_notify then
   if p_decision in ('accept','verify_only') and v_body is null then
