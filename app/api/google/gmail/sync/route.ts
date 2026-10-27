@@ -41,7 +41,7 @@ export async function POST(req:NextRequest){
   const list=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=50',{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
   const listing=await list.json() as {messages?:{id:string}[];error?:{message?:string}};
   if(!list.ok)throw new Error(listing.error?.message||'Could not read Gmail.');
-  const admin=createAdminClient(); let logged=0,matched=0,backfilled=0;
+  const admin=createAdminClient(); let logged=0,matched=0,backfilled=0; let persistenceFailures=0;
   for(const item of listing.messages||[]){
    const existing=await admin.from('gmail_recruiting_messages').select('id,extracted_data').eq('athlete_user_id',userId).eq('gmail_message_id',item.id).maybeSingle();
    if(existing.data){
@@ -62,7 +62,7 @@ export async function POST(req:NextRequest){
     continue;
    }
    const mr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(item.id)}?format=full`,{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
-   if(!mr.ok)continue; const m=await mr.json() as any;
+   if(!mr.ok){persistenceFailures++;continue} const m=await mr.json() as any;
    const from=emailFrom(header(m.payload?.headers,'From')); if(!from)continue;
    // Match canonical contacts first, but also recognize athlete-supplied
    // email addresses scoped to this athlete's active coach relationships.
@@ -114,16 +114,17 @@ export async function POST(req:NextRequest){
    const {data:linkedGmail}=existingInteractionIds.length?await admin.from('gmail_recruiting_messages').select('interaction_id').eq('athlete_user_id',userId).in('interaction_id',existingInteractionIds):{data:[] as any[]};
    const linkedIds=new Set((linkedGmail||[]).map((x:any)=>x.interaction_id));
    const target=normalizeForMatch(intel.summary); const normalizedSubject=normalizeForMatch(subject); const duplicate=(sameDay.data||[]).find((x:any)=>{if(linkedIds.has(x.id))return false;const n=normalizeForMatch(x.note||'');const s=normalizeForMatch(x.email_subject||'');return s===normalizedSubject&&n&&target&&(n.includes(target.slice(0,120))||target.includes(n.slice(0,120))) });
-   if(duplicate){await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});continue}
+   if(duplicate){const linked=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});if(linked.error)persistenceFailures++;continue}
    const interaction=await admin.from('interactions').insert({athlete_user_id:userId,actor_user_id:userId,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),source:'automatic',email_subject:subject||null,email_type:intel.intent,email_content:cleanMessage(text,subject),note:intel.summary}).select('id').single();
-   if(interaction.error)continue;
+   if(interaction.error){persistenceFailures++;continue}
    const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});
-   if(stored.error){await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
+   if(stored.error){persistenceFailures++;await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
    if(intel.nextAction){
     await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);
    }
    logged++;
   }
+  if(persistenceFailures)return NextResponse.json({error:'Some Gmail messages could not be safely synchronized. Retry required.',retryable:true,matched,logged,persistenceFailures},{status:503});
   await admin.from('google_workspace_connections').update({gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);
   return NextResponse.json({ok:true,matched,logged,attachmentMetadataBackfilled:backfilled});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Could not sync incoming Gmail.'},{status:500})}
