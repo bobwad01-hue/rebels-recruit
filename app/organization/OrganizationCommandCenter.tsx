@@ -777,9 +777,30 @@ export default function OrganizationCommandCenter() {
                   </button>
                   {expandedTeamId === team.id && (
                     <div className="border-t bg-slate-50 px-4 py-3 sm:px-5">
-                      <p className="text-xs text-slate-600 mb-2">Athletes without coach relationships: <b>{team.withoutCoaches}</b>. Attention includes athletes without coaches or with overdue follow-through.</p>
-                      <div className="flex flex-wrap gap-2">
-                        {team.ids.length ? team.ids.map((id: string) => <Link key={id} href={`/players/${id}`} className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold hover:border-slate-400">{pm.get(id)?.full_name || "Athlete"} <ArrowRight size={12} className="inline"/></Link>) : <span className="text-sm text-slate-500">No active athletes assigned to this team.</span>}
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-black text-slate-900">Needs Attention ({team.attentionIds.length})</h3>
+                          <p className="text-xs text-slate-500 mt-1">Athletes without coach relationships or with overdue Next Steps.</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {team.attentionIds.length ? team.attentionIds.map((id: string) => (
+                              <Link key={id} href={`/players/${id}`} className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2 hover:border-amber-400">
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-bold text-slate-900">{pm.get(id)?.full_name || "Athlete"}</span>
+                                  <span className="block text-xs text-amber-800">{[team.withoutCoachIds.includes(id) ? "No coach relationships" : "", team.overdueIds.includes(id) ? "Overdue Next Steps" : ""].filter(Boolean).join(" · ")}</span>
+                                </span>
+                                <ArrowRight size={14} className="shrink-0 text-slate-400"/>
+                              </Link>
+                            )) : <p className="text-sm text-slate-600">No athletes currently meet these attention criteria.</p>}
+                          </div>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-black text-slate-900">Other Athletes ({team.otherIds.length})</h3>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {team.otherIds.length ? team.otherIds.map((id: string) => (
+                              <Link key={id} href={`/players/${id}`} className="rounded-lg border bg-white px-3 py-2 text-sm font-semibold hover:border-slate-400">{pm.get(id)?.full_name || "Athlete"} <ArrowRight size={12} className="inline"/></Link>
+                            )) : <span className="text-sm text-slate-500">No other athletes on this team.</span>}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
