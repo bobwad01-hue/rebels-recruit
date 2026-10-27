@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+
+const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const modal=read('components/CoachSuggestionDecisionModal.tsx');
+const page=read('app/platform-admin/coach-data-review/page.tsx');
+const route=read('app/api/platform/coach-data-review/route.ts');
+const sql=read('supabase/migrations/20261027023000_coach_suggestion_review_v2.sql');
+
+assert.match(page,/decision:'verify_only'/,'Verify Only must be offered in the queue');
+assert.match(page,/s\.status==='resolved'\?'Verified, no changes'/,'Verify Only must be distinguished from applied updates');
+assert.match(modal,/Notify .* in RLTNL Messages/,'Notification must be an explicit independent choice');
+assert.match(modal,/setNotify\(approved\)/,'Approval notification default should remain enabled');
+assert.match(modal,/setPersonalize/,'Personal message must be optional');
+assert.match(modal,/Verification notes and source \(optional\)/,'Independent evidence must be recordable');
+assert.match(modal,/disabled=\{busy\|\|\(accepting&&!canApply\)\}/,'No-op apply must be blocked');
+assert.match(modal,/message_source_url/,'Personal message source links must remain supported');
+assert.match(route,/review_college_coach_suggestion_v2/,'API must call the new atomic RPC');
+assert.match(route,/p_notify:b\.notify!==false/,'Notification choice must reach the database');
+assert.match(route,/p_review_note:b\.review_note\|\|null/,'Verification notes must be saved');
+assert.match(route,/p_message_source_url/,'Personal source links must reach the database');
+assert.match(sql,/p_decision in \('accept','verify_only','reject'\)/,'RPC must accept three distinct decisions');
+assert.match(sql,/v_status='resolved'/,'Verify Only must not mark the directory changed');
+assert.match(sql,/v_suggestion\.proposed_email/,'Email corrections must apply regardless of report category');
+assert.match(sql,/v_suggestion\.proposed_phone/,'Phone corrections must apply regardless of report category');
+assert.match(sql,/if p_notify then/,'Notifications must be conditional');
+assert.match(sql,/if not p_notify and/,'A disabled notification must not silently send a message');
+assert.match(sql,/if not v_has_change then/,'No-op apply must use Verify Only');
+assert.match(sql,/reviewed_by_user_id=v_actor/,'Verification must be audited');
+assert.match(sql,/verification_source_url=v_source/,'Private verification source must be persisted');
+assert.match(sql,/source_note=right\(concat_ws/,'Previous coach source notes must be preserved');
+assert.match(sql,/revoke all on function/,'RPC must not be executable anonymously');
+console.log('Coach suggestion review smoke tests passed.');
