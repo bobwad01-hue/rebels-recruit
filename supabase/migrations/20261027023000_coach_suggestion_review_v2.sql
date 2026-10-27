@@ -116,7 +116,8 @@ begin
     when v_suggestion.suggestion_type in ('left_program','retired') then current_date
     when v_suggestion.suggestion_type='moved_school' and v_suggestion.proposed_college_id is not null then null
     else v_coach.departed_at end,
-   lifecycle_note=case when v_suggestion.suggestion_type in ('left_program','retired','moved_school')
+   lifecycle_note=case when v_suggestion.suggestion_type in ('left_program','retired') or
+     (v_suggestion.suggestion_type='moved_school' and v_suggestion.proposed_college_id is not null)
     then coalesce(nullif(btrim(v_suggestion.details),''),
       'Community report verified by RLTNL') else v_coach.lifecycle_note end,
    updated_by_user_id=v_actor,updated_at=now(),last_verified_at=now(),

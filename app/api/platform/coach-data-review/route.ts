@@ -69,7 +69,7 @@ export async function POST(req:Request){const {c,user}=await owner();if(!user)re
  if(b.source_url!==undefined&&b.source_url!==null&&typeof b.source_url!=='string')
   return NextResponse.json({error:'Invalid official source URL.'},{status:400});
  const {data,error}=await c.rpc('review_college_coach_suggestion_v2',{
-  p_id:b.id,p_decision:b.decision,p_notify:b.notify!==false,
+  p_id:b.id,p_decision:b.decision,p_notify:typeof b.notify==='boolean'?b.notify:b.decision!=='reject',
   p_message:b.message||null,p_source_url:b.source_url||null,p_review_note:b.review_note||null,
   p_message_source_url:b.message_source_url||null
  });

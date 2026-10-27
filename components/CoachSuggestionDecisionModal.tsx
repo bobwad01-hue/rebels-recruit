@@ -62,6 +62,7 @@ export default function CoachSuggestionDecisionModal({suggestion,decision,onClos
   if(notify&&!approved&&body.trim().length<20)return setError('Write at least 20 characters explaining the rejection, or turn off notifications.');
   if(notify&&personalize&&body.trim().length>4000)return setError('The message must be 4,000 characters or fewer.');
   if(sourceUrl.trim()&&!/^https:\/\/[^\s]+$/i.test(sourceUrl.trim()))return setError('Use a valid HTTPS URL for the verification source.');
+  if(notify&&(!approved||personalize)&&messageSourceUrl.trim()&&!body.trim())return setError('Write a personal message to share a source link.');
   if(messageSourceUrl.trim()&&!/^https:\/\/[^\s]+$/i.test(messageSourceUrl.trim()))return setError('Use a valid HTTPS URL for the message source.');
   if(reviewNote.trim().length>2000)return setError('Verification notes must be 2,000 characters or fewer.');
   setBusy(true);setError('');

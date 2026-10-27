@@ -16,10 +16,10 @@ assert.match(modal,/Verification notes and source \(optional\)/,'Independent evi
 assert.match(modal,/disabled=\{busy\|\|\(accepting&&!canApply\)\}/,'No-op apply must be blocked');
 assert.match(modal,/message_source_url/,'Personal message source links must remain supported');
 assert.match(route,/review_college_coach_suggestion_v2/,'API must call the new atomic RPC');
-assert.match(route,/p_notify:b\.notify!==false/,'Notification choice must reach the database');
+assert.match(route,/p_notify:typeof b\.notify==='boolean'\?b\.notify:b\.decision!=='reject'/,'Notification choice must reach the database');
 assert.match(route,/p_review_note:b\.review_note\|\|null/,'Verification notes must be saved');
 assert.match(route,/p_message_source_url/,'Personal source links must reach the database');
-assert.match(sql,/p_decision in \('accept','verify_only','reject'\)/,'RPC must accept three distinct decisions');
+assert.match(sql,/p_decision not in \('accept','verify_only','reject'\)/,'RPC must accept three distinct decisions');
 assert.match(sql,/v_status='resolved'/,'Verify Only must not mark the directory changed');
 assert.match(sql,/v_suggestion\.proposed_email/,'Email corrections must apply regardless of report category');
 assert.match(sql,/v_suggestion\.proposed_phone/,'Phone corrections must apply regardless of report category');
