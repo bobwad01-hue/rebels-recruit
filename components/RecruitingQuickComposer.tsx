@@ -109,7 +109,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      }
     }
    }catch{/* Private browsing can disable draft storage. */}
-   if(restoreBlankCustom)setSubject(writeMyOwnSubject(profileResponse,initialSchool?.name||''));
+   // A blank Write My Own subject is intentional, including after refresh.
+   // Never regenerate a default subject over an athlete's cleared draft.
+   if(restoreBlankCustom)setSubject('');
    if(manualOnly&&initialSchool){setChoice({kind:'school',label:initialSchool.name,school:initialSchool});setQuery(initialSchool.name)}
    setDraftReady(true);
    setLoading(false);
@@ -290,7 +292,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    const result=await response.json().catch(()=>({}));
    if(!response.ok||!result.messageId)throw new Error(result.error||'Gmail could not confirm the send.');
    setNotice(result.logged===false?'Email sent through Gmail, but recruiting activity could not be recorded.':'Email sent through Gmail and recorded in Recruiting Activity.');
-   setSubject(writeMyOwnSubject(profile,selectedSchool?.name||''));setBody('');setBodyHtml('');setAttachments([]);setCcCoachIds([]);setTemplateId('custom');setOpening(0);
+   setSubject('');setBody('');setBodyHtml('');setAttachments([]);setCcCoachIds([]);setTemplateId('custom');setOpening(0);
    try{window.localStorage.removeItem(draftKey(userId,draftSchoolId))}catch{}
    window.dispatchEvent(new Event('rltnl:coach-emails-updated'));
    window.dispatchEvent(new Event('rebels:data-changed'));
