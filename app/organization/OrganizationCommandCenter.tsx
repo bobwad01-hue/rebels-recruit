@@ -440,7 +440,7 @@ export default function OrganizationCommandCenter() {
         const teamOverdue = overdue.filter((item: any) => athleteSet.has(item.athlete_user_id));
         const withoutCoaches = ids.filter((id) => !teamCoaches.some((c: any) => c.athlete_user_id === id));
         const needingAttention = new Set([...withoutCoaches, ...teamOverdue.map((item: any) => item.athlete_user_id)]);
-        return { id: team.id, name: team.name, age: team.age_group, ids, relationships: teamCoaches.length, overdue: teamOverdue.length, needsAttention: needingAttention.size, withoutCoaches: withoutCoaches.length };
+        return { id: team.id, name: team.name, age: team.age_group, ids, attentionIds: ids.filter((id) => needingAttention.has(id)), otherIds: ids.filter((id) => !needingAttention.has(id)), withoutCoachIds: withoutCoaches, overdueIds: [...new Set(teamOverdue.map((item: any) => item.athlete_user_id))], relationships: teamCoaches.length, overdue: teamOverdue.length, needsAttention: needingAttention.size, withoutCoaches: withoutCoaches.length };
       }).sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
   }, [accountTeams, accountTeamMembers, accountAthletes, athletes, me?.organization_id, coaches, overdue]);
   const filteredActivity = useMemo(
