@@ -1061,7 +1061,27 @@ export default function CoachActionBar({
                         combined. Recruiting video links can be inserted
                         directly from My Videos.
                       </div>
-                      {!staffMode&&<EmailSignatureSettings
+                        {!staffMode && (
+                        <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <h3 className="text-sm font-black text-slate-900">My Templates</h3>
+                          <p className="mt-1 text-xs text-slate-600">Like what you wrote? Save it and reuse it for another coach. Templates are stored on this browser only.</p>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <input aria-label="New template name" className="input min-w-0 flex-1" placeholder="Name this message (e.g. Tournament introduction)" maxLength={80} value={templateName} onChange={(event)=>setTemplateName(event.target.value)} disabled={busy}/>
+                            <button type="button" className="btn border bg-white font-bold" onClick={savePersonalTemplate} disabled={busy}>Save as Template</button>
+                          </div>
+                          {personalTemplates.length > 0 && (
+                            <div className="mt-3">
+                              <label htmlFor="my-email-templates" className="text-xs font-bold text-slate-700">Reuse a saved message</label>
+                              <select id="my-email-templates" className="input mt-1 w-full" value="" disabled={busy} onChange={(event)=>usePersonalTemplate(event.target.value)}>
+                                <option value="">Choose one of My Templates…</option>
+                                {personalTemplates.map((item)=><option key={item.id} value={item.id}>{item.name}</option>)}
+                              </select>
+                            </div>
+                          )}
+                          {templateNotice && <p role="status" className="mt-2 text-xs font-semibold text-slate-700">{templateNotice}</p>}
+                        </section>
+                      )}
+                    {!staffMode&&<EmailSignatureSettings
                         profile={profile}
                         disabled={busy}
                         onSaved={next=>setProfile((p:any)=>({...p,signature:{...(p?.signature||{}),...next}}))}
