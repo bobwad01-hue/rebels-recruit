@@ -408,7 +408,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    </EmailSubjectSettings>
    <div>
     <label className="text-sm font-black">Message</label>
-    <RichEmailEditor ref={emailEditorRef} value={body} html={bodyHtml}
+    <RichEmailEditor compact ref={emailEditorRef} value={body} html={bodyHtml}
      videoPicker={<EmailVideoPicker athleteUserId={userId||undefined} onInsert={video=>emailEditorRef.current?.insertVideo(video)}/>}
      onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}}
      attachments={attachments} onAttachmentsChange={setAttachments} disabled={busy||readOnly}/>
