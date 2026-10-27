@@ -9,7 +9,8 @@ const source=readFileSync(new URL('../lib/recruiting-intelligence.ts',import.met
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const module={exports:{}};
 vm.runInNewContext(js,{module,exports:module.exports,Date,Math,Set,Map,console});
-const {buildRecruitingIntelligence:score,recruitingStage}=module.exports;
+const {buildRecruitingIntelligence,recruitingStage}=module.exports;
+const score=(input={})=>buildRecruitingIntelligence(input);
 const year=new Date().getFullYear()+(new Date().getMonth()>=6?1:0);
 const category=(result,id)=>result.categories.find(c=>c.id===id);
 
