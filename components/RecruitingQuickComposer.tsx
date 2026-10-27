@@ -392,6 +392,15 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
        className={'rounded-lg border px-2.5 py-1.5 text-xs font-bold '+(opening===i?'border-red-600 bg-red-50 text-red-700':'bg-white')}>{o.label}</button>)}</div>}
     </div>}
    </div>
+   {!readOnly&&personalTemplates.length>0&&<div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
+    <h3 className="text-sm font-black text-slate-900">My Saved Templates</h3>
+    <p className="mt-1 text-xs text-slate-600">Start from a message you've written before, then personalize it for this coach.</p>
+    {!!personalTemplates.length&&<div className="mt-3 space-y-2">
+     <label htmlFor="quick-personal-template" className="block text-xs font-bold text-slate-700">Reuse one of My Templates</label>
+     <select id="quick-personal-template" className="input w-full" value="" disabled={busy||templateBusy} onChange={e=>loadPersonalTemplate(e.target.value)}><option value="">Choose a saved template…</option>{personalTemplates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
+     <div className="flex flex-wrap gap-1.5">{personalTemplates.map(t=><button type="button" key={t.id} disabled={busy||templateBusy} onClick={()=>void removePersonalTemplate(t.id)} className="rounded-lg border bg-white px-2 py-1 text-xs text-slate-600 hover:text-red-700" title={`Remove ${t.name}`}>Remove {t.name}</button>)}</div>
+    </div>}
+   </div>}
    <EmailSubjectSettings profile={profile} disabled={busy||readOnly} inputId="quick-email-subject"
     topic={templateId==='custom'?'[Subject]':currentTemplate.subjectTemplate?fill(currentTemplate.subjectTemplate,values()).split('|')[0].trim():currentTemplate.label}
     fields={values()} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}>
@@ -413,11 +422,6 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      <input aria-label="Template name" className="input min-w-0 flex-1" maxLength={80} placeholder="Name this message (e.g. Tournament introduction)" value={templateName} onChange={e=>setTemplateName(e.target.value)} disabled={busy||templateBusy}/>
      <button type="button" className="btn border bg-white font-bold" onClick={()=>void savePersonalTemplate()} disabled={busy||templateBusy}>{templateBusy?'Saving…':'Save as Template'}</button>
     </div>
-    {!!personalTemplates.length&&<div className="mt-3 space-y-2">
-     <label htmlFor="quick-personal-template" className="block text-xs font-bold text-slate-700">Reuse one of My Templates</label>
-     <select id="quick-personal-template" className="input w-full" value="" disabled={busy||templateBusy} onChange={e=>loadPersonalTemplate(e.target.value)}><option value="">Choose a saved template…</option>{personalTemplates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>
-     <div className="flex flex-wrap gap-1.5">{personalTemplates.map(t=><button type="button" key={t.id} disabled={busy||templateBusy} onClick={()=>void removePersonalTemplate(t.id)} className="rounded-lg border bg-white px-2 py-1 text-xs text-slate-600 hover:text-red-700" title={`Remove ${t.name}`}>Remove {t.name}</button>)}</div>
-    </div>}
     {templateNotice&&<p role="status" className="mt-2 text-xs font-semibold text-slate-700">{templateNotice}</p>}
    </section>}
    {connected===false&&<p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
