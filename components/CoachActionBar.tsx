@@ -98,6 +98,9 @@ export default function CoachActionBar({
     [recipientEmail, setRecipientEmail] = useState(email || emailOverride || ""),
     [recipientSavedNotice, setRecipientSavedNotice] = useState(""),
     [templates, setTemplates] = useState(() => mergeEmailStarters([])),
+    [personalTemplates, setPersonalTemplates] = useState<{id:string;name:string;subject:string;body:string}[]>([]),
+    [templateName,setTemplateName] = useState(""),
+    [templateNotice,setTemplateNotice] = useState(""),
     [subject, setSubject] = useState(""),
     [includePreviousConversation,setIncludePreviousConversation]=useState(true),
     [startedNewConversation,setStartedNewConversation]=useState(false),
@@ -133,6 +136,39 @@ export default function CoachActionBar({
       });
     return () => { alive = false; };
   }, []);
+  const personalTemplateKey = `rr-personal-email-templates:${athleteUserId || "self"}`;
+  useEffect(() => {
+    if (staffMode) return;
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(personalTemplateKey) || "[]");
+      setPersonalTemplates(Array.isArray(saved) ? saved.filter((t: any) => typeof t?.id === "string" && typeof t?.name === "string" && typeof t?.body === "string" && typeof t?.subject === "string").slice(0, 30) : []);
+    } catch { setPersonalTemplates([]); }
+  }, [personalTemplateKey, staffMode]);
+  function savePersonalTemplate() {
+    const name = templateName.trim();
+    if (!name || !body.trim() || !subject.trim()) {
+      setTemplateNotice("Add a template name, subject and message before saving.");
+      return;
+    }
+    const item = {id: `${Date.now()}-${Math.random().toString(36).slice(2,8)}`,name:name.slice(0,80),subject,body};
+    const next = [item,...personalTemplates].slice(0,30);
+    try {
+      window.localStorage.setItem(personalTemplateKey,JSON.stringify(next));
+      setPersonalTemplates(next);
+      setTemplateName("");
+      setTemplateNotice("Saved to My Templates on this browser. Your current draft is unchanged.");
+    } catch { setTemplateNotice("Could not save the template on this browser."); }
+  }
+  function usePersonalTemplate(id: string) {
+    const selected = personalTemplates.find((t) => t.id === id);
+    if (!selected || !window.confirm("Replace the current draft with this saved template?")) return;
+    setStarter("custom");
+    setSubject(selected.subject);
+    setBody(selected.body);
+    setBodyHtml("");
+    setAttachments([]);
+    setTemplateNotice("Template loaded. Personalize the coach and school details before sending.");
+  }
   function originalReplySubject() {
     const original = contextualReply?.subject?.trim();
     return original ? (/^re:/i.test(original) ? original : `Re: ${original}`) : null;
