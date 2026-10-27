@@ -698,7 +698,7 @@ export default function OrganizationCommandCenter() {
                   "activity" as Tab,
                 ],
                 ["Advisors / Staff", advisors.length, "advisors" as Tab],
-                ["Overdue Next Steps", overdue.length, "reminders" as Tab],
+                ["Overdue Next Steps", overdue.length, "players" as Tab],
                 ["Players Without Coaches", noCoach.length, "players" as Tab],
               ].map(([label, value, dest]) => (
                 <button
