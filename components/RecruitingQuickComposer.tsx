@@ -19,7 +19,7 @@ const nameOf=(coach:Coach)=>[coach.first_name,coach.last_name].filter(Boolean).j
 const draftKey=(userId:string,schoolId?:string)=>'rltnl:quick-email-draft:'+userId+(schoolId?':manual:'+schoolId:'');
 function writeMyOwnSubject(profile:any,college=''){
  const a=profile?.athlete||{},p=profile?.profile||{},sig=profile?.signature||{};
- return buildRecruitingEmailSubject('[Subject]',{
+ return buildRecruitingEmailSubject('Introduction',{
   name:p.full_name||a.full_name||'',grad:a.class_year||a.grad_year||'',
   positions:Array.isArray(a.positions)?a.positions.join('/'):a.position||'',
   throwBat:sig.throwBat||a.throw_bat||'',gpa:a.gpa??'',college,
@@ -45,6 +45,10 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  const [recipientName,setRecipientName]=useState('');
  const [templates,setTemplates]=useState<EmailStarter[]>(()=>mergeEmailStarters([]));
  const [templateId,setTemplateId]=useState('custom');
+ const [personalTemplates,setPersonalTemplates]=useState<{id:string;name:string;subject:string;body:string}[]>([]);
+ const [templateName,setTemplateName]=useState('');
+ const [templateNotice,setTemplateNotice]=useState('');
+ const [templateBusy,setTemplateBusy]=useState(false);
  const [opening,setOpening]=useState(0);
  const [profile,setProfile]=useState<any>(null);
  const [subject,setSubject]=useState('');
@@ -79,6 +83,9 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
    if(!alive)return;
    if(!(roles.data||[]).some((r:any)=>r.role==='athlete'))setError('Compose Email is available to athletes.');
    setUserId(user.id);
+   const {data:ownTemplates}=await c.from('athlete_email_templates').select('id,name,subject,body').eq('athlete_user_id',user.id).order('created_at',{ascending:false}).limit(30);
+   if(!alive)return;
+   setPersonalTemplates(ownTemplates||[]);
    setConnected(!connection.error&&connection.data?.gmail_connected===true);
    if(!templateRows.error)setTemplates(mergeEmailStarters((templateRows.data||[]) as any[]));
    setProfile(profileResponse);
@@ -213,10 +220,31 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   if(v.travelTeam)lines.push('Travel Team: '+v.travelTeam);
   return lines.join('\n');
  }
+ async function savePersonalTemplate(){
+  if(!userId||!templateName.trim()||!subject.trim()||!body.trim()){setTemplateNotice('Add a template name, subject and message first.');return}
+  if(personalTemplates.length>=30){setTemplateNotice('You have 30 templates. Remove one before saving another.');return}
+  setTemplateBusy(true);setTemplateNotice('');
+  const {data,error}=await createClient().from('athlete_email_templates').insert({athlete_user_id:userId,name:templateName.trim().slice(0,80),subject:subject.slice(0,200),body:body.slice(0,30000)}).select('id,name,subject,body').single();
+  setTemplateBusy(false);
+  if(error||!data){setTemplateNotice('Unable to save template. Please try again.');return}
+  setPersonalTemplates(current=>[data,...current]);setTemplateName('');setTemplateNotice('Saved privately. Available on your other devices.');
+ }
+ function loadPersonalTemplate(id:string){
+  const item=personalTemplates.find(t=>t.id===id);
+  if(!item||!window.confirm('Replace your current draft with this saved message?'))return;
+  setTemplateId('custom');setSubject(item.subject);setBody(item.body);setBodyHtml('');setAttachments([]);
+  setTemplateNotice('Template loaded. Personalize it for this coach before sending.');
+ }
+ async function removePersonalTemplate(id:string){
+  if(!window.confirm('Delete this template? Your current draft will stay unchanged.'))return;
+  const {error}=await createClient().from('athlete_email_templates').delete().eq('id',id).eq('athlete_user_id',userId);
+  if(error){setTemplateNotice('Unable to delete template.');return}
+  setPersonalTemplates(current=>current.filter(t=>t.id!==id));setTemplateNotice('Template removed.');
+ }
  function applyTemplate(id:string,index=0){
   setTemplateId(id);setOpening(index);setNotice('');
   setBodyHtml('');
-  if(id==='custom'){setSubject(buildRecruitingEmailSubject('[Subject]',values(),profile?.signature));setBody('');return}
+  if(id==='custom'){setSubject(buildRecruitingEmailSubject('Introduction',values(),profile?.signature));setBody('');return}
   const template=starterById(id,templates),v=values();
   const topic=template.subjectTemplate?fill(template.subjectTemplate,v).split('|')[0].trim():template.label;
   setSubject(buildRecruitingEmailSubject(topic,v,profile?.signature));
