@@ -680,9 +680,9 @@ export default function OrganizationCommandCenter() {
           <section className="card flex flex-col p-4 sm:p-5">
             <h2 className="font-black text-lg">Organizational Health</h2>
             <p className="muted text-sm mt-1">
-              A quick view of player support, follow-ups and recruiting progress across the organization.
+              See recruiting activity and follow-through at a glance. Open a metric to review the athletes behind it.
             </p>
-            <div className="mt-auto grid grid-cols-1 gap-2 pt-4 sm:grid-cols-3">
+            <div className="mt-auto grid grid-cols-1 gap-2 pt-4 sm:grid-cols-2 xl:grid-cols-3">
               {[
                 ["Recruitable Players", athletes.length, "players" as Tab],
                 [
@@ -698,6 +698,8 @@ export default function OrganizationCommandCenter() {
                   "activity" as Tab,
                 ],
                 ["Advisors / Staff", advisors.length, "advisors" as Tab],
+                ["Overdue Next Steps", overdue.length, "reminders" as Tab],
+                ["Players Without Coaches", noCoach.length, "players" as Tab],
               ].map(([label, value, dest]) => (
                 <button
                   type="button"
