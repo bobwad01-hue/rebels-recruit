@@ -42,4 +42,18 @@ const gamePlan=readFileSync(new URL('../app/game-plan/page.tsx',import.meta.url)
 assert.ok(gamePlan.includes('checks.filter(x=>x.ok).length/checks.length*100'));
 const quickFill=readFileSync(new URL('../app/recruiting-quickfill/page.tsx',import.meta.url),'utf8');
 assert.ok(quickFill.includes('does not fill or submit external college forms') || quickFill.includes('does not automatically fill or submit college forms'), 'QuickFill must clearly state that external forms are not submitted automatically');
-console.log('Recruiting Health stage, bounds, task and QuickFill regression tests passed');
+
+// Cross-view guard: athlete Health and organization Recruiting Board must share
+// the same scoring engine and core athlete profile completion signals.
+const athleteHealth=readFileSync(new URL('../app/health/page.tsx',import.meta.url),'utf8');
+const organizationBoard=readFileSync(new URL('../app/organization/recruiting-board/page.tsx',import.meta.url),'utf8');
+for(const [view,code] of [['Athlete Health',athleteHealth],['Organization Recruiting Board',organizationBoard]]){
+ assert.ok(code.includes('buildRecruitingIntelligence({'),view+' must use the shared scoring engine');
+ assert.ok(code.includes('classYear:'),view+' must pass class year');
+ assert.ok(code.includes('profileComplete:'),view+' must pass profile completion');
+ assert.ok(code.includes('fitComplete:'),view+' must pass fit completion');
+ assert.ok(code.includes('interactions:'),view+' must pass recruiting interactions');
+ assert.ok(code.includes('tasks:'),view+' must pass next steps');
+}
+
+console.log('Recruiting Health scoring, cross-view source and QuickFill regression tests passed');
