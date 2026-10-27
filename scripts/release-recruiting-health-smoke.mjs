@@ -41,5 +41,5 @@ assert.ok(overdue.signals.some(s=>s.id==='overdue-two'));
 const gamePlan=readFileSync(new URL('../app/game-plan/page.tsx',import.meta.url),'utf8');
 assert.ok(gamePlan.includes('checks.filter(x=>x.ok).length/checks.length*100'));
 const quickFill=readFileSync(new URL('../app/recruiting-quickfill/page.tsx',import.meta.url),'utf8');
-assert.ok(quickFill.includes('QuickFill does not automatically fill or submit college forms.'));
+assert.ok(quickFill.includes('does not fill or submit external college forms') || quickFill.includes('does not automatically fill or submit college forms'), 'QuickFill must clearly state that external forms are not submitted automatically');
 console.log('Recruiting Health stage, bounds, task and QuickFill regression tests passed');
