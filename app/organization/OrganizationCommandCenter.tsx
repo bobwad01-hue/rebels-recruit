@@ -62,6 +62,7 @@ export default function OrganizationCommandCenter() {
     [tasks, setTasks] = useState<any[]>([]),
     [reminders, setReminders] = useState<any[]>([]),
     [tab, setTab] = useState<Tab>("overview"),
+    [expandedTeamId, setExpandedTeamId] = useState<string | null>(null),
     [q, setQ] = useState(""),
     [playerFilter, setPlayerFilter] = useState(""),
     [collegeFilter, setCollegeFilter] = useState(""),
@@ -425,6 +426,23 @@ export default function OrganizationCommandCenter() {
   const noCoach = athletes.filter(
     (a) => !coaches.some((c) => c.athlete_user_id === a.user_id),
   );
+  const recruitingByTeam = useMemo(() => {
+    const activeAthletes = new Set(athletes.map((a: any) => a.user_id));
+    return accountTeams
+      .filter((team: any) => team.organization_id === me?.organization_id)
+      .map((team: any) => {
+        const ids = [...new Set([
+          ...accountTeamMembers.filter((m: any) => m.team_id === team.id).map((m: any) => m.user_id),
+          ...accountAthletes.filter((a: any) => a.primary_team_id === team.id).map((a: any) => a.user_id),
+        ])].filter((id) => activeAthletes.has(id));
+        const athleteSet = new Set(ids);
+        const teamCoaches = coaches.filter((c: any) => athleteSet.has(c.athlete_user_id));
+        const teamOverdue = overdue.filter((item: any) => athleteSet.has(item.athlete_user_id));
+        const withoutCoaches = ids.filter((id) => !teamCoaches.some((c: any) => c.athlete_user_id === id));
+        const needingAttention = new Set([...withoutCoaches, ...teamOverdue.map((item: any) => item.athlete_user_id)]);
+        return { id: team.id, name: team.name, age: team.age_group, ids, relationships: teamCoaches.length, overdue: teamOverdue.length, needsAttention: needingAttention.size, withoutCoaches: withoutCoaches.length };
+      }).sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)));
+  }, [accountTeams, accountTeamMembers, accountAthletes, athletes, me?.organization_id, coaches, overdue]);
   const filteredActivity = useMemo(
     () =>
       activity.filter((a) => {
