@@ -154,11 +154,23 @@ export default function Page(){
     try{
       const response=await fetch('/api/platform/college-staff-intelligence/status?division='+encodeURIComponent(division),{cache:'no-store'});
       if(!response.ok) throw new Error('Could not load ingestion status');
-      setD(await response.json());
+      const status=await response.json();
+      if(!status||typeof status.total!=='number'||typeof status.imported!=='number')
+        throw new Error('Invalid ingestion status response');
+      setD(status);
+      setError('');
       if(division!=='all'){
-        const r=await fetch('/api/platform/college-staff-intelligence/cleanup?division='+encodeURIComponent(division),{cache:'no-store'});
-        if(!r.ok) throw new Error('Could not load cleanup workbench');
-        setCleanup(await r.json());
+        try{
+          const r=await fetch('/api/platform/college-staff-intelligence/cleanup?division='+encodeURIComponent(division),{cache:'no-store'});
+          if(!r.ok)throw new Error('Cleanup workbench unavailable ('+r.status+')');
+          const result=await r.json();
+          if(!result||!Array.isArray(result.exceptions)||!result.summary||typeof result.summary!=='object')
+            throw new Error('Invalid cleanup workbench response');
+          setCleanup(result);
+        }catch(e){
+          setCleanup({division,exceptions:[],summary:{}});
+          setError((e instanceof Error?e.message:'Cleanup workbench unavailable')+'. Import totals are still available; refresh to retry.');
+        }
       }else setCleanup(null);
     }catch(e){setError(e instanceof Error?e.message:'Could not load status');}
   },[division]);
