@@ -1,5 +1,5 @@
-import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 'use client';
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';;
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
