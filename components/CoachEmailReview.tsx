@@ -92,13 +92,13 @@ export default function CoachEmailReview({
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             {email.interaction_id && <Link href={'/activity/' + email.interaction_id} className="btn text-sm">View details <ArrowUpRight size={15} /></Link>}
-            <Link href={replyHref} className="btn text-sm"><MessageSquareReply size={15} /> Reply in thread</Link>
+            <a href="https://mail.google.com/mail/" target="_blank" rel="noopener noreferrer" className="btn text-sm"><MessageSquareReply size={15} /> Reply in Gmail</a>
             {!reviewed && <button type="button" className="btn btn-red text-sm" onClick={markReviewed} disabled={busy}>
               <CheckCircle2 size={15} /> {busy ? 'Saving…' : 'Mark reviewed'}
             </button>}
           </div>
           {error && <p role="alert" className="mt-3 text-sm font-semibold text-red-700">{error}</p>}
-          {!reviewed && <p className="mt-3 text-xs text-slate-500">Marking this reviewed clears the alert. Replying also marks it reviewed automatically.</p>}
+          {!reviewed && <p className="mt-3 text-xs text-slate-500">Marking this reviewed clears the alert. New replies are no longer imported automatically.</p>}
         </div>
       </div>
     </section>
