@@ -66,7 +66,7 @@ export default function NewActivityForm() {
   const [saving, setSaving] = useState(false);
   const [draftStatus, setDraftStatus] = useState("");
   const [draftReady, setDraftReady] = useState(false);
-  const draftKey = `rr-activity-draft:${requestedAthlete || "self"}`;
+  const draftKey = `rr-activity-draft:${requestedAthlete || "self"}`;const loggingCoachReply=type==="Email Received"&&initiated==="Coach";
   useEffect(() => {
     try {
       const saved = localStorage.getItem(draftKey);
@@ -75,7 +75,7 @@ export default function NewActivityForm() {
         if (!sp.get("college") && draft.college) setCollege(draft.college);
         if (!sp.get("coach") && draft.coach) setCoach(draft.coach);
         if (!requestedType && types.includes(draft.type)) setType(draft.type);
-        if (!requestedInitiated && draft.initiated)
+        if (!requestedInitiated && !requestedType && draft.initiated)
           setInitiated(draft.initiated);
         if (typeof draft.note === "string") setNote(draft.note);
         if (typeof draft.followDaysValue === "string")
@@ -267,6 +267,7 @@ export default function NewActivityForm() {
               Add a school
             </Link>
           </div>
+          {loggingCoachReply && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-slate-800"><strong>Logging a coach reply:</strong> Coach emails arrive directly in your Gmail inbox. RLTNL does not read or import them. Select the school and coach, enter the date and a brief summary, and optionally set a follow-up reminder. Do not paste private email content unless needed.</div>}
           <form onSubmit={save} className="space-y-5 mt-7">
             <label className="block">
               <span className="text-sm font-bold">School</span>
