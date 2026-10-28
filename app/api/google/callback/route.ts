@@ -58,6 +58,9 @@ export async function GET(req:NextRequest){
     const tokens=await tokenRes.json() as GoogleTokenResponse;
     if(!tokenRes.ok||tokens.error)return redirect(req,'token-exchange-failed',saved.returnTo);
     if(!tokens.refresh_token)return redirect(req,'refresh-token-missing',saved.returnTo);
+    if(saved.service==='gmail'&&tokens.scope&&!tokens.scope.split(/\s+/).includes('https://www.googleapis.com/auth/gmail.send'))return redirect(req,'send-permission-missing',saved.returnTo);
+    // Never save a newly exchanged token with an unexpected restricted Gmail grant.
+    if(saved.service==='gmail'&&tokens.scope?.split(/\s+/).includes('https://www.googleapis.com/auth/gmail.readonly'))return redirect(req,'unexpected-read-permission',saved.returnTo);
 
     const encrypted=encryptGoogleToken(tokens.refresh_token);
     const admin=createAdminClient();
