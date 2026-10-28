@@ -40,14 +40,14 @@ assert(watch.includes("startGmailWatch(user.id)"),
 const sync=read('app/api/google/gmail/sync/route.ts');
 assert(sync.includes('let persistenceFailures=0'),
   'Incoming Gmail sync must track partial persistence failures');
-assert(sync.includes('if(persistenceFailures)return NextResponse.json('),
+assert(sync.includes('if(persistenceFailures){'),
   'Partial Gmail failures must return a retryable error before advancing sync success');
 assert(sync.includes('retryable:true'),
   'Gmail partial failures must be explicitly retryable');
-assert(sync.indexOf('if(persistenceFailures)return NextResponse.json(')<sync.indexOf("gmail_last_synced_at:new Date().toISOString()"),
+assert(sync.indexOf('if(persistenceFailures){')<sync.indexOf("gmail_last_synced_at:new Date().toISOString()"),
   'Never advance Gmail last-synced timestamp after partial persistence failure');
 
-assert(sync.includes('if(stepUpdate.error)persistenceFailures++'),
+assert(sync.includes("if(stepUpdate.error)recordFailure('coach_next_step_update')"),
   'A failed coach Next Step update must require Gmail sync retry');
 assert(sync.includes('if(checkpoint.error)return NextResponse.json('),
   'A failed Gmail sync checkpoint must return an error');
