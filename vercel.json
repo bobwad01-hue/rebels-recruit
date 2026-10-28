@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/college-softball-staff",
-      "schedule": "41 6 * * *"
+      "schedule": "*/2 * * * *"
     }
   ]
 }
