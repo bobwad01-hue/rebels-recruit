@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import {NextRequest,NextResponse} from 'next/server';
 import {OAuth2Client} from 'google-auth-library';
 import {createAdminClient} from '@/lib/supabase-admin';
@@ -23,6 +24,7 @@ async function verifyPubSub(req:NextRequest){
 }
 
 export async function POST(req:NextRequest){
+ if(!GMAIL_INBOX_MONITORING_ENABLED)return NextResponse.json({ok:true,skipped:'gmail-send-only'});
  try{
   if(!(await verifyPubSub(req)))return NextResponse.json({error:'Unauthorized push request.'},{status:401});
   const body=await req.json(),raw=body?.message?.data;

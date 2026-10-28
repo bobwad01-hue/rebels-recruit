@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import {NextRequest,NextResponse} from 'next/server';
 import {createAdminClient} from '@/lib/supabase-admin';
 import {startGmailWatch} from '@/lib/gmail-inbound';
@@ -10,6 +11,7 @@ const MAX_CATCHUP_SYNCS=6;
 const CATCHUP_INTERVAL_MS=20*60*60*1000;
 
 export async function GET(req:NextRequest){
+ if(!GMAIL_INBOX_MONITORING_ENABLED)return NextResponse.json({ok:true,skipped:'gmail-send-only'});
  const secret=process.env.CRON_SECRET;
  if(!secret)return NextResponse.json({error:'Cron secret is not configured.'},{status:503});
  if(req.headers.get('authorization')!==`Bearer ${secret}`)return NextResponse.json({error:'Unauthorized'},{status:401});

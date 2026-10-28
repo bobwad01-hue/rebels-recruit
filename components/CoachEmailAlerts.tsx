@@ -1,4 +1,5 @@
 'use client';
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';;
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -155,7 +156,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
       if (!active) return;
       const gmail = connection.data;
       const connected = Boolean(gmail?.gmail_connected);
-      const canRead = connected && Boolean(gmail?.gmail_scope?.includes('gmail.readonly'));
+      const canRead = GMAIL_INBOX_MONITORING_ENABLED && connected && Boolean(gmail?.gmail_scope?.includes('gmail.readonly'));
       const now = Date.now();
       const watchActive = Boolean(gmail?.gmail_watch_expiration && new Date(gmail.gmail_watch_expiration).getTime() > now);
       const lastChecked = gmail?.gmail_last_synced_at ? new Date(gmail.gmail_last_synced_at).getTime() : 0;
@@ -178,7 +179,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
         setReviewedItems((reviewed.data || []) as unknown as CoachEmail[]);
         setCount(pendingCount.count || 0);
         setError(false);
-        if (!senderBackfillAttempted.current && (pending.data || []).some(message => !message.extracted_data?.senderEmail)) {
+        if (GMAIL_INBOX_MONITORING_ENABLED && !senderBackfillAttempted.current && (pending.data || []).some(message => !message.extracted_data?.senderEmail)) {
           senderBackfillAttempted.current = true;
           void fetch('/api/google/gmail/sync', { method: 'POST', cache: 'no-store' })
             .then(response => { if (response.ok && active) void load(); })
@@ -274,7 +275,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
             {count > 1 && <Link href="/coach-emails" className="btn text-sm">View all</Link>}
           </div>
         </div>
-        {(syncHealth === 'watch' || syncHealth === 'stale' || syncError) && (
+        {GMAIL_INBOX_MONITORING_ENABLED && (syncHealth === 'watch' || syncHealth === 'stale' || syncError) && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status">
             <span>{syncing ? 'Checking Gmail monitoring…' : syncError || syncMessage(syncHealth)}</span>
             <button type="button" className="font-bold underline underline-offset-2 disabled:opacity-50"
@@ -296,8 +297,8 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-700"><Inbox size={23} /></div>
             <div>
               <div className="text-xs font-black uppercase tracking-wider text-red-700">Your recruiting conversations</div>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Stay on top of every coach reply</h2>
-              <p className="mt-1 max-w-xl text-sm text-slate-600">Review new messages, reply in the original Gmail conversation, and keep your recruiting relationships moving.</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">Previously tracked coach replies</h2>
+              <p className="mt-1 max-w-xl text-sm text-slate-600">Review previously imported messages. New coach replies now arrive directly in your Gmail inbox; log new interactions manually in RLTNL.</p>
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
@@ -305,7 +306,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
             <span className="text-xs font-bold leading-4 text-red-800">To<br />review</span>
           </div>
         </div>
-        {(syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncing || syncError) && (
+        {GMAIL_INBOX_MONITORING_ENABLED && (syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncing || syncError) && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
             <p>{syncing ? 'Checking Gmail for missed coach emails…' : syncError || syncMessage(syncHealth)}</p>
             {(syncHealth === 'permission' || syncHealth === 'disconnected') ? (
@@ -320,6 +321,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
             )}
           </div>
         )}
+        {!GMAIL_INBOX_MONITORING_ENABLED && <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">Automatic Gmail reply monitoring is paused. New coach replies go directly to your Gmail inbox. This page shows previously imported messages only. Record new replies using Log Activity on the coach relationship.</div>}
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
           <section className="min-w-0">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -333,7 +335,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
                   Reviewed
                 </button>
               </div>
-              <span className="text-xs text-slate-500">{syncHealth === 'healthy' ? 'Gmail monitoring active' : syncing ? 'Checking Gmail…' : 'Gmail connection status shown above'}</span>
+              <span className="text-xs text-slate-500">{!GMAIL_INBOX_MONITORING_ENABLED ? 'Historical imports · monitoring paused' : syncHealth === 'healthy' ? 'Gmail monitoring active' : syncing ? 'Checking Gmail…' : 'Gmail connection status shown above'}</span>
             </div>
             {!loaded ? (
               <div className="card p-8 text-center text-sm text-slate-600" role="status">Loading coach emails…</div>
@@ -349,7 +351,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
                 </div>
                 <h3 className="mt-4 text-lg font-black">{tab === 'pending' ? (syncHealth === 'healthy' ? 'All caught up' : 'No emails to review yet') : 'No reviewed emails yet'}</h3>
                 <p className="mx-auto mt-2 max-w-sm text-sm text-slate-600">
-                  {tab === 'pending' ? (syncHealth === 'healthy' ? 'No incoming coach emails need your attention right now. New replies will appear here.' : 'There are no imported coach emails awaiting review. Check your Gmail connection above to make sure replies are being received.') : 'After you review or reply to a coach email, you can find it here.'}
+                  {tab === 'pending' ? (syncHealth === 'healthy' ? 'No incoming coach emails need your attention right now. New replies will appear here.' : 'No previously imported coach emails are awaiting review. Check Gmail for new replies and log them manually.') : 'After you review or reply to a coach email, you can find it here.'}
                 </p>
                 {tab === 'pending' && reviewedItems.length > 0 &&
                   <button type="button" onClick={() => setTab('reviewed')} className="btn mt-5 text-sm">See reviewed emails <ArrowRight size={15} /></button>}
@@ -377,9 +379,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
                           <Link href={detailsUrl(email)} className={tab === 'pending' ? 'btn btn-red text-sm' : 'btn text-sm'}>
                             {tab === 'pending' ? 'Review email' : 'View conversation'} <ArrowRight size={15} />
                           </Link>
-                          <Link href={replyUrl(email)} className="btn text-sm">
-                            <MessageSquareReply size={15} /> Reply in thread
-                          </Link>
+                          <a href="https://mail.google.com/mail/" target="_blank" rel="noopener noreferrer" className="btn text-sm"><MessageSquareReply size={15} /> Reply in Gmail</a>
                         </div>
                       </div>
                     </div>
@@ -394,10 +394,10 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
             <p className="mt-2 text-sm text-slate-600">RLTNL helps you turn a coach's email into a clear next step.</p>
             <div className="mt-5 space-y-5">
               <div className="flex items-start gap-3"><Mail size={17} className="mt-0.5 shrink-0 text-red-700" /><div><div className="text-sm font-bold">1. Review</div><p className="mt-1 text-xs leading-5 text-slate-600">Read the message and mark it reviewed when you're done.</p></div></div>
-              <div className="flex items-start gap-3"><MessageSquareReply size={17} className="mt-0.5 shrink-0 text-red-700" /><div><div className="text-sm font-bold">2. Reply</div><p className="mt-1 text-xs leading-5 text-slate-600">Respond in the existing Gmail thread. Sending a reply also marks the message reviewed.</p></div></div>
+              <div className="flex items-start gap-3"><MessageSquareReply size={17} className="mt-0.5 shrink-0 text-red-700" /><div><div className="text-sm font-bold">2. Reply</div><p className="mt-1 text-xs leading-5 text-slate-600">Reply to the coach in Gmail. Mark previously imported messages reviewed here if needed.</p></div></div>
               <div className="flex items-start gap-3"><Clock3 size={17} className="mt-0.5 shrink-0 text-red-700" /><div><div className="text-sm font-bold">3. Follow through</div><p className="mt-1 text-xs leading-5 text-slate-600">Track the conversation and any next actions in the coach relationship.</p></div></div>
             </div>
-            <p className="mt-5 border-t pt-4 text-xs leading-5 text-slate-500">RLTNL review status is separate from Gmail's read status. Only tracked college coach communications appear here.</p>
+            <p className="mt-5 border-t pt-4 text-xs leading-5 text-slate-500">RLTNL review status is separate from Gmail's read status. Only previously imported coach communications appear here while Gmail inbox monitoring is paused.</p>
           </aside>
         </div>
       </div>
@@ -419,7 +419,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
             <div className="font-black">Alerts</div>
             {totalCount > 0 && <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">{totalCount} to review</span>}
           </div>
-          {(syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncError || syncing) && (
+          {GMAIL_INBOX_MONITORING_ENABLED && (syncHealth !== 'healthy' && syncHealth !== 'unknown' || syncError || syncing) && (
             <div className="mb-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-900" role="status">
               <p>{syncing ? 'Checking Gmail monitoring…' : syncError || syncMessage(syncHealth)}</p>
               {(syncHealth === 'permission' || syncHealth === 'disconnected') ? (

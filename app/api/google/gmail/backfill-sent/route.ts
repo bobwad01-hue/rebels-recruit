@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import {NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
@@ -25,6 +26,7 @@ async function gmailJson<T>(url:string,accessToken:string):Promise<T|null>{
 // Recover Gmail proof for legacy sends only. The authenticated Google account must
 // be the original sender. Match recipient + exact subject + time; never guess IDs.
 export async function POST(){
+ if(!GMAIL_INBOX_MONITORING_ENABLED)return NextResponse.json({updated:0,checked:0,reason:'gmail-send-only'});
   const client=await createClient();
   const {data:{user}}=await client.auth.getUser();
   if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});

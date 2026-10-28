@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
@@ -44,6 +45,8 @@ function classify(subject:string,body:string){
  return {intent,summary,nextAction,actionRequired:!!nextAction,confidence:nextAction?0.8:0.55};
 }
 export async function POST(req:NextRequest){
+ if(!GMAIL_INBOX_MONITORING_ENABLED)return NextResponse.json({error:'Automatic Gmail inbox monitoring is temporarily unavailable. Coach replies go directly to your Gmail inbox.',sendOnly:true},{status:410});
+  
  const c=await createClient(); const {data:{user}}=await c.auth.getUser();const pushUser=req.headers.get('x-gmail-push-user'),pushSecret=req.headers.get('x-gmail-push-secret');const trustedPush=!!pushUser&&!!process.env.GMAIL_PUSH_SECRET&&pushSecret===process.env.GMAIL_PUSH_SECRET;const userId=user?.id||(trustedPush?pushUser:null);if(!userId)return NextResponse.json({error:'Please sign in again.'},{status:401});
  try{
   const {accessToken,grantedScopes}=await getGoogleAccessToken(userId,'gmail');

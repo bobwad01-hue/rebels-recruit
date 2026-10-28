@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import {NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {createAdminClient} from '@/lib/supabase-admin';
@@ -8,6 +9,7 @@ export const dynamic='force-dynamic';
 // An athlete can repair their own expired Gmail watch without reconnecting
 // Google or waiting for the daily cron. No other user's watch can be changed.
 export async function POST(){
+ if(!GMAIL_INBOX_MONITORING_ENABLED)return NextResponse.json({error:'Gmail inbox monitoring is temporarily disabled.',sendOnly:true},{status:410});
  const client=await createClient();
  const {data:{user}}=await client.auth.getUser();
  if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
