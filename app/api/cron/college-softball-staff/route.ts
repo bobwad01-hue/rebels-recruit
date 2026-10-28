@@ -468,7 +468,41 @@ function rosterSectionCoaches(html:string,url:string,anchorId=""){
  return [...new Map(out.map(x=>[(x.first_name+" "+x.last_name).toLowerCase(),x])).values()];
 }
 
+// Parse only the explicitly labelled coaching table, never the adjacent support-staff table.
+// Common athletics templates place both under the same page and generic HTML parsing
+// can accidentally assign an associate head coach a second head-coach identity.
+function labelledSoftballCoachingTable(html:string,url:string){
+ const start=html.search(/(?:20\d{2}\s+)?Softball Coaching Staff/i);
+ if(start<0)return [];
+ const tail=html.slice(start,start+65000);
+ const stop=tail.search(/Softball Support Staff/i);
+ const section=stop>=0?tail.slice(0,stop):tail;
+ const table=section.match(/<table\b[^>]*>[\s\S]*?<\/table>/i)?.[0];
+ if(!table)return [];
+ const rows=[...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+ const out:any[]=[];
+ for(const row of rows){
+  const cells=[...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m=>m[1]);
+  if(cells.length<2)continue;
+  const name=normalizeCoachName(clean(cells[0]));
+  const title=clean(cells[1]).trim();
+  if(!plausibleName(name)||!/coach|recruiting coordinator/i.test(title))continue;
+  if(/trainer|support staff|athletic training|strength|conditioning|sports medicine/i.test(title))continue;
+  const rr=role(title),parts=name.split(/\s+/);
+  if(rr.category==="other_coaching_staff")continue;
+  const mail=(cells.join(" ").match(/mailto:([^"'\s?>]+)/i)?.[1]||"").toLowerCase()||null;
+  const phone=clean(cells[2]||"").match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+  const bio=links(cells[0],url).find(l=>sameHost(l.url,url)&&/\/(?:coaches|staff-directory)\//i.test(l.url))?.url||null;
+  out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email:mail,phone,
+   x_url:null,x_handle:null,official_bio_url:bio,role_category:rr.category,
+   is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+ }
+ return out;
+}
+
 function parseOfficialStaff(html:string,url:string,collegeName:string,anchorId=""){
+ const labelled=labelledSoftballCoachingTable(html,url);
+ if(labelled.length>0&&labelled.length<=8&&labelled.some((x:any)=>x.role_category==='head_coach'))return labelled;
  const regular=extract(html,url);
  const scoped=rosterSectionCoaches(html,url,anchorId);
  if(scoped.length>0&&scoped.length<=8&&scoped.some((x:any)=>x.role_category==="head_coach")){
