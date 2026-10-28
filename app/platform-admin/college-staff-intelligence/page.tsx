@@ -196,6 +196,27 @@ export default function Page(){
     return()=>{document.removeEventListener('keydown',escape);document.body.style.overflow=previous;};
   },[verifySchool,verifySaving,manualSaving,hostApproving,hostChecking]);
 
+  const [excludedSchools,setExcludedSchools]=useState<Array<{college_id:string,reason:string,colleges?:{name:string,division:string}|null}>>([]);
+  const [exclusionError,setExclusionError]=useState('');
+  const [exclusionSaving,setExclusionSaving]=useState('');
+  const refreshExclusions=useCallback(async()=>{
+    const r=await fetch('/api/platform/college-staff-intelligence/exclusions',{cache:'no-store'});
+    if(r.ok){const data=await r.json();setExcludedSchools(data.schools||[]);}
+  },[]);
+  useEffect(()=>{void refreshExclusions()},[refreshExclusions]);
+  async function changeExclusion(id:string,name:string,action:'inactive_program'|'excluded'|'restore'){
+    const prompt=action==='restore'?'Restore '+name+' to the recruiting database?':action==='inactive_program'?'Mark '+name+' softball inactive and stop staff imports? Historical recruiting data will remain.':'Exclude '+name+' from new recruiting and staff imports? Historical data will remain.';
+    if(!window.confirm(prompt))return;
+    setExclusionSaving(id);setExclusionError('');
+    try{
+      const r=await fetch('/api/platform/college-staff-intelligence/exclusions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({college_id:id,action})});
+      const data=await r.json();
+      if(!r.ok)throw new Error(data.error||'Could not update school');
+      await Promise.all([load(),refreshExclusions()]);
+    }catch(e){setExclusionError(e instanceof Error?e.message:'Could not update school');}
+    finally{setExclusionSaving('');}
+  }
+
   function openVerify(school:Exception,suggestion?:QualityDiagnostic){
     setVerifySchool(school);
     // An inspection is a read-only parser preview, not an approval. Prefill the
@@ -1102,7 +1123,11 @@ export default function Page(){
         </div>
       </div>}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3">
-        <div id="college-staff-attention"><h3 className="font-black">Schools requiring attention</h3>
+        <div id="college-staff-attention">
+          {exclusionError&&<p role="alert" className="mb-3 text-sm font-semibold text-red-700">{exclusionError}</p>}
+          <details className="mb-3 rounded-xl border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-bold">Inactive / excluded schools ({excludedSchools.length})</summary>
+            <div className="mt-3 space-y-2">{excludedSchools.map(x=><div key={x.college_id} className="flex flex-wrap items-center justify-between gap-3 text-sm"><span>{x.colleges?.name||x.college_id} · {x.reason==='inactive_program'?'Inactive':'Excluded'}</span><button type="button" className="btn" disabled={exclusionSaving===x.college_id} onClick={()=>void changeExclusion(x.college_id,x.colleges?.name||'school','restore')}>Restore school</button></div>)}</div>
+          </details><h3 className="font-black">Schools requiring attention</h3>
           <p className="mt-1 text-xs text-slate-500">Verify the official source beside each school. Source confirmation never approves coach contact details.</p>
           {selectedFilter==='review'&&group!=='all'&&<p className="mt-1 text-xs font-semibold text-blue-800">
             Showing {exceptions.length} {groups.find(x=>x[0]===group)?.[1]?.toLowerCase()} cases from {reviewCount} review schools.
@@ -1130,6 +1155,8 @@ export default function Page(){
                   className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-900 hover:border-red-300 hover:text-red-700 disabled:opacity-50">
                   <ShieldCheck size={14}/>{x.status==='blocked'&&x.reason==='blocked'?'Review official staff':x.verification?.recheck_status==='host_review'?'Approve athletics host':x.status==='blocked'&&x.reason==='inactive_program'?'Review program status':x.verification?'Edit verification':'Verify'}
                 </button>
+                <button type="button" disabled={exclusionSaving===x.college_id} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50" onClick={()=>void changeExclusion(x.college_id,x.name,'inactive_program')}>Mark inactive</button>
+                <button type="button" disabled={exclusionSaving===x.college_id} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold hover:bg-slate-50" onClick={()=>void changeExclusion(x.college_id,x.name,'excluded')}>Exclude</button>
                 {x.verification&&<span className={'rounded-md px-2 py-1 text-[11px] font-semibold '+
                   (x.verification.recheck_status==='passed'?'bg-green-50 text-green-800':
                     x.verification.outcome==='inactive_program'?'bg-slate-100 text-slate-700':
