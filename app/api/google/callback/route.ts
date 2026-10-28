@@ -5,7 +5,7 @@ import {encryptGoogleToken} from '@/lib/google-token-crypto';
 
 const STATE_COOKIE='rr_google_oauth_state';
 const SCOPES={
-  gmail:['https://www.googleapis.com/auth/gmail.send','https://www.googleapis.com/auth/gmail.readonly'].join(' ')
+  gmail:['https://www.googleapis.com/auth/gmail.send'].join(' ')
 } as const;
 type Service=keyof typeof SCOPES;
 
@@ -78,7 +78,7 @@ export async function GET(req:NextRequest){
     statusUpdate[`${saved.service}_scope`]=tokens.scope||SCOPES[saved.service];
     const {error:statusError}=await c.from('google_workspace_connections').upsert(statusUpdate,{onConflict:'user_id'});
     if(statusError)return redirect(req,'status-update-failed',saved.returnTo);
-    if(saved.service==='gmail'&&process.env.GOOGLE_GMAIL_PUBSUB_TOPIC){try{const {startGmailWatch}=await import('@/lib/gmail-inbound');await startGmailWatch(user.id)}catch(error){console.error('Gmail watch setup failed',error)}}
+    // Send-only mode: do not start Gmail inbox watches or request restricted read access.
     return redirect(req,`${saved.service}-connected`,saved.returnTo);
   }catch{
     return redirect(req,'connection-failed');
