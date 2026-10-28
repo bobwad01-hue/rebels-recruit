@@ -6,6 +6,16 @@ import {extractGmailAttachmentMetadata} from '@/lib/gmail-attachment-metadata';
 import type {GmailMimePart} from '@/lib/gmail-attachment-metadata';
 
 type Header={name?:string;value?:string};
+const wait=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
+async function gmailGet(url:string,accessToken:string){
+ let response:Response|undefined;
+ for(let attempt=0;attempt<3;attempt++){
+  response=await fetch(url,{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
+  if(response.ok||![429,500,502,503,504].includes(response.status))return response;
+  if(attempt<2)await wait(250*Math.pow(2,attempt));
+ }
+ return response!;
+}
 function header(headers:Header[]|undefined,name:string){return headers?.find(h=>h.name?.toLowerCase()===name.toLowerCase())?.value||''}
 function emailFrom(value:string){return (value.match(/<([^>]+)>/)?.[1]||value).trim().toLowerCase()}
 function senderDetails(headers:Header[]|undefined){const from=header(headers,'From');const email=emailFrom(from);const name=from.includes('<')?from.split('<')[0].trim():'';return {senderEmail:email,senderName:name||email}}
@@ -41,9 +51,9 @@ export async function POST(req:NextRequest){
   const list=await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?labelIds=INBOX&maxResults=50',{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
   const listing=await list.json() as {messages?:{id:string}[];error?:{message?:string}};
   if(!list.ok)throw new Error(listing.error?.message||'Could not read Gmail.');
-  const admin=createAdminClient(); let logged=0,matched=0,backfilled=0; let persistenceFailures=0;
+  const admin=createAdminClient(); let logged=0,matched=0,backfilled=0; let persistenceFailures=0; const failureStages:Record<string,number>={}; const recordFailure=(stage:string)=>{persistenceFailures++;failureStages[stage]=(failureStages[stage]||0)+1};
   for(const item of listing.messages||[]){
-   const existing=await admin.from('gmail_recruiting_messages').select('id,extracted_data').eq('athlete_user_id',userId).eq('gmail_message_id',item.id).maybeSingle();
+   const existing=await admin.from('gmail_recruiting_messages').select('id,extracted_data').eq('athlete_user_id',userId).eq('gmail_message_id',item.id).maybeSingle();if(existing.error){recordFailure('existing_lookup');continue}
    if(existing.data){
     // Existing emails were synced before attachment metadata was captured.
     // Backfill a bounded number per sync, preserving prior extracted fields.
@@ -61,8 +71,8 @@ export async function POST(req:NextRequest){
     }
     continue;
    }
-   const mr=await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(item.id)}?format=full`,{headers:{Authorization:`Bearer ${accessToken}`},cache:'no-store'});
-   if(!mr.ok){persistenceFailures++;continue} const m=await mr.json() as any;
+   const mr=await gmailGet(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(item.id)}?format=full`,accessToken);
+   if(!mr.ok){recordFailure(`gmail_detail_http_${mr.status}`);continue} const m=await mr.json() as any;
    const from=emailFrom(header(m.payload?.headers,'From')); if(!from)continue;
    // Match canonical contacts first, but also recognize athlete-supplied
    // email addresses scoped to this athlete's active coach relationships.
@@ -114,17 +124,17 @@ export async function POST(req:NextRequest){
    const {data:linkedGmail}=existingInteractionIds.length?await admin.from('gmail_recruiting_messages').select('interaction_id').eq('athlete_user_id',userId).in('interaction_id',existingInteractionIds):{data:[] as any[]};
    const linkedIds=new Set((linkedGmail||[]).map((x:any)=>x.interaction_id));
    const target=normalizeForMatch(intel.summary); const normalizedSubject=normalizeForMatch(subject); const duplicate=(sameDay.data||[]).find((x:any)=>{if(linkedIds.has(x.id))return false;const n=normalizeForMatch(x.note||'');const s=normalizeForMatch(x.email_subject||'');return s===normalizedSubject&&n&&target&&(n.includes(target.slice(0,120))||target.includes(n.slice(0,120))) });
-   if(duplicate){const linked=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});if(linked.error)persistenceFailures++;continue}
+   if(duplicate){const linked=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:duplicate.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});if(linked.error)recordFailure('gmail_link_insert');continue}
    const interaction=await admin.from('interactions').insert({athlete_user_id:userId,actor_user_id:userId,college_id:coach.college_id,coach_id:coach.id,type:'Email Received',initiated_by:'Coach',date:receivedAt.slice(0,10),source:'automatic',email_subject:subject||null,email_type:intel.intent,email_content:cleanMessage(text,subject),note:intel.summary}).select('id').single();
-   if(interaction.error){persistenceFailures++;continue}
+   if(interaction.error){recordFailure('interaction_insert');continue}
    const stored=await admin.from('gmail_recruiting_messages').insert({athlete_user_id:userId,interaction_id:interaction.data.id,coach_id:coach.id,college_id:coach.college_id,gmail_message_id:item.id,gmail_thread_id:m.threadId||null,received_at:receivedAt,subject:subject||null,recruiting_intent:intel.intent,summary:intel.summary,action_required:intel.actionRequired,next_action:intel.nextAction,confidence:intel.confidence,extracted_data:{urls,...meta,...senderDetails(m.payload?.headers)}});
-   if(stored.error){persistenceFailures++;await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
+   if(stored.error){recordFailure('gmail_message_insert');await admin.from('interactions').delete().eq('id',interaction.data.id);continue}
    if(intel.nextAction){
-    const stepUpdate=await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);if(stepUpdate.error)persistenceFailures++;
+    const stepUpdate=await admin.from('athlete_coaches').update({next_step:intel.nextAction,last_contact_date:receivedAt.slice(0,10)}).eq('athlete_user_id',userId).eq('coach_id',coach.id);if(stepUpdate.error)recordFailure('coach_next_step_update');
    }
    logged++;
   }
-  if(persistenceFailures)return NextResponse.json({error:'Some Gmail messages could not be safely synchronized. Retry required.',retryable:true,matched,logged,persistenceFailures},{status:503});
+  if(persistenceFailures){console.error('Gmail sync incomplete',JSON.stringify({failureStages,persistenceFailures,matched,logged}));return NextResponse.json({error:'Some Gmail messages could not be safely synchronized. Retry required.',retryable:true,matched,logged,persistenceFailures,failureStages},{status:503})}
   const checkpoint=await admin.from('google_workspace_connections').update({gmail_last_synced_at:new Date().toISOString()}).eq('user_id',userId);if(checkpoint.error)return NextResponse.json({error:'Gmail messages processed but sync checkpoint could not be saved.',retryable:true},{status:503});
   return NextResponse.json({ok:true,matched,logged,attachmentMetadataBackfilled:backfilled});
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Could not sync incoming Gmail.'},{status:500})}
