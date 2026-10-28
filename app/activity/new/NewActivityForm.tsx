@@ -73,7 +73,7 @@ export default function NewActivityForm() {
       if (saved) {
         const draft = JSON.parse(saved);
         if (!sp.get("college") && draft.college) setCollege(draft.college);
-        if (!sp.get("coach") && draft.coach) setCoach(draft.coach);
+        if (!sp.get("coach") && !sp.get("college") && draft.coach) setCoach(draft.coach);
         if (!requestedType && types.includes(draft.type)) setType(draft.type);
         if (!requestedInitiated && !requestedType && draft.initiated)
           setInitiated(draft.initiated);
