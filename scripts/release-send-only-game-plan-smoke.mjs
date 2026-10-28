@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const game=read('app/game-plan/page.tsx'),smart=read('components/SmartNextMoves.tsx'),relationship=read('lib/relationship-next-step.ts'),coach=read('app/coaches/[id]/page.tsx'),activity=read('app/activity/new/NewActivityForm.tsx'),strength=read('components/RelationshipStrengthCard.tsx');
+assert(game.includes('Keep your coach conversations current'),'Game Plan must explain send-only limitations');
+assert(game.includes('Log Coach Reply'),'Game Plan must offer manual coach reply logging');
+assert(game.includes('Check Gmail before following up'),'Next Move disclaimer missing');
+assert(smart.includes('Check Gmail for replies or other conversations before following up'),'Stale recommendation must be qualified');
+assert(relationship.includes('Check Gmail for any unlogged replies'),'Coach follow-up must be qualified');
+assert(coach.includes("const logCoachReply=log('Email Received','Email','Coach')"),'Coach log shortcut must prefill reply');
+assert(coach.includes('href={logCoachReply}'),'Coach reply log shortcut must be visible');
+assert(activity.includes('loggingCoachReply'),'Reply log must explain manual workflow');
+assert(strength.includes('Gmail replies are not imported automatically'),'Strength score must explain its source');
+assert(game.includes('const checks=useMemo'),'Readiness calculation should remain intact');
+assert(game.includes('const goalProgress=useMemo'),'Monthly goal calculation should remain intact');
+console.log('Send-only Game Plan and manual coach reply logging smoke passed.');
