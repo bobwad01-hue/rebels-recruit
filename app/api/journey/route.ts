@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase-server";
@@ -121,7 +122,7 @@ export async function GET(request: Request) {
     {
       activities: activity.map((row) => ({
         ...row,
-        can_continue_thread: athleteUserId===user.id && row.type==='Email Sent' && row.source==='automatic' && row.actor_user_id===user.id && !!row.coach_id && !!row.gmail_message_id && !!row.gmail_thread_id,
+        can_continue_thread: GMAIL_INBOX_MONITORING_ENABLED && athleteUserId===user.id && row.type==='Email Sent' && row.source==='automatic' && row.actor_user_id===user.id && !!row.coach_id && !!row.gmail_message_id && !!row.gmail_thread_id,
         colleges: row.college_id
           ? collegeMap.get(row.college_id) || null
           : null,
