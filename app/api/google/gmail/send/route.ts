@@ -1,3 +1,4 @@
+import {GMAIL_INBOX_MONITORING_ENABLED} from '@/lib/gmail-feature-mode';
 import {NextRequest,NextResponse} from 'next/server';
 import {createClient} from '@/lib/supabase-server';
 import {getGoogleAccessToken} from '@/lib/google-workspace';
@@ -72,6 +73,7 @@ if(!staffMode){
 let recipient=coach.email||(!staffMode?(suppliedRecipient||manualRelationship?.email_override||''):'');
 const validEmail=(value:string)=>value.length<=254&&/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
 if(!validEmail(recipient))return NextResponse.json({error:'Enter a valid coach email address before sending.'},{status:400});let ccCoaches:any[]=[];if(ccCoachIds.length){const {data,error}=await c.from('college_coaches').select('id,email,contact_verification_needed,lifecycle_status,first_name,last_name,college_id').in('id',ccCoachIds);if(error)return NextResponse.json({error:'Could not load the additional coaches.'},{status:400});ccCoaches=(data||[]).filter((x:any)=>x.college_id===coach.college_id&&x.email&&!x.contact_verification_needed&&x.lifecycle_status==='active');if(ccCoaches.length!==ccCoachIds.length)return NextResponse.json({error:'One or more additional coaches are unavailable or belong to another school.'},{status:400})}try{const {accessToken}=await getGoogleAccessToken(user.id,'gmail');let replyMeta:{threadId:string;messageId:string;references?:string;subject:string;gmailId:string}|null=null;let replyRecord:any=null;
+if(!GMAIL_INBOX_MONITORING_ENABLED&&(sentInteractionId||recruitingInteractionId||recruitingMessageId||previewOnly))return NextResponse.json({error:'Gmail thread continuation in RLTNL is paused. Reply directly in Gmail, or start a new recruiting email in RLTNL.',sendOnly:true},{status:409});
 if(sentInteractionId){
    // An outgoing Gmail message is a valid thread anchor too. The authenticated
    // athlete must own this exact sent interaction and the original message.
