@@ -228,7 +228,7 @@ export default function Page(){
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!verifySchool||verifySaving||verifySaved)return;
-    if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
+    if(verifyOutcome!=='inactive_program'&&(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning)){
       setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
       return;
     }
@@ -1242,6 +1242,7 @@ export default function Page(){
               {verifySchool.verification?.outcome==='verified'&&verifySchool.verification.source_url===verifyUrl&&
                 <p className="mt-2 font-semibold">Your previous source verification is saved. Confirm it is still current and continue without reentering it.</p>}
             </div>}
+          {verifyError&&<div role="alert" className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-900">{verifyError}</div>}
           <div>
             <label htmlFor="verify-url" className="mb-1 block text-sm font-bold">Official softball coaching page URL</label>
             <input id="verify-url" type="url" autoFocus required={verifyOutcome==='verified'} value={verifyUrl}
