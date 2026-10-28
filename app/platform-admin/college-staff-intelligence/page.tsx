@@ -1185,7 +1185,7 @@ export default function Page(){
             onClick={()=>setVerifySchool(null)} className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:opacity-50">
             <X size={20}/></button>
         </div>
-        <form onSubmit={e=>{if(hostApprovalComplete||manualMode||(needsHostApproval&&!hostEditing)){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
+        <form onSubmit={e=>{if(hostApprovalComplete||manualMode||(needsHostApproval&&!hostEditing&&verifyOutcome==='verified')){e.preventDefault();return;}void saveVerification(e);}} className="max-h-[min(75vh,720px)] space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           {hostApprovalComplete?
             <section className={'rounded-xl border p-5 text-sm '+
               (verifyResultKind==='success'?'border-green-200 bg-green-50 text-green-950':
@@ -1424,7 +1424,7 @@ export default function Page(){
                   {hostApproving?'Checking coaching staff…':verifyResultKind==='success'?'Done':'Close'}
                 </button>
               </>:
-            needsHostApproval&&!hostEditing&&!verifySaved?
+            needsHostApproval&&!hostEditing&&!verifySaved&&verifyOutcome==='verified'?
               <>
                 <p className="mr-auto max-w-64 self-center text-xs font-semibold text-slate-700" role="status">
                   {hostConfirmed?'Ready to check the saved coaching page.':'Confirm the saved softball coaching URL above to continue.'}
