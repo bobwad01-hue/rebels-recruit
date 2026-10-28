@@ -10,6 +10,8 @@ const MAX_CATCHUP_SYNCS=6;
 const CATCHUP_INTERVAL_MS=20*60*60*1000;
 
 export async function GET(req:NextRequest){
+ return NextResponse.json({ok:true,skipped:'gmail-send-only'});
+ /*
  const secret=process.env.CRON_SECRET;
  if(!secret)return NextResponse.json({error:'Cron secret is not configured.'},{status:503});
  if(req.headers.get('authorization')!==`Bearer ${secret}`)return NextResponse.json({error:'Unauthorized'},{status:401});
@@ -67,4 +69,5 @@ export async function GET(req:NextRequest){
   catchupsAttempted:stale.length,synced,imported,failed:failures.length};
  console.info('Gmail watch cron completed',JSON.stringify(summary));
  return NextResponse.json({ok:failures.length===0,...summary,failures:failures.slice(0,10)});
+ */
 }
