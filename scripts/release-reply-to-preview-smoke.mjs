@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const helper=read('lib/reply-to-preview.ts');
+const send=read('app/api/google/gmail/send/route.ts');
+assert(helper.includes("input.environment!=='preview'"),'Must be preview only');
+assert(helper.includes("input.enabled!=='true'"),'Must require explicit enablement');
+assert(helper.includes('input.userId!==input.allowedUserId'),'Must allowlist sender');
+assert(helper.includes('input.recipient.trim().toLowerCase()!==input.allowedRecipient.trim().toLowerCase()'),'Must allowlist coach test address');
+assert(send.includes('previewReplyToAddress('),'Send must gate Reply-To');
+assert(send.includes('replyToAddress'),'MIME must support Reply-To');
+assert(send.includes('RLTNL_REPLY_TO_TEST_ADDRESS'),'Test destination must come from environment');
+console.log('Preview Reply-To gating smoke tests passed.');
