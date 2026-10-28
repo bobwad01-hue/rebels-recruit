@@ -23,6 +23,8 @@ async function verifyPubSub(req:NextRequest){
 }
 
 export async function POST(req:NextRequest){
+ return NextResponse.json({ok:true,skipped:'gmail-send-only'});
+ /*
  try{
   if(!(await verifyPubSub(req)))return NextResponse.json({error:'Unauthorized push request.'},{status:401});
   const body=await req.json(),raw=body?.message?.data;
@@ -46,4 +48,5 @@ export async function POST(req:NextRequest){
   const checkpoint=await admin.from('google_workspace_connections').update({gmail_history_id:historyId}).eq('user_id',userId);if(checkpoint.error){console.error('Gmail push checkpoint failed',checkpoint.error);return NextResponse.json({error:'push checkpoint failed'},{status:500})}
   return NextResponse.json({ok:true});
  }catch(e){console.error('Gmail push failed',e);return NextResponse.json({error:'push failed'},{status:500})}
+ */
 }
