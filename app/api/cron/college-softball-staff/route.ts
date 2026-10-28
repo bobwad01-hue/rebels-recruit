@@ -916,6 +916,13 @@ export async function POST(req:NextRequest){
   const collegeStartedAt=Date.now();
   let verification:any=null;
   try{
+   const {data:exclusion,error:exclusionError}=await supabase.from("college_recruiting_exclusions").select("reason").eq("college_id",college.id).maybeSingle();
+   if(exclusionError)throw exclusionError;
+   if(exclusion){
+     if(bootstrap)await supabase.from("college_staff_bootstrap_queue").update({status:"blocked",last_error:exclusion.reason==="inactive_program"?"Program marked inactive by Super Owner":"School excluded from recruiting by Super Owner",updated_at:new Date().toISOString()}).eq("college_id",college.id);
+     results.push({college_id:college.id,name:college.name,status:"blocked",reason:"School excluded from active recruiting"});
+     continue;
+   }
    if(bootstrap){
      const {data:review,error:reviewErr}=await supabase.from("college_staff_source_verifications")
        .select("outcome,head_coach_name,source_url,recheck_status,verified_at").eq("college_id",college.id).maybeSingle();
