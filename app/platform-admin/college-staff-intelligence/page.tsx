@@ -228,7 +228,7 @@ export default function Page(){
   async function saveVerification(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
     if(!verifySchool||verifySaving||verifySaved)return;
-    if(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning){
+    if(verifyOutcome!=='inactive_program'&&(running||busy||diagnosing||enriching||backfillRunning||recoveryRunning)){
       setVerifyError('Another pipeline task is running. Finish or stop it before saving this verification.');
       return;
     }
