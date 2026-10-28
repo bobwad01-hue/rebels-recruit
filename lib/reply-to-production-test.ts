@@ -17,6 +17,6 @@ export function productionTestReplyTo(input:{
   if(!input.allowedRecipient||input.recipient.trim().toLowerCase()!==input.allowedRecipient.trim().toLowerCase())return null;
   if(input.ccCount!==0||input.isReply)return null;
   const address=(input.address||'').trim().toLowerCase();
-  if(!/^[a-z0-9][a-z0-9._+-]*@[a-z0-9-]+(?:\\.[a-z0-9-]+)+$/.test(address)||/[\\r\\n]/.test(address))return null;
+  if(!/^[a-z0-9][a-z0-9._+-]*@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/.test(address)||/[\r\n]/.test(address))return null;
   return address;
 }
