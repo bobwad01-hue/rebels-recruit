@@ -25,6 +25,8 @@ async function gmailJson<T>(url:string,accessToken:string):Promise<T|null>{
 // Recover Gmail proof for legacy sends only. The authenticated Google account must
 // be the original sender. Match recipient + exact subject + time; never guess IDs.
 export async function POST(){
+ return NextResponse.json({updated:0,checked:0,reason:'gmail-send-only'});
+ /*
   const client=await createClient();
   const {data:{user}}=await client.auth.getUser();
   if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
@@ -94,4 +96,5 @@ export async function POST(){
     if(!saveError&&saved)updated++;
   }
   return NextResponse.json({updated,checked});
+ */
 }
