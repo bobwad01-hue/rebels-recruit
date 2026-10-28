@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
-const page=read('app/coaches/[id]/page.tsx'),widget=read('components/SavedCoachNextStep.tsx');
+const page=read('app/coaches/[id]/page.tsx'),widget=read('components/SavedCoachNextStep.tsx'),recommendation=read('lib/relationship-next-step.ts');
 assert(page.includes('SavedCoachNextStep'), 'Coach relationship must render saved-step controls');
 assert(!page.includes('Why this:'), 'Redundant Why this callout must be removed');
 assert(page.includes("relationshipNextStep.source==='Saved Next Step'"),'Saved steps must use functional controls');
@@ -9,4 +9,5 @@ assert(widget.includes('Edit Next Step')&&widget.includes('Mark Complete'),'Save
 assert(widget.includes('.eq("athlete_user_id", user.id)'), 'Updates must be athlete-scoped');
 assert(widget.includes('router.refresh()'),'Successful changes must refresh recommendations');
 assert(widget.includes('user.id !== athleteId'),'Other users must not edit athlete steps');
+assert(recommendation.includes('Your next step for this coach. Edit it as plans change'), 'Coach saved next-step copy must be action-oriented');
 console.log('Coach next-step actions smoke passed.');
