@@ -8,6 +8,8 @@ export const dynamic='force-dynamic';
 // An athlete can repair their own expired Gmail watch without reconnecting
 // Google or waiting for the daily cron. No other user's watch can be changed.
 export async function POST(){
+ return NextResponse.json({error:'Gmail inbox monitoring is temporarily disabled.',sendOnly:true},{status:410});
+ /*
  const client=await createClient();
  const {data:{user}}=await client.auth.getUser();
  if(!user)return NextResponse.json({error:'Please sign in again.'},{status:401});
@@ -26,4 +28,5 @@ export async function POST(){
  }catch(e){
   return NextResponse.json({error:e instanceof Error?e.message:'Could not restart Gmail monitoring.'},{status:502});
  }
+ */
 }
