@@ -500,7 +500,36 @@ function labelledSoftballCoachingTable(html:string,url:string){
  return out;
 }
 
+// Staff-directory department pages can contain a single softball section followed
+// by unrelated departments. Only use the table rows after the SOFTBALL divider.
+function softballDepartmentDirectory(html:string,url:string){
+ const pathname=new URL(url).pathname.toLowerCase();
+ if(!/\/staff-directory\/(?:softball-department|department\/softball)/.test(pathname))return [];
+ const rows=[...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+ const out:any[]=[];let inSoftball=false;
+ for(const row of rows){
+  const cells=[...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m=>m[1]);
+  const values=cells.map(c=>clean(c).trim());
+  if(values.some(v=>/^softball$/i.test(v))){inSoftball=true;continue;}
+  if(!inSoftball)continue;
+  if(cells.length<2){if(values.some(v=>/^[a-z][a-z\s/-]{2,35}$/i.test(v)&&!/^softball$/i.test(v)))break;continue;}
+  const name=normalizeCoachName(values[0]),title=values[1];
+  if(!plausibleName(name)||!/coach|recruiting coordinator/i.test(title))continue;
+  const rr=role(title),parts=name.split(/\s+/);
+  if(rr.category==="other_coaching_staff")continue;
+  const rowHtml=row[1];
+  const email=rowHtml.match(/mailto:([^"'\s<>?]+)/i)?.[1]?.toLowerCase()||null;
+  const phone=values.slice(2).join(" ").match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+  const bio=links(cells[0],url).find(l=>sameHost(l.url,url))?.url||null;
+  out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email,phone,x_url:null,x_handle:null,official_bio_url:bio,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+  if(out.length>8)return [];
+ }
+ return out;
+}
+
 function parseOfficialStaff(html:string,url:string,collegeName:string,anchorId=""){
+ const department=softballDepartmentDirectory(html,url);
+ if(department.length>0&&department.some((x:any)=>x.role_category==='head_coach'))return department;
  const labelled=labelledSoftballCoachingTable(html,url);
  if(labelled.length>0&&labelled.length<=8&&labelled.some((x:any)=>x.role_category==='head_coach'))return labelled;
  const regular=extract(html,url);
