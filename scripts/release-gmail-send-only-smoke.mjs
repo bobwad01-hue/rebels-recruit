@@ -6,7 +6,8 @@ const callback=read('app/api/google/callback/route.ts');
 const mode=read('lib/gmail-feature-mode.ts');
 assert(scopes.includes('gmail.send'),'Gmail send permission must remain');
 assert(!scopes.includes('gmail.readonly'),'New OAuth connections must not request restricted read access');
-assert(!callback.includes('https://www.googleapis.com/auth/gmail.readonly'),'OAuth callback must store send-only scope');
+assert(callback.includes("gmail:['https://www.googleapis.com/auth/gmail.send'].join(' ')"),'OAuth callback must request send-only scope');
+assert(callback.includes("return redirect(req,'unexpected-read-permission'"),'Callback must reject unexpected restricted grants');
 assert(!callback.includes('startGmailWatch(user.id)'),'New OAuth connections must not start watches');
 assert(mode.includes('GMAIL_INBOX_MONITORING_ENABLED = false'),'Read access must be disabled by default');
 for(const path of [
