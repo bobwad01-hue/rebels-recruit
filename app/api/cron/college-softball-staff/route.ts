@@ -940,7 +940,7 @@ export async function POST(req:NextRequest){
    // be fetched successfully but contain no actual softball head coach.
    // Before failing the quality gate, try a bounded set of canonical official
    // coaching routes on the same previously discovered athletics host.
-   if(bootstrap && verification?.outcome!=="verified" && Boolean(assessStaffCandidates(coaches).issue)){
+   if(bootstrap && Boolean(assessStaffCandidates(coaches).issue)){
      const origins=[...new Set([page.url,d.staff_url,d.softball_url,d.athletics_url]
        .filter(Boolean).map((u:string)=>{try{return new URL(u).origin}catch{return ""}}).filter(Boolean))];
      const routes=[
@@ -951,12 +951,12 @@ export async function POST(req:NextRequest){
      ];
      // Spread bounded retries across official hosts, not only the first origin.
      const candidates=routes.flatMap(route=>origins.map(origin=>origin+route))
-       .filter(url=>url!==page.url);
+       .filter(url=>url!==page.url && (verification?.outcome!=="verified" || sameHost(url,page.url)));
      // Keep work bounded to avoid runaway requests and Vercel timeouts.
      for(const alt of [...new Set(candidates)].slice(0,4)){
        try{
-         const alternative=await get(alt);
-         if(badOfficialUrl(alternative.url)) continue;
+         const alternative=await (verification?.outcome==="verified"?getConfirmedStaffPage(alt):get(alt));
+         if(badOfficialUrl(alternative.url) || (verification?.outcome==="verified" && !sameHost(alternative.url,page.url))) continue;
          const extracted=parseOfficialStaff(alternative.html,alternative.url,college.name);
          if(!assessStaffCandidates(extracted).issue){
            page=alternative; d.staff_url=alternative.url; coaches=extracted; break;
