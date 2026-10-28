@@ -1093,3 +1093,16 @@ export async function POST(req:NextRequest){
  const {count:processing}=bootstrap?await supabase.from("college_staff_bootstrap_queue").select("*",{count:"exact",head:true}).eq("status","processing"):{count:null};
  return NextResponse.json({processed:results.length,dry_run:dryRun,pending,processing,results});
 }
+
+// Vercel Cron sends authenticated GET requests. Reuse the exact D2 bootstrap
+// pipeline and its quality gates; do not introduce a second importer.
+export async function GET(req:NextRequest){
+ const auth=req.headers.get("authorization");
+ if(!process.env.CRON_SECRET || auth!==`Bearer ${process.env.CRON_SECRET}`)
+   return NextResponse.json({error:"Unauthorized"},{status:401});
+ const internal=new NextRequest(req.url,{
+   method:"POST",headers:{authorization:auth,"content-type":"application/json"},
+   body:JSON.stringify({bootstrap:true,division:"NAIA",limit:5})
+ });
+ return POST(internal);
+}
