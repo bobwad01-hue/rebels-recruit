@@ -985,14 +985,41 @@ export async function POST(req:NextRequest){
      if(scopeError) throw scopeError;
      scopedIds=(scoped||[]).map((x:any)=>x.id);
    }
-   let queueQuery=supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").eq("status","pending").order("updated_at");
+   // Explicit bounded recovery pass: retry stale, low-attempt review cases using
+   // the latest discovery/parser, without changing verified source approvals.
+   // Never loop indefinitely or retry blocked schools.
+   const recoverReviews=body.recover_reviews===true && (ownerOk||cronOk||manualOk);
+   const cutoff=new Date(Date.now()-24*60*60*1000).toISOString();
+   let queueQuery=supabase.from("college_staff_bootstrap_queue").select("college_id,attempts")
+     .eq("status",recoverReviews?"review":"pending").order("updated_at");
+   if(recoverReviews)queueQuery=queueQuery.lt("attempts",4).lt("updated_at",cutoff);
    if(targetedId)queueQuery=queueQuery.eq("college_id",targetedId);
    if(scopedIds) queueQuery=queueQuery.in("college_id",scopedIds.length?scopedIds:["00000000-0000-0000-0000-000000000000"]);
-   const {data:queued,error:qErr}=await queueQuery.limit(limit);
+   let {data:queued,error:qErr}=await queueQuery.limit(limit);
    if(qErr) throw qErr;
+   // Once the normal pending queue is empty, scheduled runs can revisit a
+   // small number of stale review cases without a paid service or manual requeue.
+   if(!recoverReviews && !targetedId && !(queued||[]).length && cronOk){
+     const {data:stale,error:staleError}=await supabase.from("college_staff_bootstrap_queue")
+       .select("college_id,attempts").eq("status","review").lt("attempts",4)
+       .lt("updated_at",cutoff).order("updated_at").limit(Math.min(limit,2));
+     if(staleError)throw staleError;
+     if(stale?.length){
+       const retryIds=stale.map(x=>x.college_id);
+       const {error:claimError}=await supabase.from("college_staff_bootstrap_queue")
+         .update({status:"pending",updated_at:new Date().toISOString()})
+         .in("college_id",retryIds).eq("status","review");
+       if(claimError)throw claimError;
+       queued=stale;
+     }
+   }
    const ids=(queued||[]).map((x:any)=>x.college_id);
    if(ids.length){
-     await supabase.from("college_staff_bootstrap_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("college_id",ids);
+     const claim=supabase.from("college_staff_bootstrap_queue")
+       .update({status:"processing",updated_at:new Date().toISOString()})
+       .in("college_id",ids).eq("status",recoverReviews?"review":"pending");
+     const {error:claimError}=await claim;
+     if(claimError)throw claimError;
      const {data,error}=await supabase.from("colleges").select("id,name,website,division").in("id",ids);
      if(error) throw error;
      const byId=new Map((data||[]).map((x:any)=>[x.id,x]));
