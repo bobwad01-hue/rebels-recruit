@@ -96,6 +96,8 @@ const errorLabel=(r:string)=>({
 export default function Page(){
   const [d,setD]=useState<any>(null);
   const [division,setDivision]=useState('NCAA D2');
+  const [divisionRun,setDivisionRun]=useState<{status:string;last_error?:string|null;updated_at?:string}|null>(null);
+  const [divisionActionBusy,setDivisionActionBusy]=useState(false);
   const [cleanup,setCleanup]=useState<Cleanup|null>(null);
   const [group,setGroup]=useState('all');
   const [filter,setFilter]=useState('auto');
@@ -163,6 +165,31 @@ export default function Page(){
     }catch(e){setError(e instanceof Error?e.message:'Could not load status');}
   },[division]);
   useEffect(()=>{void load();const timer=window.setInterval(()=>{void load()},15000);return()=>window.clearInterval(timer)},[load]);
+  const loadDivisionRun=useCallback(async()=>{
+    if(division!=="JC"&&division!=="NCAA D3"){setDivisionRun(null);return;}
+    try{
+      const r=await fetch('/api/platform/college-staff-intelligence/division-import/status?division='+encodeURIComponent(division),{cache:'no-store'});
+      const data=await r.json();
+      if(r.ok)setDivisionRun(data);
+    }catch{}
+  },[division]);
+  useEffect(()=>{void loadDivisionRun();const id=window.setInterval(()=>void loadDivisionRun(),15000);return()=>window.clearInterval(id)},[loadDivisionRun]);
+  async function divisionAction(action:'start'|'pause'|'resume'){
+    setDivisionActionBusy(true);setError('');
+    try{
+      const r=await fetch('/api/platform/college-staff-intelligence/division-import',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({division,action}),cache:'no-store'
+      });
+      const data=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(data.error||'Could not update division import');
+      setMessage(action==='pause'?'Division import paused. Current school may finish.':
+        action==='start'?'Full division queued ('+data.added+' new schools). Scheduled processing will continue automatically.':
+        'Division import resumed. Scheduled processing continues automatically.');
+      await loadDivisionRun();await load();
+    }catch(e){setError(e instanceof Error?e.message:'Division import failed')}
+    finally{setDivisionActionBusy(false)}
+  }
   const loadBackfill=useCallback(async()=>{
     const r=await fetch('/api/platform/college-staff-intelligence/contact-backfill',{cache:'no-store'});
     const data=await r.json().catch(()=>({}));
@@ -733,6 +760,28 @@ export default function Page(){
           <div className="h-full bg-slate-950" style={{width:importedPercent+'%'}}/>
         </div>
       </section>
+      {(division==='JC'||division==='NCAA D3')&&<section className="mt-4 rounded-xl border border-slate-200 bg-white p-5" aria-label="Full division import">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="text-lg font-black">Full division import</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {divisionRun?.status==='running'?'Running automatically in scheduled batches, including when this page is closed.':
+               divisionRun?.status==='completed'?'All queued schools have been assessed. Review exceptions below.':
+               'Queue every remaining eligible school and process automatically in the background.'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">{d.complete} assessed · {d.pending} pending · {d.processing} processing · {d.review} review · {d.blocked} blocked</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {divisionRun?.status==='running'
+              ?<button type="button" className="btn" disabled={divisionActionBusy} onClick={()=>void divisionAction('pause')}><Square size={15}/>Pause</button>
+              :<button type="button" className="btn btn-red" disabled={divisionActionBusy}
+                onClick={()=>void divisionAction(divisionRun?.status==='paused'?'resume':'start')}>
+                <Play size={15}/>{divisionRun?.status==='paused'&&d.pending>0?'Resume full division':'Start all remaining schools'}
+              </button>}
+          </div>
+        </div>
+        {divisionRun?.last_error&&<p className="mt-3 text-sm text-red-700" role="alert">Last worker error: {divisionRun.last_error}</p>}
+        <p className="mt-3 text-xs text-slate-500">The scheduler processes a bounded number of schools per run. Temporary timeouts may be retried once; access blocks and quality issues stay in review. Progress is saved across visits.</p>
+      </section>}
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
         {['imported','review','blocked','processing','pending'].map(k=><div className="card p-4" key={k}>
           <div className="text-2xl font-black">{d[k]}</div><div className="text-xs font-bold uppercase text-slate-500">{k}</div>

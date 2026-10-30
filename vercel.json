@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/calendar-subscriptions",
       "schedule": "23 9 * * *"
+    },
+    {
+      "path": "/api/platform/college-staff-intelligence/division-import",
+      "schedule": "* * * * *"
     }
   ]
 }
