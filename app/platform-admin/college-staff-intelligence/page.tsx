@@ -769,6 +769,7 @@ export default function Page(){
       </div>
       <a className="btn" href="#contact-source-reviews">Review open cases <ArrowRight size={15}/></a>
     </aside>}
+    {(!backfill?.run || backfill.run.status!=='completed' || backfillRunning || Boolean(backfillError))&&<>
     <section className="card mt-6 p-5 sm:p-6" aria-label="Coach contact backfill">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -824,6 +825,9 @@ export default function Page(){
       {backfillError&&<p className="mt-3 text-sm text-red-700" role="alert"><AlertCircle size={15} className="mr-2 inline"/>{backfillError}</p>}
     </section>
 
+    </>}
+
+    {(recoveryRunning || Boolean(recoveryError) || !recovery || recovery.pending>0 || recovery.processing>0 || recoveryReview.length>0)&&<>
     <section className="card mt-6 p-5 sm:p-6" aria-label="Contact exception recovery">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -915,6 +919,8 @@ export default function Page(){
         </div>
       </div>}
     </section>
+
+    </>}
 
     {division!=='all'&&<section id="college-staff-cleanup" className="card mt-6 scroll-mt-6 overflow-hidden">
       <div className="border-b p-5 sm:p-6">
