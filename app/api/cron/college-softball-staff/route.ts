@@ -997,6 +997,22 @@ export async function POST(req:NextRequest){
    if(scopedIds) queueQuery=queueQuery.in("college_id",scopedIds.length?scopedIds:["00000000-0000-0000-0000-000000000000"]);
    const {data:queued,error:qErr}=await queueQuery.limit(limit);
    if(qErr) throw qErr;
+   // Once the normal pending queue is empty, scheduled runs can revisit a
+   // small number of stale review cases without a paid service or manual requeue.
+   if(!recoverReviews && !targetedId && !(queued||[]).length && cronOk){
+     const {data:stale,error:staleError}=await supabase.from("college_staff_bootstrap_queue")
+       .select("college_id,attempts").eq("status","review").lt("attempts",4)
+       .lt("updated_at",cutoff).order("updated_at").limit(Math.min(limit,2));
+     if(staleError)throw staleError;
+     if(stale?.length){
+       const retryIds=stale.map(x=>x.college_id);
+       const {error:claimError}=await supabase.from("college_staff_bootstrap_queue")
+         .update({status:"pending",updated_at:new Date().toISOString()})
+         .in("college_id",retryIds).eq("status","review");
+       if(claimError)throw claimError;
+       queued=stale;
+     }
+   }
    const ids=(queued||[]).map((x:any)=>x.college_id);
    if(ids.length){
      const claim=supabase.from("college_staff_bootstrap_queue")
