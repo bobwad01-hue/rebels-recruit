@@ -207,6 +207,37 @@ async function sitemapSoftballCandidates(base:string){
  return [...new Set(candidates)].slice(0,12);
 }
 
+// Search discovery is a fallback only. Search results are leads, never verified sources.
+async function searchOfficialAthleticsHost(schoolName:string, universityUrl:string){
+ const queries=[schoolName+" softball coaches official athletics",schoolName+" softball coaching staff"];
+ const universityHost=new URL(universityUrl).hostname.replace(/^www\./,"");
+ for(const query of queries){
+  try{
+   const searchUrl="https://www.bing.com/search?"+new URLSearchParams({q:query,count:"10"}).toString();
+   if(!(await allowedByRobots(searchUrl)))continue;
+   const response=await fetch(searchUrl,{signal:AbortSignal.timeout(4000),headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)","accept":"text/html"}});
+   if(!response.ok)continue;
+   const html=(await response.text()).slice(0,250000);
+   const candidates=[...html.matchAll(/<a[^>]+href="(https:\/\/[^"]+)"[^>]*>/gi)]
+    .map(m=>m[1].replace(/&amp;/g,"&"))
+    .filter(url=>{try{const u=new URL(url);return !badOfficialUrl(url)&&!u.hostname.endsWith("bing.com")&&!u.hostname.endsWith("google.com")&&/\/sports\/(?:sball|softball)\/coaches|\/staff-directory\/.*softball/i.test(u.pathname)}catch{return false}});
+   for(const url of [...new Set(candidates)].slice(0,5)){
+    try{
+     const page=await getConfirmedStaffPage(url,5000);
+     const visible=clean(page.html.slice(0,120000)).toLowerCase();
+     const words=schoolName.toLowerCase().replace(/\b(university|college|of|the)\b/g," ").trim().split(/\s+/).filter(w=>w.length>3);
+     // A coaching URL alone is not proof: require the school's distinctive name
+     // and softball on the destination page before trusting a different host.
+     if(words.length&&!words.some(w=>visible.includes(w)))continue;
+     if(!/softball/i.test(visible))continue;
+     return {athletics_url:new URL(page.url).origin,softball_url:page.url,staff_url:page.url};
+    }catch{}
+   }
+  }catch{}
+ }
+ return null;
+}
+
 async function discover(start:string, seeded?:{athletics_url?:string|null,softball_url?:string|null,staff_url?:string|null}){
  // A previously verified official athletics source is a better discovery root than
  // the university homepage. This prevents a valid seeded source from being discarded
@@ -276,6 +307,17 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  // Never treat schedule/news/etc. as a staff source merely because it is a softball page.
  if(!staff||/\/(schedule|news|stats|archives|tickets|facilities)(?:\/|$)/i.test(new URL(staff).pathname)) throw new Error("Official softball staff page not discovered");
  return {athletics_url:athletics.url,softball_url:s.url,staff_url:staff};
+}
+
+async function discoverWithFallback(name:string,start:string,seeded?:{athletics_url?:string|null,softball_url?:string|null,staff_url?:string|null}){
+ try{return await discover(start,seeded)}
+ catch(originalError){
+  // Never override an existing human-confirmed source with search results.
+  if(seeded?.staff_url)throw originalError;
+  const found=await searchOfficialAthleticsHost(name,start);
+  if(found)return found;
+  throw originalError;
+ }
 }
 
 function normalizeCoachName(name:string){
@@ -1053,10 +1095,10 @@ export async function POST(req:NextRequest){
      // Human-verified sources must not silently redirect to a newly discovered
      // page if the reviewed URL is unavailable.
      if(verification?.outcome==="verified")throw fetchError;
-     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
+     d=await discoverWithFallback(college.name,college.website,knownSource ?? undefined); page=await get(d.staff_url);
     }
    }else{
-    d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
+    d=await discoverWithFallback(college.name,college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
    let coaches=parseOfficialStaff(page.html,page.url,college.name,
      sidearmCoachAnchor(knownSource?.staff_navigation_url,page.url));
