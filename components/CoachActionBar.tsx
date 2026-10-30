@@ -975,6 +975,34 @@ export default function CoachActionBar({
                         {recipientSavedNotice&&<p role="status" className="text-xs font-semibold text-slate-700">{recipientSavedNotice}</p>}
                       </div>}
                     </div>
+                    {!contextualReply && (
+                      <details className="group rounded-xl border bg-white">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <UsersRound size={17} className="shrink-0 text-slate-500" />
+                            Add coach / CC
+                            {ccCoachIds.length > 0 && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-700">{ccCoachIds.length} selected</span>}
+                          </span>
+                          <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
+                        </summary>
+                        <div className="border-t px-4 pb-4 pt-3">
+                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.{!staffMode&&' Only coaches already in My Coach Connections are available here.'}</p>
+                          <div className="mt-3 space-y-2">
+                            {schoolCoaches.length===0&&<p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">No other eligible coaches are available to CC at this school. Add a coach to My Coach Connections and confirm their email to make them selectable here.</p>}
+                            {schoolCoaches.map((co) => (
+                              <label key={co.id} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${co.email ? "cursor-pointer hover:bg-slate-50" : "opacity-55"}`}>
+                                <input type="checkbox" className="mt-1" disabled={!co.email} checked={ccCoachIds.includes(co.id)}
+                                  onChange={(event) => setCcCoachIds((current) => event.target.checked ? [...current, co.id] : current.filter((id) => id !== co.id))} />
+                                <span className="min-w-0">
+                                  <span className="block font-bold">{[co.first_name, co.last_name].filter(Boolean).join(" ") || "Coach"}{co.title ? ` · ${co.title}` : ""}</span>
+                                  <span className="mt-0.5 block break-all text-xs text-slate-500">{co.email || "Email not available"}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </details>
+                    )}
                     {!staffMode&&!contextualReply ? (
                       <EmailSubjectSettings
                         profile={profile}
@@ -1026,33 +1054,6 @@ export default function CoachActionBar({
                           </section>
                         ) : <p className="text-xs font-semibold text-slate-500">Keeping this subject continues the original Gmail thread. You can edit it to reflect a new topic.</p>}
                       </div>
-                    )}
-                    {schoolCoaches.length > 0 && (
-                      <details className="group rounded-xl border bg-white">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-bold hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <UsersRound size={17} className="shrink-0 text-slate-500" />
-                            CC another {collegeName || "school"} coach
-                            {ccCoachIds.length > 0 && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-700">{ccCoachIds.length} selected</span>}
-                          </span>
-                          <ChevronDown size={17} className="shrink-0 text-slate-500 transition-transform group-open:rotate-180" />
-                        </summary>
-                        <div className="border-t px-4 pb-4 pt-3">
-                          <p className="text-xs text-slate-600">CC recipients can see everyone included in the email.{!staffMode&&' Only coaches already in My Coach Connections are available here.'}</p>
-                          <div className="mt-3 space-y-2">
-                            {schoolCoaches.map((co) => (
-                              <label key={co.id} className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${co.email ? "cursor-pointer hover:bg-slate-50" : "opacity-55"}`}>
-                                <input type="checkbox" className="mt-1" disabled={!co.email} checked={ccCoachIds.includes(co.id)}
-                                  onChange={(event) => setCcCoachIds((current) => event.target.checked ? [...current, co.id] : current.filter((id) => id !== co.id))} />
-                                <span className="min-w-0">
-                                  <span className="block font-bold">{[co.first_name, co.last_name].filter(Boolean).join(" ") || "Coach"}{co.title ? ` · ${co.title}` : ""}</span>
-                                  <span className="mt-0.5 block break-all text-xs text-slate-500">{co.email || "Email not available"}</span>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </details>
                     )}
                     <div>
                       <label className="mb-1 block text-xs uppercase font-bold muted">
