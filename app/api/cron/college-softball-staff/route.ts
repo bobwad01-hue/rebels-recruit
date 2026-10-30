@@ -995,7 +995,7 @@ export async function POST(req:NextRequest){
    if(recoverReviews)queueQuery=queueQuery.lt("attempts",4).lt("updated_at",cutoff);
    if(targetedId)queueQuery=queueQuery.eq("college_id",targetedId);
    if(scopedIds) queueQuery=queueQuery.in("college_id",scopedIds.length?scopedIds:["00000000-0000-0000-0000-000000000000"]);
-   const {data:queued,error:qErr}=await queueQuery.limit(limit);
+   let {data:queued,error:qErr}=await queueQuery.limit(limit);
    if(qErr) throw qErr;
    // Once the normal pending queue is empty, scheduled runs can revisit a
    // small number of stale review cases without a paid service or manual requeue.
