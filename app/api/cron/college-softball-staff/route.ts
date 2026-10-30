@@ -234,7 +234,7 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  // Official athletics sites commonly expose predictable softball routes even when the school homepage does not link them cleanly.
  if(!softball){
    const origin=new URL(sports.url).origin;
-   const probe=await tryGet([origin+"/sports/softball",origin+"/sports/softball/",origin+"/sports/softball/roster",origin+"/sports/softball/schedule"]);
+   const probe=await tryGet([origin+"/sports/softball/coaches",origin+"/sports/sball/coaches",origin+"/sports/softball",origin+"/sports/sball",origin+"/sports/softball/roster",origin+"/sports/sball/roster"]);
    if(probe) softball=probe.url;
  }
  if(!softball){
@@ -242,7 +242,7 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
    const found=await tryGet(indexed);
    if(found)softball=found.url;
  }
- if(!softball) throw new Error("Official softball page not discovered after official links, conventional routes and sitemap");
+ if(!softball) throw new Error("Official softball page not discovered after official links, softball/sball routes and sitemap");
  const s=await get(softball); const staffLinks=links(s.html,s.url);
  const origin=new URL(s.url).origin;
  // Prefer softball-only coaching pages to mixed athletics staff directories.
@@ -251,7 +251,7 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
    .filter(x=>sameHost(x.url,s.url)&&/staff\s*directory|staff-directory/i.test(x.text+" "+x.url))
    .sort((a,b)=>(/softball/i.test(b.text+" "+b.url)?1:0)-(/softball/i.test(a.text+" "+a.url)?1:0));
  const coachSpecific=staffLinks.filter(x=>/\/sports\/(?:softball|sball)\/(?:coaches|roster)/i.test(x.url));
- let staff=bestLink(coachSpecific,"staff",s.url)||null;
+ let staff=/\/sports\/(?:softball|sball)\/coaches(?:\/|$)/i.test(new URL(s.url).pathname)?s.url:(bestLink(coachSpecific,"staff",s.url)||null);
  if(!staff) staff=directoryCandidates.find(x=>/softball/i.test(x.text+" "+x.url))?.url||null;
  if(!staff) staff=bestLink(staffLinks,"staff",s.url);
  if(!staff){
