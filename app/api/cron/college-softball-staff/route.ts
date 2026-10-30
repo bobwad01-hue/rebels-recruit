@@ -174,6 +174,39 @@ async function tryGet(urls:string[]){
  for(const url of [...new Set(urls.filter(Boolean))]){try{return await get(url)}catch{}}
  return null;
 }
+// Free, bounded official-site discovery. No search/AI API or external index.
+// Only inspect the verified starting host's public sitemap and relevant links.
+async function sitemapSoftballCandidates(base:string){
+ const origin=new URL(base).origin;
+ const candidates:string[]=[];
+ const seen=new Set<string>();
+ const sitemapUrls=[origin+"/sitemap.xml",origin+"/sitemap_index.xml"];
+ for(let n=0;n<sitemapUrls.length&&n<4;n++){
+  const url=sitemapUrls[n];
+  if(seen.has(url))continue;seen.add(url);
+  try{
+   if(!(await allowedByRobots(url)))continue;
+   const response=await fetch(url,{redirect:"follow",signal:AbortSignal.timeout(3500),
+    headers:{"user-agent":USER_AGENT+"/1.0 (+https://www.rltnl.com)"}});
+   if(!response.ok||!sameHost(response.url,base))continue;
+   const xml=(await response.text()).slice(0,1200000);
+   const locs=[...xml.matchAll(/<loc>\s*([^<]+)\s*<\/loc>/gi)].slice(0,3000)
+    .map(m=>m[1].replace(/&amp;/g,"&").trim())
+    .filter(u=>{try{return new URL(u).protocol==="https:"&&sameHost(u,base)&&!badOfficialUrl(u)}catch{return false}});
+   for(const loc of locs){
+    if(/\.xml(?:$|\?)/i.test(loc)){
+     if(sitemapUrls.length<4&&/softball|sitemap|sport/i.test(loc))sitemapUrls.push(loc);
+    }else if(/\/sports\/(?:softball|sball)\/coaches|\/staff-directory\/(?:department\/softball|softball-department)/i.test(loc)){
+     candidates.push(loc);
+    }else if(/\/sports\/(?:softball|sball)(?:\/|$)/i.test(loc)){
+     if(!/\/schedule|\/news|\/stats|\/archives|\/tickets|\/roster\/players/i.test(new URL(loc).pathname))candidates.push(loc);
+    }
+   }
+  }catch{ /* No sitemap is a normal condition. */ }
+ }
+ return [...new Set(candidates)].slice(0,12);
+}
+
 async function discover(start:string, seeded?:{athletics_url?:string|null,softball_url?:string|null,staff_url?:string|null}){
  // A previously verified official athletics source is a better discovery root than
  // the university homepage. This prevents a valid seeded source from being discarded
@@ -204,7 +237,12 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
    const probe=await tryGet([origin+"/sports/softball",origin+"/sports/softball/",origin+"/sports/softball/roster",origin+"/sports/softball/schedule"]);
    if(probe) softball=probe.url;
  }
- if(!softball) throw new Error("Official softball page not discovered");
+ if(!softball){
+   const indexed=await sitemapSoftballCandidates(sports.url);
+   const found=await tryGet(indexed);
+   if(found)softball=found.url;
+ }
+ if(!softball) throw new Error("Official softball page not discovered after official links, conventional routes and sitemap");
  const s=await get(softball); const staffLinks=links(s.html,s.url);
  const origin=new URL(s.url).origin;
  // Prefer softball-only coaching pages to mixed athletics staff directories.
@@ -216,6 +254,12 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  let staff=bestLink(coachSpecific,"staff",s.url)||null;
  if(!staff) staff=directoryCandidates.find(x=>/softball/i.test(x.text+" "+x.url))?.url||null;
  if(!staff) staff=bestLink(staffLinks,"staff",s.url);
+ if(!staff){
+   const indexed=await sitemapSoftballCandidates(s.url);
+   const coachUrls=indexed.filter(u=>/\/coaches|staff-directory/i.test(u));
+   const found=await tryGet(coachUrls);
+   if(found)staff=found.url;
+ }
  if(!staff){
    const directory=await tryGet([origin+"/staff-directory/department/softball",origin+"/staff-directory/softball-department"]);
    if(directory) staff=directory.url;
