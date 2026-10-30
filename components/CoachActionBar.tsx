@@ -94,6 +94,7 @@ export default function CoachActionBar({
     autoOpenKey = shouldAutoOpen
       ? [params.get("action") || "starter", params.get("replyEmail") || "", params.get("interaction") || "", params.get("sentInteraction") || "", params.get("emailStarter") || ""].join(":")
       : "";
+  const sendGuard=useRef(false);
   const [emailOpen, setEmailOpen] = useState(false),
     [recipientEmail, setRecipientEmail] = useState(email || emailOverride || ""),
     [recipientSavedNotice, setRecipientSavedNotice] = useState(""),
@@ -403,6 +404,7 @@ export default function CoachActionBar({
     setMessage("");
     setDraftNotice("");
     setEmailStatus("idle");
+    sendGuard.current=false;
     setStartedNewConversation(false);
     setIncludePreviousConversation(true);
     setQuotedPreview(null);
@@ -556,13 +558,18 @@ export default function CoachActionBar({
     setRecipientSavedNotice('Email address saved for this Coach Connection. This does not count as outreach. RLTNL has not verified this address.');
   }
   async function sendEmail() {
+    if(sendGuard.current || emailStatus==="success")return;
+    sendGuard.current=true;
     const ctx = await context();
     if (!ctx) {
+      sendGuard.current=false;
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage("Your session could not be verified. Please sign in again.");
       return;
     }
     if (!email && !validRecipient(recipientEmail)) {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage("Enter a valid coach email address in the To field before sending.");
       return;
@@ -570,6 +577,7 @@ export default function CoachActionBar({
     const connected =
       gmailConnected === true ? true : await checkGmailConnection();
     if (!connected) {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage(
         "Connect Gmail before sending. Signing in with Google does not automatically give RLTNL Recruiting permission to send email.",
@@ -577,17 +585,20 @@ export default function CoachActionBar({
       return;
     }
     if (!subject.trim()) {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage("Enter a subject before sending.");
       return;
     }
     if (!contextualReply && !staffMode && hasUnresolvedRecruitingSubjectFields(subject)) {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage("Replace [Subject] and any missing athlete details in the Subject field before sending.");
       return;
     }
     const s = starterById(starter, templates);
     if (s.requiresSchoolReason && body.includes("[ADD ONE SPECIFIC")) {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage(
         "For an introduction email, add a specific reason this school fits you before sending.",
@@ -595,6 +606,7 @@ export default function CoachActionBar({
       return;
     }
     if (starter !== "custom" && /\[[A-Z][A-Z0-9 ’'&/.,-]{2,}\]/.test(body)) {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage(
         "Replace the remaining bracketed starter prompts with your own details before sending.",
@@ -630,6 +642,7 @@ export default function CoachActionBar({
         d = await r.json();
       } catch {}
       if (!r.ok) {
+        sendGuard.current=false;
         setEmailStatus("error");
         setMessage(d.error || `Could not send email (error ${r.status}).`);
         return;
@@ -651,8 +664,9 @@ export default function CoachActionBar({
               ? `Email sent through Gmail${d.ccCount ? ` to ${d.ccCount + 1} coaches` : ""}, logged in Activity, and contact status updated.`
               : "Email sent through Gmail and coach contact status updated, but Activity could not be updated.",
       );
-      if (onEmailSent) await onEmailSent(d);
+      try { if (onEmailSent) await onEmailSent(d); } catch (postSendError) { console.warn("Email sent; UI refresh failed",postSendError); }
     } catch {
+      sendGuard.current=false;
       setEmailStatus("error");
       setMessage("Could not send email. Please try again.");
     } finally {
@@ -1206,6 +1220,7 @@ export default function CoachActionBar({
                         disabled={
                           busy ||
                           gmailConnected === false ||
+                          emailStatus === "success" ||
                           !subject.trim() ||
                           !body.trim() ||
                           (!email && !validRecipient(recipientEmail))
@@ -1213,7 +1228,7 @@ export default function CoachActionBar({
                         onClick={sendEmail}
                       >
                         <Send size={15} />
-                        {busy ? "Sending..." : "Send Email"}
+                        {busy ? "Sending..." : emailStatus==="success" ? "Email Sent" : "Send Email"}
                       </button>
                     </div>
                   </div>
