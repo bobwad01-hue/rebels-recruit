@@ -655,10 +655,20 @@ async function enrichCoachProfile(c:any,staffUrl:string){
    const p=await get(c.official_bio_url,5000);
    if(!sameHost(p.url,staffUrl)) return c;
    const sidearm=Boolean(sidearmBioSlug(c.official_bio_url));
+   // Generic profile pages can include unrelated coaches and institutional
+   // footer contacts. Require identity-scoped, labelled evidence instead.
    const contact=sidearm?sidearmProfileContact(p.html,p.url,c.first_name,c.last_name)
-     :profileContact(p.html,p.url,c.first_name,c.last_name);
+     :scopedGenericProfileContact(p.html,p.url,c.first_name,c.last_name);
    if(!contact)return c;
-   return {...c,email:c.email||contact.email,phone:c.phone||contact.phone,x_url:c.x_url||contact.x_url,x_handle:c.x_handle||contact.x_handle,official_bio_url:p.url,profile_source_hash:hash(p.html)};
+   // Only accept a profile title when it is explicitly labelled near the
+   // coach's name, and never silently change a conflicting roster role.
+   const visible=clean(p.html),full=(c.first_name+" "+c.last_name).toLowerCase();
+   const nameAt=visible.toLowerCase().indexOf(full);
+   const local=nameAt>=0?visible.slice(nameAt,nameAt+650):"";
+   const profileTitle=local.match(/\b(?:TITLE|POSITION)\s*:?\s*(Head (?:Softball )?Coach|Associate Head (?:Softball )?Coach|Assistant (?:Softball )?Coach|Pitching Coach|Hitting Coach|Recruiting Coordinator)\b/i)?.[1]||null;
+   const profileRole=profileTitle?role(profileTitle):null;
+   const safeTitle=profileRole&&profileRole.category===c.role_category?profileTitle:null;
+   return {...c,title:safeTitle||c.title,email:c.email||contact.email,phone:c.phone||contact.phone,x_url:c.x_url||contact.x_url,x_handle:c.x_handle||contact.x_handle,official_bio_url:p.url,profile_source_hash:hash(p.html)};
  }catch{return c}
 }
 
