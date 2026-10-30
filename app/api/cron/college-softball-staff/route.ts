@@ -1031,16 +1031,36 @@ export async function POST(req:NextRequest){
    if(division&&!allowedDivisions.includes(division)) return NextResponse.json({error:"Invalid division"},{status:400});
    // Filter by division in the database join rather than sending hundreds of
    // UUIDs through a potentially oversized PostgREST URL.
-   let queueQuery=supabase.from("college_staff_bootstrap_queue")
-     .select("college_id,attempts,colleges!inner(division)")
-     .eq("status","pending").order("updated_at");
-   if(targetedId)queueQuery=queueQuery.eq("college_id",targetedId);
-   if(division)queueQuery=queueQuery.eq("colleges.division",division);
-   const {data:queued,error:qErr}=await queueQuery.limit(limit);
-   if(qErr)throw qErr;
+   // Atomic claim prevents concurrent admin and scheduled workers from
+   // processing the same school. Targeted manual rechecks retain their path.
+   let queued:any[]=[];
+   if(targetedId){
+     const {data,error}=await supabase.from("college_staff_bootstrap_queue")
+       .select("college_id,attempts,colleges!inner(division)")
+       .eq("college_id",targetedId).eq("status","pending")
+       .eq("colleges.division",division).limit(1);
+     if(error)throw error;
+     queued=data||[];
+     if(queued.length){
+       const {error:claimError}=await supabase.from("college_staff_bootstrap_queue")
+         .update({status:"processing",updated_at:new Date().toISOString()})
+         .eq("college_id",targetedId).eq("status","pending");
+       if(claimError)throw claimError;
+     }
+   }else if(division==="JC"||division==="NCAA D3"){
+     const {data,error}=await supabase.rpc("claim_college_staff_division",{p_division:division});
+     if(error)throw error;
+     queued=data||[];
+   }else{
+     const {data,error}=await supabase.from("college_staff_bootstrap_queue")
+       .select("college_id,attempts,colleges!inner(division)")
+       .eq("status","pending").eq("colleges.division",division).order("updated_at").limit(limit);
+     if(error)throw error;
+     queued=data||[];
+   }
    const ids=(queued||[]).map((x:any)=>x.college_id);
    if(ids.length){
-     await supabase.from("college_staff_bootstrap_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("college_id",ids);
+     if(division!=="JC"&&division!=="NCAA D3"&&!targetedId) await supabase.from("college_staff_bootstrap_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("college_id",ids);
      const {data,error}=await supabase.from("colleges").select("id,name,website,division").in("id",ids);
      if(error) throw error;
      const byId=new Map((data||[]).map((x:any)=>[x.id,x]));
