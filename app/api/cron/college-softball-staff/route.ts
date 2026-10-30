@@ -505,25 +505,49 @@ function labelledSoftballCoachingTable(html:string,url:string){
 function softballDepartmentDirectory(html:string,url:string){
  const pathname=new URL(url).pathname.toLowerCase();
  if(!/\/staff-directory\/(?:softball-department|department\/softball)/.test(pathname))return [];
- // The department name may be a heading OUTSIDE the table rather than a
- // <tr> divider. Do not require a row literally containing "Softball".
- const heading=/<(?:h[1-6]|th|strong|b|div|span)\b[^>]*>\s*(?:<[^>]+>\s*)*softball\s*(?:<\/[^>]+>\s*)*<\/(?:h[1-6]|th|strong|b|div|span)>/gi;
- const matches=[...html.matchAll(heading)];
- const section=matches.length?html.slice(matches[matches.length-1].index):html;
- const rows=[...section.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
- const out:any[]=[];
+ // Sidearm's department filter can return a full university directory.
+ // Anchor at the explicit Softball department heading, not the page URL.
+ const rows=[...html.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+ const out:any[]=[];let inSoftball=false;
  for(const row of rows){
   const cells=[...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m=>m[1]);
-  if(cells.length<2)continue;
-  const name=normalizeCoachName(clean(cells[0]).trim()),title=clean(cells[1]).trim();
+  const values=cells.map(c=>clean(c).trim());
+  if(values.some(v=>/^softball$/i.test(v))){inSoftball=true;continue;}
+  if(!inSoftball)continue;
+  // A new department heading terminates the softball section.
+  if(cells.length<2){if(values.some(v=>/^[a-z][a-z\s/&-]{2,45}$/i.test(v)))break;continue;}
+  const name=normalizeCoachName(values[0]),title=values[1];
   if(!plausibleName(name)||!/coach|recruiting coordinator/i.test(title))continue;
   const rr=role(title),parts=name.split(/\s+/);
   if(rr.category==="other_coaching_staff")continue;
   const email=row[1].match(/mailto:([^"'\s<>?]+)/i)?.[1]?.toLowerCase()||null;
-  const phone=cells.slice(2).map(clean).join(" ").match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+  const phone=values.slice(2).join(" ").match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
   const bio=links(cells[0],url).find(l=>sameHost(l.url,url))?.url||null;
   out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email,phone,x_url:null,x_handle:null,official_bio_url:bio,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
   if(out.length>8)return [];
+ }
+ // Some Sidearm layouts use a heading outside the table. In that case,
+ // isolate the first coach table following the Softball heading.
+ if(!inSoftball){
+  const marker=html.match(/<(?:h[1-6]|div|span|th)\b[^>]*>\s*Softball\s*<\/(?:h[1-6]|div|span|th)>/i);
+  if(!marker)return [];
+  const tail=html.slice((marker.index||0)+marker[0].length);
+  const table=tail.match(/<table\b[^>]*>[\s\S]*?<\/table>/i)?.[0]||"";
+  if(!table)return [];
+  const tableRows=[...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+  for(const row of tableRows){
+   const cells=[...row[1].matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(m=>m[1]);
+   if(cells.length<2)continue;
+   const name=normalizeCoachName(clean(cells[0])),title=clean(cells[1]);
+   if(!plausibleName(name)||!/coach|recruiting coordinator/i.test(title))continue;
+   const rr=role(title),parts=name.split(/\s+/);
+   if(rr.category==="other_coaching_staff")continue;
+   const email=row[1].match(/mailto:([^"'\s<>?]+)/i)?.[1]?.toLowerCase()||null;
+   const phone=cells.slice(2).map(clean).join(" ").match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}/)?.[0]||null;
+   const bio=links(cells[0],url).find(l=>sameHost(l.url,url))?.url||null;
+   out.push({first_name:parts.shift()!,last_name:parts.join(" "),title,email,phone,x_url:null,x_handle:null,official_bio_url:bio,role_category:rr.category,is_recruiting_coordinator:rr.recruiting,staff_sort_order:rr.order});
+   if(out.length>8)return [];
+  }
  }
  return out;
 }
