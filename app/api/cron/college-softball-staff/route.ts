@@ -1029,17 +1029,15 @@ export async function POST(req:NextRequest){
    const division=typeof body.division==="string"?body.division:"";
    const allowedDivisions=["NCAA D1","NCAA D2","NCAA D3","NAIA","JC"];
    if(division&&!allowedDivisions.includes(division)) return NextResponse.json({error:"Invalid division"},{status:400});
-   let scopedIds:string[]|null=null;
-   if(division){
-     const {data:scoped,error:scopeError}=await supabase.from("colleges").select("id").eq("division",division);
-     if(scopeError) throw scopeError;
-     scopedIds=(scoped||[]).map((x:any)=>x.id);
-   }
-   let queueQuery=supabase.from("college_staff_bootstrap_queue").select("college_id,attempts").eq("status","pending").order("updated_at");
+   // Filter by division in the database join rather than sending hundreds of
+   // UUIDs through a potentially oversized PostgREST URL.
+   let queueQuery=supabase.from("college_staff_bootstrap_queue")
+     .select("college_id,attempts,colleges!inner(division)")
+     .eq("status","pending").order("updated_at");
    if(targetedId)queueQuery=queueQuery.eq("college_id",targetedId);
-   if(scopedIds) queueQuery=queueQuery.in("college_id",scopedIds.length?scopedIds:["00000000-0000-0000-0000-000000000000"]);
+   if(division)queueQuery=queueQuery.eq("colleges.division",division);
    const {data:queued,error:qErr}=await queueQuery.limit(limit);
-   if(qErr) throw qErr;
+   if(qErr)throw qErr;
    const ids=(queued||[]).map((x:any)=>x.college_id);
    if(ids.length){
      await supabase.from("college_staff_bootstrap_queue").update({status:"processing",updated_at:new Date().toISOString()}).in("college_id",ids);
