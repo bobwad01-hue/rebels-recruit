@@ -199,7 +199,7 @@ async function sitemapSoftballCandidates(base:string){
     }else if(/\/sports\/(?:softball|sball)\/coaches|\/staff-directory\/(?:department\/softball|softball-department)/i.test(loc)){
      candidates.push(loc);
     }else if(/\/sports\/(?:softball|sball)(?:\/|$)/i.test(loc)){
-     candidates.push(loc);
+     if(!/\/schedule|\/news|\/stats|\/archives|\/tickets|\/roster\/players/i.test(new URL(loc).pathname))candidates.push(loc);
     }
    }
   }catch{ /* No sitemap is a normal condition. */ }
