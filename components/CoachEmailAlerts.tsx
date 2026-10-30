@@ -449,7 +449,7 @@ export default function CoachEmailAlerts({ variant = 'bell', compact = false, me
           {(messageUnread+directUnread)>0&&<Link href="/messages" onClick={()=>setOpen(false)} className="mt-3 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
             <span>Unread RLTNL messages</span><span className="rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{messageUnread+directUnread}</span>
           </Link>}
-          <Link href="/messages" onClick={()=>setOpen(false)} className="mt-2 block text-center text-xs font-bold text-red-700 underline">Open Messages</Link>
+          <Link href="/messages" onClick={()=>setOpen(false)} className="mt-2 block text-center text-xs font-bold text-red-700 underline">Review Messages</Link>
           <Link href="/coach-emails" onClick={() => setOpen(false)} className="btn btn-red mt-3 w-full justify-center text-sm">
             Open Coach Emails <ArrowRight size={15} />
           </Link>
