@@ -309,6 +309,17 @@ async function discover(start:string, seeded?:{athletics_url?:string|null,softba
  return {athletics_url:athletics.url,softball_url:s.url,staff_url:staff};
 }
 
+async function discoverWithFallback(name:string,start:string,seeded?:{athletics_url?:string|null,softball_url?:string|null,staff_url?:string|null}){
+ try{return await discover(start,seeded)}
+ catch(originalError){
+  // Never override an existing human-confirmed source with search results.
+  if(seeded?.staff_url)throw originalError;
+  const found=await searchOfficialAthleticsHost(name,start);
+  if(found)return found;
+  throw originalError;
+ }
+}
+
 function normalizeCoachName(name:string){
  return name.trim().replace(/\s+\([^)]+\)/g,"")
    .replace(/\s+['’]\d{2}(?:\s+M['’]\d{2})?$/,"").replace(/\s+-\s+/g,"-");
@@ -1084,10 +1095,10 @@ export async function POST(req:NextRequest){
      // Human-verified sources must not silently redirect to a newly discovered
      // page if the reviewed URL is unavailable.
      if(verification?.outcome==="verified")throw fetchError;
-     d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
+     d=await discoverWithFallback(college.name,college.website,knownSource ?? undefined); page=await get(d.staff_url);
     }
    }else{
-    d=await discover(college.website,knownSource ?? undefined); page=await get(d.staff_url);
+    d=await discoverWithFallback(college.name,college.website,knownSource ?? undefined); page=await get(d.staff_url);
    }
    let coaches=parseOfficialStaff(page.html,page.url,college.name,
      sidearmCoachAnchor(knownSource?.staff_navigation_url,page.url));
