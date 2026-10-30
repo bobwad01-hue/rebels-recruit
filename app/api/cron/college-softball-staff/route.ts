@@ -171,9 +171,17 @@ function bestLink(xs:{url:string,text:string}[],kind:"softball"|"staff",base:str
  return xs.filter(x=>sameHost(x.url,base)&&!badOfficialUrl(x.url)).map(x=>({x,n:scoreLink(x,kind)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n)[0]?.x.url;
 }
 async function tryGet(urls:string[]){
- for(const url of [...new Set(urls.filter(Boolean))]){try{return await get(url)}catch{}}
+ const unique=[...new Set(urls.filter(Boolean))].slice(0,12);
+ for(let i=0;i<unique.length;i+=3){
+  const pages=await Promise.all(unique.slice(i,i+3).map(async url=>{
+   try{return await get(url,6500)}catch{return null}
+  }));
+  const found=pages.find(Boolean);
+  if(found)return found;
+ }
  return null;
 }
+
 // Free, bounded official-site discovery. No search/AI API or external index.
 // Only inspect the verified starting host's public sitemap and relevant links.
 async function sitemapSoftballCandidates(base:string){
