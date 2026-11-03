@@ -29,16 +29,16 @@ export default function Login() {
       : error.message);
     else if (!user) setError('Unable to sign in. Please try again.');
     else {
-      const [{data:accepted,error:acceptError},{ data: profile },{data:platformRole}] = await Promise.all([
+      const [{data:accepted,error:acceptError},{ data: profile,error:profileError },{data:platformRole,error:platformRoleError}] = await Promise.all([
         c.rpc('has_current_legal_acceptance'),
         c.from('profiles').select('app_role,profile_completed_at').eq('id', user.id).single(),
         c.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
       ]);
-      if(acceptError){setError('We could not verify your Terms and Privacy acceptance. Please try again.');setBusy(false);return}
+      if(acceptError||profileError||platformRoleError||!profile){location.href='/service-unavailable';return}
       if(!accepted){location.href='/legal/accept?context=existing_account'+(joinToken?'&join_token='+encodeURIComponent(joinToken):'');return}
       if(joinToken){location.href='/join/'+encodeURIComponent(joinToken);return}
       if(platformRole?.role==='super_owner'){location.href='/platform-admin';return}
-      const{data:roleRows}=await c.from('user_roles').select('role').eq('user_id',user.id);const savedView=window.localStorage.getItem('rr-active-view');const role=savedView&&(roleRows||[]).some((x:any)=>x.role===savedView)?savedView:(profile?.app_role||'athlete');
+      const{data:roleRows,error:roleRowsError}=await c.from('user_roles').select('role').eq('user_id',user.id);if(roleRowsError){location.href='/service-unavailable';return}const savedView=window.localStorage.getItem('rr-active-view');const role=savedView&&(roleRows||[]).some((x:any)=>x.role===savedView)?savedView:(profile?.app_role||'athlete');
       if (!profile?.profile_completed_at) location.href = role === 'athlete' ? '/profile' : role === 'parent' ? '/parent/profile' : '/advisors/profile';
       else location.href = role === 'athlete' ? '/dashboard' : role === 'parent' ? '/parent' : '/advisors';
     }
