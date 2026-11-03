@@ -757,6 +757,19 @@ export default function CoachActionBar({
     logHref = `/activity/new?college=${collegeId}&coach=${coachId}${athleteUserId ? `&athlete=${athleteUserId}` : ""}`,
     hubHref = `/coaches/${coachId}${athleteUserId ? `?athlete=${athleteUserId}` : ""}`,
     current = starterById(starter, templates);
+  const trimmedCoachName = coachName.trim();
+  const withoutTitle = trimmedCoachName.replace(/^Coach\s+/i, "");
+  const coachParts = withoutTitle.split(/\s+/).filter(Boolean);
+  const personalizationValues = {
+    coachFirstName: coachParts.length > 1 ? coachParts[0] : "",
+    coachLastName: coachParts.length > 1 ? coachParts[coachParts.length - 1] : /^Coach\s+/i.test(trimmedCoachName) ? withoutTitle : "",
+    coachFullName: withoutTitle,
+    collegeName: (collegeName || "").trim(),
+  };
+  const personalizedBody = resolveEmailPersonalization(body, personalizationValues);
+  const personalizedSubject = resolveEmailPersonalization(subject, personalizationValues);
+  const personalizationMissing = [...new Set([...personalizedBody.missing, ...personalizedSubject.missing])];
+  const hasPersonalization = hasEmailPersonalizationTokens(body) || hasEmailPersonalizationTokens(subject);
   return (
     <div className="w-full">
       <div className="flex flex-wrap gap-2">
@@ -1087,6 +1100,7 @@ export default function CoachActionBar({
                         videoPicker={<EmailVideoPicker athleteUserId={athleteUserId} onInsert={insertVideo}/>}
                         value={body}
                         html={bodyHtml}
+                        personalizationValues={personalizationValues}
                         onChange={(plain, html) => {
                           setBody(plain);
                           setBodyHtml(html);
@@ -1095,6 +1109,22 @@ export default function CoachActionBar({
                         onAttachmentsChange={setAttachments}
                         disabled={busy}
                       />
+                      {hasPersonalization && (
+                        <section className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs" aria-label="Email personalization preview">
+                          {personalizationMissing.length > 0 ? (
+                            <p role="alert" className="font-semibold text-amber-900">Missing personalization: {personalizationMissing.join(", ")}. This email cannot be sent until the information is available or you replace the field manually.</p>
+                          ) : (
+                            <p className="font-semibold text-slate-700">Personalized for {coachName}{collegeName ? " · " + collegeName : ""}. These values update for each coach; saved templates stay reusable.</p>
+                          )}
+                          <details className="mt-1.5">
+                            <summary className="cursor-pointer font-bold text-red-700">Preview completed email</summary>
+                            <div className="mt-2 max-h-60 overflow-auto rounded-lg border bg-white p-3 text-slate-800">
+                              <p className="mb-2 font-semibold">Subject: {personalizedSubject.text}</p>
+                              <pre className="whitespace-pre-wrap break-words font-sans">{personalizedBody.text}</pre>
+                            </div>
+                          </details>
+                        </section>
+                      )}
                       <div className="text-xs text-slate-500 mt-2">
                         Choose a font and text size, or select text to format it. Use bold, italic, underline, links, bullets or numbered
                         lists. Up to 5 attachments; 2.5 MB each and 3 MB
