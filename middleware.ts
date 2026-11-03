@@ -1,9 +1,19 @@
 import {createServerClient} from '@supabase/ssr';import {NextResponse,type NextRequest} from 'next/server';
 export async function middleware(request:NextRequest){let response=NextResponse.next({request});const supabase=createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{cookies:{getAll:()=>request.cookies.getAll(),setAll:(cs)=>{cs.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request});cs.forEach(({name,value,options})=>response.cookies.set(name,value,options))}}});const pathname=request.nextUrl.pathname;if(/\.[a-zA-Z0-9]+$/.test(pathname)&&!pathname.startsWith('/api/'))return response;if(pathname==='/api/google/gmail/push'||pathname==='/api/google/gmail/sync'||pathname==='/api/cron/college-softball-staff'||pathname==='/api/platform/college-staff-intelligence/division-import'&&request.method==='GET'||pathname==='/api/cron/gmail-watch'||pathname==='/api/cron/calendar-subscriptions')return response;if(pathname==='/intelligence'||pathname.startsWith('/intelligence/')){const url=request.nextUrl.clone();url.pathname=pathname.replace(/^\/intelligence/,'/insights');return NextResponse.redirect(url,308)}const {data:{user}}=await supabase.auth.getUser();
-const {data:sessionProfileRaw}=user
+const {data:sessionProfileRaw,error:accessError}=user
   ?await supabase.rpc('current_account_access').maybeSingle()
-  :{data:null};
+  :{data:null,error:null};
 const sessionProfile=sessionProfileRaw as {app_role?:string;account_status?:string;registration_status?:string}|null;
+// A failed status lookup is NOT an uninvited account. Fail closed without
+// changing the user's role, legal acceptance, or invitation state.
+if(user&&(accessError||!sessionProfile)){
+  if(pathname==='/service-unavailable')return response;
+  if(pathname.startsWith('/api/'))return NextResponse.json(
+    {error:'We could not verify account access right now. Please try again.'},
+    {status:503,headers:{'Cache-Control':'no-store','Retry-After':'10'}},
+  );
+  return NextResponse.redirect(new URL('/service-unavailable',request.url));
+}
 if(user&&sessionProfile?.account_status==='suspended'){
   if(pathname==='/account-suspended')return response;
   if(pathname.startsWith('/api/'))return NextResponse.json(
