@@ -3,15 +3,72 @@ import {forwardRef,useEffect,useImperativeHandle,useRef,useState,type ReactNode}
 import {Bold,Italic,Underline,Link as LinkIcon,List,ListOrdered,Paperclip,X} from 'lucide-react';
 import { EMAIL_FONTS, EMAIL_SIZES, emailFontCss, emailSizeCss, safeEmailFontStyle } from '@/lib/email-fonts';
 import { chooseEmailEditorRange } from '@/lib/email-editor-selection';
+import { EMAIL_PERSONALIZATION_FIELDS, emailPersonalizationKey, emailPersonalizationToken, normalizeEmailPersonalizationTokens, type EmailPersonalizationKey, type EmailPersonalizationValues } from '@/lib/email-personalization';
 export type EmailAttachment={name:string;type:string;data:string;size:number};
-type Props={value:string;html?:string;onChange:(plain:string,html:string)=>void;attachments:EmailAttachment[];onAttachmentsChange:(files:EmailAttachment[])=>void;disabled?:boolean;videoPicker?:ReactNode;compact?:boolean};
+type Props={value:string;html?:string;onChange:(plain:string,html:string)=>void;attachments:EmailAttachment[];onAttachmentsChange:(files:EmailAttachment[])=>void;disabled?:boolean;videoPicker?:ReactNode;compact?:boolean;personalizationValues?:EmailPersonalizationValues};
 export type RichEmailEditorHandle={insertVideo:(video:{title:string;url:string})=>void};
-function plainFrom(el:HTMLElement){return (el.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n')}
+// The editor displays live coach values, but the saved draft keeps reusable tokens.
+// Temporarily substitute token text inside noneditable chips when extracting plain text.
+function plainFrom(el:HTMLElement){
+  // Work on an offscreen clone: touching the live chips while typing can
+  // disturb the browser selection and cause the caret to jump.
+  if(!el.querySelector('[data-rltnl-field]'))return (el.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n');
+  const clone=el.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll<HTMLElement>('[data-rltnl-field]').forEach(chip=>{
+    const key=emailPersonalizationKey(chip.dataset.rltnlField||'');
+    if(key)chip.replaceWith(document.createTextNode(emailPersonalizationToken(key)));
+  });
+  clone.style.cssText='position:fixed;left:-99999px;top:0;opacity:0;pointer-events:none';
+  document.body.appendChild(clone);
+  try{return (clone.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n')}
+  finally{clone.remove()}
+}
+function htmlFrom(el:HTMLElement){
+  const clone=el.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll<HTMLElement>('[data-rltnl-field]').forEach(chip=>{
+    const key=emailPersonalizationKey(chip.dataset.rltnlField||'');
+    if(key)chip.replaceWith(document.createTextNode(emailPersonalizationToken(key)));
+  });
+  return clone.innerHTML;
+}
+function createPersonalizationChip(key:EmailPersonalizationKey,values:EmailPersonalizationValues){
+  const span=document.createElement('span');
+  span.dataset.rltnlField=key;
+  span.contentEditable='false';
+  span.className='inline rounded-md border border-red-200 bg-red-50 px-1.5 py-0.5 font-semibold text-red-800';
+  const field=EMAIL_PERSONALIZATION_FIELDS.find(item=>item.key===key)!;
+  span.title=field.label+' · fills automatically for each coach';
+  const value=String(values[key]||'').trim();
+  span.textContent=value||'Missing '+field.label;
+  if(!value)span.className='inline rounded-md border border-amber-300 bg-amber-50 px-1.5 py-0.5 font-semibold text-amber-900';
+  return span;
+}
+function hydratePersonalizationTokens(root:HTMLElement,values:EmailPersonalizationValues){
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  const nodes:Text[]=[];
+  while(walker.nextNode())nodes.push(walker.currentNode as Text);
+  for(const node of nodes){
+    const raw=node.textContent||'';
+    const normalized=normalizeEmailPersonalizationTokens(raw);
+    const regex=/{{(coachLastName|coachFirstName|coachFullName|collegeName)}}/g;
+    if(!regex.test(normalized))continue;
+    regex.lastIndex=0;
+    const fragment=document.createDocumentFragment();
+    let from=0;let match:RegExpExecArray|null;
+    while((match=regex.exec(normalized))){
+      if(match.index>from)fragment.appendChild(document.createTextNode(normalized.slice(from,match.index)));
+      fragment.appendChild(createPersonalizationChip(match[1] as EmailPersonalizationKey,values));
+      from=match.index+match[0].length;
+    }
+    if(from<normalized.length)fragment.appendChild(document.createTextNode(normalized.slice(from)));
+    node.replaceWith(fragment);
+  }
+}
 // Drafts are stored in the browser. Sanitize before putting any stored HTML
 // back into a contentEditable element; pasted rich HTML is sanitized before insertion.
 const EDITOR_TAGS=new Set(['b','strong','i','em','u','a','ul','ol','li','br','div','p','span','font']);
 const DROP_TAGS=new Set(['script','style','iframe','object','embed','form','input','button','svg','math','img','video','audio']);
-function safeDraftHtml(html:string):string {
+function safeDraftHtml(html:string,values:EmailPersonalizationValues={}):string {
   const parsed=new DOMParser().parseFromString(html,'text/html');
   const output=document.createElement('div');
   function clean(node:Node):Node|null {
@@ -47,6 +104,7 @@ function safeDraftHtml(html:string):string {
     const next=clean(child);
     if(next)output.appendChild(next);
   }
+  hydratePersonalizationTokens(output,values);
   return output.innerHTML;
 }
 // The live browser selection is authoritative for toolbar buttons. A saved Range can
@@ -61,16 +119,28 @@ function currentEditorRange(editor: HTMLElement): Range | null {
   const range=selection.getRangeAt(0);
   return rangeIsInEditor(editor,range)?range.cloneRange():null;
 }
-const RichEmailEditor=forwardRef<RichEmailEditorHandle,Props>(function RichEmailEditor({value,html='',onChange,attachments,onAttachmentsChange,disabled,videoPicker,compact=false},forwardedRef){const ref=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null),lastValue=useRef(''),lastHtml=useRef(''),savedRange=useRef<Range|null>(null);const [linkOpen,setLinkOpen]=useState(false),[linkUrl,setLinkUrl]=useState(''),[selectedFont,setSelectedFont]=useState('Arial'),[selectedSize,setSelectedSize]=useState('3');
+const RichEmailEditor=forwardRef<RichEmailEditorHandle,Props>(function RichEmailEditor({value,html='',onChange,attachments,onAttachmentsChange,disabled,videoPicker,compact=false,personalizationValues={}},forwardedRef){const ref=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null),lastValue=useRef(''),lastHtml=useRef(''),savedRange=useRef<Range|null>(null);const [linkOpen,setLinkOpen]=useState(false),[linkUrl,setLinkUrl]=useState(''),[selectedFont,setSelectedFont]=useState('Arial'),[selectedSize,setSelectedSize]=useState('3');
  useEffect(()=>{
    const editor=ref.current;
    if(!editor||(value===lastValue.current&&html===lastHtml.current))return;
-   if(html.trim())editor.innerHTML=safeDraftHtml(html);
-   else editor.innerText=value;
+   if(html.trim())editor.innerHTML=safeDraftHtml(html,personalizationValues);
+   else {editor.innerText=value;hydratePersonalizationTokens(editor,personalizationValues)}
    lastValue.current=value;
    lastHtml.current=html;
  },[value,html]);
- function emit(){if(!ref.current)return;const plain=plainFrom(ref.current);const markup=ref.current.innerHTML;lastValue.current=plain;lastHtml.current=markup;onChange(plain,markup)}
+ // Coach information can load after the draft: refresh chip labels without
+ // overwriting the athlete's edits or moving their cursor.
+ useEffect(()=>{
+   const editor=ref.current;if(!editor)return;
+   editor.querySelectorAll<HTMLElement>('[data-rltnl-field]').forEach(chip=>{
+     const key=emailPersonalizationKey(chip.dataset.rltnlField||'');
+     if(!key)return;
+     const updated=createPersonalizationChip(key,personalizationValues);
+     chip.textContent=updated.textContent;
+     chip.className=updated.className;
+   });
+ },[personalizationValues.coachFirstName,personalizationValues.coachLastName,personalizationValues.coachFullName,personalizationValues.collegeName]);
+ function emit(){if(!ref.current)return;const plain=plainFrom(ref.current);const markup=htmlFrom(ref.current);lastValue.current=plain;lastHtml.current=markup;onChange(plain,markup)}
  function rememberSelection(){const editor=ref.current;if(!editor)return;savedRange.current=currentEditorRange(editor)}
  // Insert the chosen video at the saved cursor, even after the picker steals focus.
  function insertVideoAtCaret(video:{title:string;url:string}){
@@ -87,6 +157,20 @@ const RichEmailEditor=forwardRef<RichEmailEditorHandle,Props>(function RichEmail
   editor.focus();
   const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);
   savedRange.current=range.cloneRange();emit();
+ }
+ function insertPersonalizationAtCaret(key:EmailPersonalizationKey){
+   const editor=ref.current;
+   if(!editor||disabled)return;
+   const range=currentEditorRange(editor)||(rangeIsInEditor(editor,savedRange.current)?savedRange.current.cloneRange():null)||document.createRange();
+   if(!editor.contains(range.startContainer)||!editor.contains(range.endContainer)){range.selectNodeContents(editor);range.collapse(false)}
+   range.deleteContents();
+   const chip=createPersonalizationChip(key,personalizationValues);
+   range.insertNode(chip);
+   range.setStartAfter(chip);range.collapse(true);
+   editor.focus();
+   const selection=window.getSelection();selection?.removeAllRanges();selection?.addRange(range);
+   savedRange.current=range.cloneRange();
+   emit();
  }
  useImperativeHandle(forwardedRef,()=>({insertVideo:insertVideoAtCaret}));
  function command(cmd:string,value?:string){
@@ -134,5 +218,5 @@ const RichEmailEditor=forwardRef<RichEmailEditorHandle,Props>(function RichEmail
   {EMAIL_SIZES.map(size=><option key={size.value} value={size.value}>{size.label}</option>)}
  </select>
  <span className="mx-1 h-6 border-l"/>
- <button type="button" className={tool} title="Bold" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('bold')}><Bold size={16}/></button><button type="button" className={tool} title="Italic" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('italic')}><Italic size={16}/></button><button type="button" className={tool} title="Underline" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('underline')}><Underline size={16}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool} title="Insert link" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={openLink}><LinkIcon size={16}/></button><button type="button" className={tool} title="Bulleted list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertUnorderedList')}><List size={17}/></button><button type="button" className={tool} title="Numbered list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertOrderedList')}><ListOrdered size={17}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool+' gap-1.5 text-xs font-bold'} disabled={disabled} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/> Attach</button>{videoPicker&&<div className="relative" onMouseDownCapture={preserveVideoCaret} onTouchStartCapture={preserveVideoCaret}>{videoPicker}</div>}<input ref={fileRef} type="file" multiple className="hidden" onChange={e=>addFiles(e.target.files)}/></div>{linkOpen&&<div className="flex flex-col sm:flex-row gap-2 border-b bg-white p-2"><input className="input py-1.5 text-sm" autoFocus placeholder="Paste a URL" value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addLink()}}}/><button type="button" className="btn btn-red py-1.5 text-xs" onClick={addLink}>Add link</button><button type="button" className="btn py-1.5 text-xs" onClick={()=>setLinkOpen(false)}>Cancel</button></div>}<div ref={ref} aria-label="Email message" contentEditable={!disabled} suppressContentEditableWarning onInput={()=>{rememberSelection();emit()}} onPaste={e=>{e.preventDefault();const pastedHtml=e.clipboardData.getData("text/html");const pastedText=e.clipboardData.getData("text/plain");if(pastedHtml){const cleaned=safeDraftHtml(pastedHtml);if(cleaned.trim()){document.execCommand("insertHTML",false,cleaned);emit();return}}document.execCommand("insertText",false,pastedText);emit()}} onDrop={e=>{e.preventDefault();document.execCommand("insertText",false,e.dataTransfer.getData("text/plain"));emit()}} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onBlur={()=>{emit()}} className={`${compact?"min-h-[130px] sm:min-h-[145px] lg:min-h-[155px]":"min-h-[240px] sm:min-h-[260px] lg:min-h-[300px]"} p-3 text-[16px] leading-6 outline-none whitespace-pre-wrap break-words [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-7 [&_ol]:pl-7 [&_li]:list-item [&_li]:my-0.5`} style={{fontFamily:"Arial, Helvetica, sans-serif"}} data-placeholder="Write your email…"/>{attachments.length>0&&<div className="border-t bg-slate-50 p-3"><div className="text-xs font-black uppercase text-slate-500 mb-2">Attachments</div><div className="flex flex-wrap gap-2">{attachments.map((a,i)=><div key={`${a.name}-${i}`} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs"><Paperclip size={13}/><span className="font-semibold max-w-[220px] truncate">{a.name}</span><span className="text-slate-500">{(a.size/1024/1024).toFixed(1)} MB</span><button type="button" title="Remove attachment" onClick={()=>onAttachmentsChange(attachments.filter((_,x)=>x!==i))}><X size={13}/></button></div>)}</div></div>}</div>});
+ <button type="button" className={tool} title="Bold" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('bold')}><Bold size={16}/></button><button type="button" className={tool} title="Italic" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('italic')}><Italic size={16}/></button><button type="button" className={tool} title="Underline" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('underline')}><Underline size={16}/></button><span className="mx-1 h-6 border-l"/><button type="button" className={tool} title="Insert link" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={openLink}><LinkIcon size={16}/></button><button type="button" className={tool} title="Bulleted list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertUnorderedList')}><List size={17}/></button><button type="button" className={tool} title="Numbered list" disabled={disabled} onMouseDown={e=>e.preventDefault()} onClick={()=>command('insertOrderedList')}><ListOrdered size={17}/></button><span className="mx-1 h-6 border-l"/><select aria-label="Insert Personalization" title="Insert Personalization" className="h-11 sm:h-9 max-w-[205px] rounded-lg border border-red-200 bg-white px-2 text-xs font-bold text-red-700 disabled:opacity-40" disabled={disabled} value="" onMouseDown={rememberSelection} onTouchStart={rememberSelection} onChange={e=>{const key=emailPersonalizationKey(e.target.value);if(key)insertPersonalizationAtCaret(key);e.target.value=''}}><option value="" disabled>+ Insert Personalization</option>{EMAIL_PERSONALIZATION_FIELDS.map(field=><option key={field.key} value={field.key}>{field.label}</option>)}</select><button type="button" className={tool+' gap-1.5 text-xs font-bold'} disabled={disabled} onClick={()=>fileRef.current?.click()}><Paperclip size={16}/> Attach</button>{videoPicker&&<div className="relative" onMouseDownCapture={preserveVideoCaret} onTouchStartCapture={preserveVideoCaret}>{videoPicker}</div>}<input ref={fileRef} type="file" multiple className="hidden" onChange={e=>addFiles(e.target.files)}/></div>{linkOpen&&<div className="flex flex-col sm:flex-row gap-2 border-b bg-white p-2"><input className="input py-1.5 text-sm" autoFocus placeholder="Paste a URL" value={linkUrl} onChange={e=>setLinkUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();addLink()}}}/><button type="button" className="btn btn-red py-1.5 text-xs" onClick={addLink}>Add link</button><button type="button" className="btn py-1.5 text-xs" onClick={()=>setLinkOpen(false)}>Cancel</button></div>}<div ref={ref} aria-label="Email message" contentEditable={!disabled} suppressContentEditableWarning onInput={()=>{rememberSelection();emit()}} onPaste={e=>{e.preventDefault();const pastedHtml=e.clipboardData.getData("text/html");const pastedText=e.clipboardData.getData("text/plain");if(pastedHtml){const cleaned=safeDraftHtml(pastedHtml,personalizationValues);if(cleaned.trim()){document.execCommand("insertHTML",false,cleaned);emit();return}}document.execCommand("insertText",false,pastedText);emit()}} onDrop={e=>{e.preventDefault();document.execCommand("insertText",false,e.dataTransfer.getData("text/plain"));emit()}} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onBlur={()=>{emit()}} className={`${compact?"min-h-[130px] sm:min-h-[145px] lg:min-h-[155px]":"min-h-[240px] sm:min-h-[260px] lg:min-h-[300px]"} p-3 text-[16px] leading-6 outline-none whitespace-pre-wrap break-words [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-7 [&_ol]:pl-7 [&_li]:list-item [&_li]:my-0.5`} style={{fontFamily:"Arial, Helvetica, sans-serif"}} data-placeholder="Write your email…"/>{attachments.length>0&&<div className="border-t bg-slate-50 p-3"><div className="text-xs font-black uppercase text-slate-500 mb-2">Attachments</div><div className="flex flex-wrap gap-2">{attachments.map((a,i)=><div key={`${a.name}-${i}`} className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs"><Paperclip size={13}/><span className="font-semibold max-w-[220px] truncate">{a.name}</span><span className="text-slate-500">{(a.size/1024/1024).toFixed(1)} MB</span><button type="button" title="Remove attachment" onClick={()=>onAttachmentsChange(attachments.filter((_,x)=>x!==i))}><X size={13}/></button></div>)}</div></div>}</div>});
 export default RichEmailEditor;
