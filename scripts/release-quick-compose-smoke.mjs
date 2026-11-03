@@ -12,7 +12,7 @@ const quick=read('components/RecruitingQuickComposer.tsx'),editor=read('componen
 assert(quick.includes('<RichEmailEditor ref={emailEditorRef}'));
 assert(quick.includes('onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}'));
 assert(quick.includes('choice,subject,body,bodyHtml,templateId'));
-assert(quick.includes('body,bodyHtml,attachments,emailPurpose:templateId'));
+assert(quick.includes('body:prepared.body,bodyHtml:prepared.bodyHtml,attachments,emailPurpose:templateId'), 'Quick composer must send the body and formatted HTML with the automatic signature');
 assert(quick.includes('emailEditorRef.current?.insertVideo(video)'));
 assert(coach.includes('emailEditorRef.current?.insertVideo(video)'));
 assert(editor.includes('useImperativeHandle(forwardedRef'));
