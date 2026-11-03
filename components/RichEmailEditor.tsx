@@ -10,12 +10,18 @@ export type RichEmailEditorHandle={insertVideo:(video:{title:string;url:string})
 // The editor displays live coach values, but the saved draft keeps reusable tokens.
 // Temporarily substitute token text inside noneditable chips when extracting plain text.
 function plainFrom(el:HTMLElement){
-  const chips=Array.from(el.querySelectorAll<HTMLElement>('[data-rltnl-field]'));
-  const originals=chips.map(chip=>chip.textContent||'');
-  chips.forEach(chip=>{const key=emailPersonalizationKey(chip.dataset.rltnlField||'');if(key)chip.textContent=emailPersonalizationToken(key)});
-  const text=(el.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n');
-  chips.forEach((chip,i)=>{chip.textContent=originals[i]});
-  return text;
+  // Work on an offscreen clone: touching the live chips while typing can
+  // disturb the browser selection and cause the caret to jump.
+  if(!el.querySelector('[data-rltnl-field]'))return (el.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n');
+  const clone=el.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll<HTMLElement>('[data-rltnl-field]').forEach(chip=>{
+    const key=emailPersonalizationKey(chip.dataset.rltnlField||'');
+    if(key)chip.replaceWith(document.createTextNode(emailPersonalizationToken(key)));
+  });
+  clone.style.cssText='position:fixed;left:-99999px;top:0;visibility:hidden;pointer-events:none';
+  document.body.appendChild(clone);
+  try{return (clone.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n')}
+  finally{clone.remove()}
 }
 function htmlFrom(el:HTMLElement){
   const clone=el.cloneNode(true) as HTMLElement;
