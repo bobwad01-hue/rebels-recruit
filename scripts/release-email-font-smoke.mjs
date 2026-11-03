@@ -27,7 +27,7 @@ assert.deepEqual(Array.from(fonts.EMAIL_FONTS, font => font.label), ['Arial','Ge
 assert.deepEqual(Array.from(fonts.EMAIL_SIZES, size => size.label), ['Small','Normal','Large']);
 assert(editor.includes('aria-label="Font family"') && editor.includes('aria-label="Text size"'), 'Font and size controls must be accessible');
 assert(editor.includes("command('fontName',font)") && editor.includes("command('fontSize',size)"), 'Font controls must format editor text');
-assert(editor.includes('safeDraftHtml(html)'), 'Saved HTML must be sanitized before restoration');
+assert(editor.includes('safeDraftHtml(html,personalizationValues)'), 'Saved HTML must be sanitized before restoration and personalization hydration');
 assert(editor.includes('const live=currentEditorRange(editor);'), 'Formatting must inspect the current browser selection');
 assert(editor.includes('chooseEmailEditorRange(cmd,live,saved)'), 'Formatting must use the tested selection policy');
 assert(!editor.includes('onBlur={()=>{rememberSelection();emit()}}'), 'Blur must not overwrite the last selected text with a changed selection');
