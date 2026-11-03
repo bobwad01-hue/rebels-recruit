@@ -18,7 +18,7 @@ function plainFrom(el:HTMLElement){
     const key=emailPersonalizationKey(chip.dataset.rltnlField||'');
     if(key)chip.replaceWith(document.createTextNode(emailPersonalizationToken(key)));
   });
-  clone.style.cssText='position:fixed;left:-99999px;top:0;visibility:hidden;pointer-events:none';
+  clone.style.cssText='position:fixed;left:-99999px;top:0;opacity:0;pointer-events:none';
   document.body.appendChild(clone);
   try{return (clone.innerText||'').replace(/\u00a0/g,' ').replace(/\r\n?/g,'\n')}
   finally{clone.remove()}
