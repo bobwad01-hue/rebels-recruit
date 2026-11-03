@@ -36,6 +36,7 @@ import EmailSignatureSettings from "@/components/EmailSignatureSettings";
 import RecruitingEmailReader from "@/components/RecruitingEmailReader";
 import { buildRecruitingEmailSubject, formatDraftSignaturePhones, formatEmailPhone, hasUnresolvedRecruitingSubjectFields } from "@/lib/recruiting-email-format";
 import {gmailSubjectChanged} from "@/lib/gmail-reply-context";
+import { emailPersonalizationKey, emailPersonalizationToken, hasEmailPersonalizationTokens, resolveEmailPersonalization } from "@/lib/email-personalization";
 type PrimaryAction = "email" | "text" | "call" | "log" | "reminder" | null;
 type Props = {
   coachId: string;
@@ -184,7 +185,7 @@ export default function CoachActionBar({
     setBody(selected.body);
     setBodyHtml("");
     setAttachments([]);
-    setTemplateNotice("Template loaded. Personalize the coach and school details before sending.");
+    setTemplateNotice("Template loaded. Coach and college personalization is filled automatically. Review before sending.");
   }
   function originalReplySubject() {
     const original = contextualReply?.subject?.trim();
@@ -236,9 +237,11 @@ export default function CoachActionBar({
   }
   function fill(text: string, p: any) {
     const v = values(p);
-    return text.replace(/{{(\w+)}}/g, (_, k) =>
-      String((v as any)[k] || `[${k}]`),
-    );
+    return text.replace(/{{\s*([^{}]+?)\s*}}/g, (original, raw: string) => {
+      const field = emailPersonalizationKey(raw);
+      if (field) return emailPersonalizationToken(field);
+      return String((v as any)[raw] || '[' + raw + ']');
+    });
   }
   function signature(p: any) {
     const preference = p?.signature?.signatureMode || "default";
@@ -594,6 +597,12 @@ export default function CoachActionBar({
       sendGuard.current=false;
       setEmailStatus("error");
       setMessage("Replace [Subject] and any missing athlete details in the Subject field before sending.");
+      return;
+    }
+    if (personalizationMissing.length) {
+      sendGuard.current=false;
+      setEmailStatus("error");
+      setMessage("Complete the missing personalization fields before sending: " + personalizationMissing.join(", ") + ".");
       return;
     }
     const s = starterById(starter, templates);
