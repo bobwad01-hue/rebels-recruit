@@ -762,7 +762,7 @@ export default function CoachActionBar({
   const coachParts = withoutTitle.split(/\s+/).filter(Boolean);
   const personalizationValues = {
     coachFirstName: coachParts.length > 1 ? coachParts[0] : "",
-    coachLastName: coachParts.length > 1 ? coachParts[coachParts.length - 1] : /^Coach\s+/i.test(trimmedCoachName) ? withoutTitle : "",
+    coachLastName: coachParts.length ? coachParts[coachParts.length - 1] : "",
     coachFullName: withoutTitle,
     collegeName: (collegeName || "").trim(),
   };
