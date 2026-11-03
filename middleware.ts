@@ -22,6 +22,9 @@ if(user&&sessionProfile?.account_status==='suspended'){
   );
   return NextResponse.redirect(new URL('/account-suspended',request.url));
 }
+if(user&&(pathname==='/service-unavailable'||(sessionProfile?.registration_status==='active'&&pathname==='/invitation-required'))){
+  return NextResponse.redirect(new URL('/auth/callback',request.url));
+}
 // Invite-only registration: no pending account may access app pages or
 // service-role APIs before a real team or staff relationship is established.
 // Auth callback, legal acceptance, and the join endpoint remain accessible.
