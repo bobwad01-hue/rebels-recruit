@@ -1220,7 +1220,6 @@ export default function CoachActionBar({
                         disabled={
                           busy ||
                           gmailConnected === false ||
-                          emailStatus === "success" ||
                           !subject.trim() ||
                           !body.trim() ||
                           (!email && !validRecipient(recipientEmail))
@@ -1228,7 +1227,7 @@ export default function CoachActionBar({
                         onClick={sendEmail}
                       >
                         <Send size={15} />
-                        {busy ? "Sending..." : emailStatus==="success" ? "Email Sent" : "Send Email"}
+                        {busy ? "Sending..." : "Send Email"}
                       </button>
                     </div>
                   </div>

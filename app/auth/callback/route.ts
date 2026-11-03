@@ -55,11 +55,12 @@ export async function GET(request: Request) {
     if(!ageRecorded)return NextResponse.redirect(new URL('/signup?error=age_recording',requestUrl.origin))
   }
 
-  const { data } = await admin
+  const { data, error: profileError } = await admin
     .from('profiles')
     .select('app_role,profile_completed_at,registration_status')
     .eq('id', user.id)
     .single()
+  if (profileError || !data) return NextResponse.redirect(new URL('/service-unavailable', requestUrl.origin))
 
   // New accounts may not use RLTNL until a live invitation is redeemed.
   // Check invitation on the server, not merely the signup page or OAuth URL.
@@ -96,7 +97,7 @@ export async function GET(request: Request) {
   }
 
   const {data:accepted,error:acceptError}=await supabase.rpc('has_current_legal_acceptance')
-  if(acceptError){const u=new URL('/legal/accept',requestUrl.origin);u.searchParams.set('context','existing_account');if(joinToken)u.searchParams.set('join_token',joinToken);return NextResponse.redirect(u)}
+  if(acceptError)return NextResponse.redirect(new URL('/service-unavailable',requestUrl.origin))
   if(!accepted){
     if(legalSignup){
       const recorded=await recordSignupAcceptance(request,user.id)
@@ -140,10 +141,11 @@ export async function GET(request: Request) {
     return NextResponse.redirect(joinUrl)
   }
 
-  const {data:platformRole}=await supabase.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
+  const {data:platformRole,error:platformRoleError}=await supabase.from('platform_roles').select('role').eq('user_id',user.id).eq('role','super_owner').maybeSingle()
+  if(platformRoleError)return NextResponse.redirect(new URL('/service-unavailable',requestUrl.origin))
   if(platformRole?.role==='super_owner'&&profile?.profile_completed_at)return NextResponse.redirect(new URL('/platform-admin',requestUrl.origin))
 
-  const cookieView=request.headers.get('cookie')?.match(/(?:^|;\\s*)rr-active-view=([^;]+)/)?.[1];const savedView=cookieView?decodeURIComponent(cookieView):null;const{data:roleRows}=await supabase.from('user_roles').select('role').eq('user_id',user.id);const role=savedView&&(roleRows||[]).some((x:any)=>x.role===savedView)?savedView:(profile?.app_role||'athlete')
+  const cookieView=request.headers.get('cookie')?.match(/(?:^|;\\s*)rr-active-view=([^;]+)/)?.[1];const savedView=cookieView?decodeURIComponent(cookieView):null;const{data:roleRows,error:roleRowsError}=await supabase.from('user_roles').select('role').eq('user_id',user.id);if(roleRowsError)return NextResponse.redirect(new URL('/service-unavailable',requestUrl.origin));const role=savedView&&(roleRows||[]).some((x:any)=>x.role===savedView)?savedView:(profile?.app_role||'athlete')
   if (!profile?.profile_completed_at) {
     return NextResponse.redirect(new URL(profilePath(role), requestUrl.origin))
   }
