@@ -9,6 +9,7 @@ import EmailVideoPicker from '@/components/EmailVideoPicker';
 import RichEmailEditor,{type EmailAttachment,type RichEmailEditorHandle} from '@/components/RichEmailEditor';
 import EmailSignatureSettings from '@/components/EmailSignatureSettings';
 import EmailSubjectSettings from '@/components/EmailSubjectSettings';
+import {buildRecruitingEmailSignature,hasEmbeddedRecruitingSignature,withRecruitingEmailSignature} from '@/lib/recruiting-email-signature';
 
 type School={id:string;name:string;city?:string|null;state?:string|null};
 type Coach={id:string;first_name:string|null;last_name:string|null;email:string|null;college_id:string;contact_verification_needed?:boolean|null;lifecycle_status?:string|null;colleges?:{name:string}|null};
@@ -66,6 +67,25 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  const selectedSchool=manualOnly?(initialSchool||null):(choice?.school||null);
  const selectedCoach=manualOnly?null:(choice?.coach||null);
  const currentTemplate=useMemo(()=>starterById(templateId,templates),[templateId,templates]);
+ // Home and Compose Email share this composer. The signature stays outside
+ // the editable draft, so changing templates or preferences cannot duplicate it.
+ const emailSignature=buildRecruitingEmailSignature({
+  name:profile?.profile?.full_name||profile?.athlete?.full_name||'',
+  mobile:profile?.profile?.phone||'',email:profile?.profile?.email||'',
+  twitter:profile?.signature?.xTwitter||profile?.athlete?.twitter||profile?.athlete?.twitter_handle||'',
+  grad:profile?.athlete?.class_year||profile?.athlete?.grad_year||'',
+  sports:profile?.signature?.sportsRecruitsUrl||profile?.athlete?.sportsrecruits_url||profile?.athlete?.sports_recruits_url||'',
+  travelTeam:profile?.signature?.travelTeamName||profile?.athlete?.travel_team||'',
+  travelCoach:profile?.signature?.travelTeamCoachName||'',travelCoachPhone:profile?.signature?.travelTeamCoachPhone||'',
+  school:profile?.athlete?.school_name||profile?.athlete?.school||'',
+  hsCity:profile?.signature?.highSchoolCity||'',hsState:profile?.signature?.highSchoolState||profile?.athlete?.primary_state||'',
+  hsCoach:profile?.signature?.highSchoolCoachName||'',hsCoachPhone:profile?.signature?.highSchoolCoachPhone||'',
+  positions:Array.isArray(profile?.athlete?.positions)?profile.athlete.positions.join('/'):profile?.athlete?.position||'',
+  throwBat:profile?.signature?.throwBat||profile?.athlete?.throw_bat||'',
+  academic:Array.isArray(profile?.athlete?.interested_majors)?profile.athlete.interested_majors.filter(Boolean).join(' or '):profile?.athlete?.academic_interest||'',
+  ncaa:profile?.signature?.ncaaNumber||profile?.athlete?.ncaa_number||'',
+ },profile?.signature||{});
+ const signatureAlreadyInDraft=hasEmbeddedRecruitingSignature(body,emailSignature);
 
  useEffect(()=>{
   let alive=true;
@@ -209,19 +229,6 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
  function fill(text:string,v:Record<string,unknown>){
   return text.replace(/{{(\w+)}}/g,(_,key)=>String(v[key]||'['+key+']'));
  }
- function signature(v:ReturnType<typeof values>){
-  const settings=profile?.signature||{};
-  if(settings.signatureMode==='none')return '';
-  if(settings.signatureMode==='custom')return String(settings.customSignature||'');
-  const lines:string[]=[];
-  if(v.name)lines.push(v.name+' Profile Summary');
-  if(v.mobile)lines.push('Mobile: '+v.mobile);
-  if(v.email)lines.push('Email: '+v.email);
-  if(v.grad)lines.push('Graduation Year: '+v.grad);
-  if(v.sports)lines.push('SportsRecruits Profile: '+v.sports);
-  if(v.travelTeam)lines.push('Travel Team: '+v.travelTeam);
-  return lines.join('\n');
- }
  async function savePersonalTemplate(){
   if(!userId||!templateName.trim()||!subject.trim()||!body.trim()){setTemplateNotice('Add a template name, subject and message first.');return}
   if(personalTemplates.length>=30){setTemplateNotice('You have 30 templates. Remove one before saving another.');return}
@@ -235,7 +242,7 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   const item=personalTemplates.find(t=>t.id===id);
   if(!item||!window.confirm('Replace your current draft with this saved message?'))return;
   setTemplateId('custom');setSubject(item.subject);setBody(item.body);setBodyHtml('');setAttachments([]);
-  setTemplateNotice('Template loaded. Personalize it for this coach before sending.');
+  setTemplateNotice('Template loaded. Review your message; your saved signature is added automatically when sending.');
  }
  async function removePersonalTemplate(id:string){
   if(!window.confirm('Delete this template? Your current draft will stay unchanged.'))return;
@@ -253,8 +260,10 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   const coachLastName=selectedCoach?.last_name||'';
   const greeting=coachLastName?'Hello Coach '+coachLastName+',':'Hello Coach,';
   const openingText=fill(template.openings[index]?.text||template.openings[0]?.text||'',v);
-  const ask=fill(template.ask||'',v),sig=signature(v);
-  setBody([greeting,openingText,ask,sig].filter(Boolean).join('\n\n'));
+  const ask=fill(template.ask||'',v);
+  // The signature is displayed separately and appended once when sending.
+  // Do not bake it into reusable templates or drafts.
+  setBody([greeting,openingText,ask].filter(Boolean).join('\n\n'));
  }
  async function send(e:React.FormEvent){
   e.preventDefault();
@@ -270,6 +279,8 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
   if(templateId!=='custom'&&/\[[A-Z][A-Z0-9 ’'&/.,-]{2,}\]/.test(body)){
    setError('Replace the bracketed template prompts with your own details before sending.');return;
   }
+  const prepared=withRecruitingEmailSignature(body,bodyHtml,emailSignature);
+  if(prepared.body.length>20000||prepared.bodyHtml.length>100000){setError('Your email, including its signature, is too long.');return;}
   if(connected!==true){setError('Connect Gmail in Settings before sending an email.');return}
   if(ccLoading){setError('Wait for additional coach recipients to load.');return}
   if(selectedCoach?.contact_verification_needed){setError('This coach has contact details that require verification before outreach.');return}
@@ -283,10 +294,10 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(isCoach?{
      coachId:selectedCoach.id,athleteUserId:userId,recipientEmail:to,ccCoachIds:allowedCc,
-     subject:subject.trim(),body,bodyHtml,attachments,emailPurpose:templateId
+     subject:subject.trim(),body:prepared.body,bodyHtml:prepared.bodyHtml,attachments,emailPurpose:templateId
     }:{
      collegeId:selectedSchool?.id||null,recipientEmail:to,recipientName,
-     subject:subject.trim(),body,bodyHtml,attachments,emailPurpose:templateId
+     subject:subject.trim(),body:prepared.body,bodyHtml:prepared.bodyHtml,attachments,emailPurpose:templateId
     })
    });
    const result=await response.json().catch(()=>({}));
@@ -414,6 +425,11 @@ export default function RecruitingQuickComposer({readOnly=false,initialSchool,ma
      videoPicker={<EmailVideoPicker athleteUserId={userId||undefined} onInsert={video=>emailEditorRef.current?.insertVideo(video)}/>}
      onChange={(plain,html)=>{setBody(plain);setBodyHtml(html)}}
      attachments={attachments} onAttachmentsChange={setAttachments} disabled={busy||readOnly}/>
+    {emailSignature&&<div className="mt-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-3" aria-label="Email signature preview">
+     <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-700"><span>My Email Signature</span><span className="text-slate-500">{signatureAlreadyInDraft?'Already included in your message':'Automatically included when sent'}</span></div>
+     {!signatureAlreadyInDraft&&<pre className="mt-2 whitespace-pre-wrap break-words font-sans text-xs leading-relaxed text-slate-700">{emailSignature}</pre>}
+     {signatureAlreadyInDraft&&<p className="mt-1 text-xs text-slate-600">This draft already contains a profile-summary signature, so RLTNL will not add a second copy.</p>}
+    </div>}
     <p className="mt-2 text-xs text-slate-500">Choose a font and size, format selected text, add links or attachments. Place the cursor in the message before choosing Add Video to insert the link at that spot. Up to 5 attachments (2.5 MB each, 3 MB total).</p>
     <EmailSignatureSettings profile={profile} disabled={busy||readOnly} onSaved={next=>setProfile((current:any)=>({...current,signature:{...(current?.signature||{}),...next}}))}/>
    </div>
