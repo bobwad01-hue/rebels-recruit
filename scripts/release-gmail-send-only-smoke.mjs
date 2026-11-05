@@ -26,4 +26,8 @@ assert(send.includes("type:'Email Sent'"),'Outgoing recruiting activity must sti
 assert(send.includes('if(!GMAIL_INBOX_MONITORING_ENABLED&&(sentInteractionId||recruitingInteractionId||recruitingMessageId||previewOnly))'),'Read-dependent thread continuation must be blocked');
 assert(read('app/api/google/gmail/manual-send/route.ts').includes('/gmail/v1/users/me/messages/send'),'Manual send must remain operational');
 assert(read('components/GoogleWorkspaceSettings.tsx').includes('Gmail — sending only'),'Settings must accurately describe scope');
+const privacy=read('app/privacy/page.tsx');
+assert(privacy.includes('AES-256-GCM encryption'),'Privacy policy must disclose token encryption');
+assert(privacy.includes('Coach replies arrive directly in your Gmail inbox'),'Privacy policy must describe manual reply logging');
+assert(!privacy.includes('also requests read-only Gmail access'),'Privacy policy must not promise retired restricted scope');
 console.log('Gmail send-only OAuth, disabled inbox paths, normal replies and activity smoke passed.');
