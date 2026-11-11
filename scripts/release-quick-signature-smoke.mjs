@@ -37,7 +37,7 @@ assert(escaped.bodyHtml.includes('A&amp;B &lt;C&gt;'),'Custom signature must be 
 assert(!escaped.bodyHtml.includes('A&B <C>'));
 const quick=read('components/RecruitingQuickComposer.tsx');
 const home=read('app/dashboard/page.tsx'),compose=read('app/compose-email/page.tsx');
-assert(home.includes('<RecruitingQuickComposer')&&compose.includes('<RecruitingQuickComposer'), 'Home and Compose must share signature-aware composer');
+assert(home.includes('<HomeWhereWeStand')&&home.includes('ph("/compose-email")')&&compose.includes('<RecruitingQuickComposer'), 'Home must show ranked recruiting snapshot while Compose retains signature-aware composer');
 assert(quick.includes('aria-label="Email signature preview"'), 'Signature must be visible before sending');
 assert(quick.includes('Automatically included when sent'));
 assert(quick.includes('const prepared=withRecruitingEmailSignature(body,bodyHtml,emailSignature)'), 'Signature must be attached once on send');
