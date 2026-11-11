@@ -437,7 +437,7 @@ export default async function Dashboard({
               </div>
               <div className="muted text-sm mt-1">
                 Explore schools, reach out to a coach, or continue a relationship.
-                <a href={ph("/compose")} className="ml-1 font-bold text-red-700 underline">Compose an email</a>.
+                <a href={ph("/compose-email")} className="ml-1 font-bold text-red-700 underline">Compose an email</a>.
               </div>
             </div>
           )}
