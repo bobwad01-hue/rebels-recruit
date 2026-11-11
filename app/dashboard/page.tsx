@@ -20,7 +20,7 @@ import SmartNextMoves, {
 } from "@/components/SmartNextMoves";
 import HomeTopTargets from "@/components/HomeTopTargets";
 import QuickAddMenu from "@/components/QuickAddMenu";
-import RecruitingQuickComposer from "@/components/RecruitingQuickComposer";
+import HomeWhereWeStand from "@/components/HomeWhereWeStand";
 import AthleteFirstRun from "@/components/AthleteFirstRun";
 import PendingParentApprovals, { type PendingParentRequest } from "@/components/PendingParentApprovals";
 import ReminderStickyBoard from "@/components/ReminderStickyBoard";
@@ -263,6 +263,16 @@ export default async function Dashboard({
     .order("received_at", {ascending:false}).limit(100);
   const senderByInteraction = new Map((incomingSenderRows || []).filter((row:any) => row.interaction_id).map((row:any) => [row.interaction_id, row.extracted_data]));
   const smartMoveInteractions = interactionRows.map((row:any) => ({...row, gmailSender: senderByInteraction.get(row.id) || null}));
+  const {data:offerRows}=!preview.active?await supabase.from('athlete_school_offers').select('college_id,status,decision_deadline').eq('athlete_user_id',uid):{data:[] as any[]};
+  const schoolSummaries=activeColleges.map((rel:any)=>{
+    const id=rel.college_id;
+    const activity=interactionRows.filter((x:any)=>x.college_id===id);
+    const last=activity.map((x:any)=>x.date||x.created_at).filter(Boolean).sort().reverse()[0]||null;
+    const coachReplies=activity.filter((x:any)=>String(x.initiated_by||'').toLowerCase().includes('coach')||String(x.type||'').toLowerCase().includes('received')).length;
+    const upcoming=eventRows.filter((e:any)=>e.college_id===id&&e.date>=new Date().toISOString().slice(0,10)).sort((a:any,b:any)=>String(a.date).localeCompare(String(b.date)))[0];
+    const offer=(offerRows||[]).find((o:any)=>o.college_id===id);
+    return {collegeId:id,lastContact:last,coachReplies,contactCount:activity.length,upcoming:upcoming?.name||null,offerStatus:offer?.status||null,deadline:offer?.decision_deadline||null};
+  });
   const smartMoves = buildSmartNextMoves({
     tasks: tasks.data || [],
     coaches: activeCoaches,
@@ -427,7 +437,7 @@ export default async function Dashboard({
               </div>
               <div className="muted text-sm mt-1">
                 Explore schools, reach out to a coach, or continue a relationship.
-                <a href="#home-email-composer" className="ml-1 font-bold text-red-700 underline">Compose an email</a>.
+                <a href={ph("/compose")} className="ml-1 font-bold text-red-700 underline">Compose an email</a>.
               </div>
             </div>
           )}
@@ -440,9 +450,7 @@ export default async function Dashboard({
             </div><Link href={ph("/fit-profile")} className="btn shrink-0">Complete College Fit Survey <ArrowRight size={15} /></Link></div>
           </section>
         )}
-        <div id="home-email-composer" className="w-full min-w-0 mb-6">{preview.active
-          ? <div className="card p-5 text-sm text-slate-600">Compose Email is unavailable in read-only preview.</div>
-          : <RecruitingQuickComposer/>}</div>
+        <HomeWhereWeStand athleteId={uid} preview={preview.active} summaries={schoolSummaries}/>
         </div><div className="hidden xl:block sticky top-5"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div></div>
         <div className="xl:hidden card p-4 sm:p-5 mb-6"><ReminderStickyBoard initial={reminders.data || []} athleteId={uid} editable={!preview.active}/></div>
      </div>
