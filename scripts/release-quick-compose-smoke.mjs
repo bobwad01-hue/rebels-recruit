@@ -30,7 +30,7 @@ assert(manual.includes('if(totalBytes>3_000_000)'));
 assert(home.includes('<div className="rr-eyebrow">RECRUITING OVERVIEW</div>'));
 assert(home.includes('label="Open Tasks"'));
 assert(!home.includes('Saved Next Steps'));
-assert(home.indexOf('id="home-email-composer"')<home.indexOf('hidden xl:block sticky top-5'));
+assert(home.includes('<HomeWhereWeStand') && !home.includes('id="home-email-composer"'), 'Home must use Where We Stand instead of embedded email composer');
 assert(page.includes('<RecruitingQuickComposer/>'));
 assert(manualUI.includes('<RecruitingQuickComposer manualOnly'), 'Manual college outreach must reuse the full rich composer');
 assert(!manualUI.includes('<textarea'), 'Legacy plain-text email composer must be removed');
