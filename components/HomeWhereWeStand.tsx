@@ -2,7 +2,6 @@
 import Link from 'next/link';
 import {useEffect,useState} from 'react';
 import {ChevronDown,ChevronUp,Target} from 'lucide-react';
-import {CollegeLogo} from '@/components/RebelsRecruitUI';
 
 type Target={relationshipId:string;collegeId:string|null;name:string;rank:number;status?:string;division?:string|null};
 type Summary={collegeId:string;lastContact?:string|null;coachReplies:number;contactCount:number;upcoming?:string|null;offerStatus?:string|null;deadline?:string|null};
