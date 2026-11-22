@@ -56,7 +56,7 @@ export default function AskRLTNLPage() {
     const q = submitted.toLowerCase().trim();
     if (!q) return rows;
     const stop = new Set(['show','me','the','all','which','who','what','when','where','have','has','are','with','from','and','for','their','last','contact','date','dates','coach','coaches','school','schools','girls','players','athletes','talking','to','of','in','on','about','please','recruiting','communication','communications','history','summarize','unanswered','emails','email','response','responded','without','days','past','within']);
-    const terms = q.split(/[^a-z0-9]+/).filter(t => t.length > 2 && !stop.has(t));
+    const terms = q.split(/[^a-z0-9]+/).filter(t => t.length > 2 && !/^\\d+$/.test(t) && !stop.has(t));
     const days = q.match(/(?:last|past|within|in)\s+(\d{1,3})\s+days?/);
     const cutoff = days ? Date.now() - Number(days[1]) * 86400000 : null;
     const unanswered = /(?:no response|not responded|haven't responded|hasn't responded|without.*response|unanswered)/.test(q);
