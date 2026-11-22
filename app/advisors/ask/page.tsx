@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
+import StaffConnectionsBoard from '@/components/StaffConnectionsBoard';
 import type { AdvisorMessage } from '@/lib/advisor-communication-threads';
 
 type Player = { id: string; name: string };
@@ -20,6 +21,8 @@ export default function AskRLTNLPage() {
   const [athlete, setAthlete] = useState('all');
   const [query, setQuery] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const [view, setView] = useState<'team' | 'contact' | 'followup' | 'schools'>('team');
+  const [sort, setSort] = useState<'recent' | 'oldest' | 'athlete' | 'school'>('recent');
   useEffect(() => {
     let alive = true;
     fetch('/api/advisors/communications', { cache: 'no-store' })
@@ -68,11 +71,28 @@ export default function AskRLTNLPage() {
     });
   }, [rows, submitted]);
 
+  const displayRows = [...result].filter(r => view !== 'followup' || (r.lastOutreach && (!r.lastReply || dateValue(r.lastOutreach) > dateValue(r.lastReply)))).sort((a, b) => {
+    if (sort === 'athlete') return a.athlete.localeCompare(b.athlete);
+    if (sort === 'school') return a.school.localeCompare(b.school);
+    return sort === 'oldest' ? dateValue(a.lastContact) - dateValue(b.lastContact) : dateValue(b.lastContact) - dateValue(a.lastContact);
+  });
+  const sharedSchools = new Map<string, Set<string>>();
+  for (const r of rows) { if (!sharedSchools.has(r.school)) sharedSchools.set(r.school, new Set()); sharedSchools.get(r.school)!.add(r.athleteId); }
+  const sharedCount = [...sharedSchools.values()].filter(s => s.size > 1).length;
   return <AppShell><main className="mx-auto max-w-7xl px-4 py-6 sm:px-5 md:px-8">
-    <PageHeader eyebrow="RECRUITING INTELLIGENCE" title="Ask RLTNL" subtitle="Explore real recruiting conversations, last contact dates, and follow-through across your approved athletes." />
+    <PageHeader eyebrow="RECRUITING INTELLIGENCE" title="Recruiting Intelligence" subtitle="Team, athlete, and college recruiting insights using recorded RLTNL data. No AI required." />
     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-      <strong>Read-only communications explorer.</strong> This first release uses existing athlete-approved Advisor communications. It is not yet an AI chat, and it does not include every school relationship, visit, or offer. No data is sent to an external AI service.
+      <strong>Source-grounded reporting.</strong> School and coach connections are shown separately from recorded email activity. Email reports use athlete-approved Advisor access; missing emails do not imply a missing relationship. No data is sent to an AI service.
     </div>
+    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="rounded-xl border bg-white p-4"><div className="text-xs font-semibold text-slate-600">Approved athletes (email access)</div><div className="mt-1 text-3xl font-black">{loading ? '—' : players.length}</div></div>
+      <div className="rounded-xl border bg-white p-4"><div className="text-xs font-semibold text-slate-600">Recorded email relationships</div><div className="mt-1 text-3xl font-black">{loading ? '—' : rows.length}</div></div>
+      <div className="rounded-xl border bg-white p-4"><div className="text-xs font-semibold text-slate-600">Schools shared by athletes in email history</div><div className="mt-1 text-3xl font-black">{loading ? '—' : sharedCount}</div></div>
+    </div>
+    <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Intelligence report">
+      {([['team','Team intelligence'],['contact','Last contact report'],['followup','Needs follow-up'],['schools','School and coach connections']] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={view === key} onClick={() => setView(key)} className={'rounded-lg border px-3 py-2 text-sm font-bold ' + (view === key ? 'border-slate-900 bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50')}>{label}</button>)}
+    </div>
+    {view === 'schools' ? <section className="mt-5"><p className="mb-4 text-sm text-slate-600">All active school and coach connections visible to your current Advisor or Admin view, including relationships without recorded emails. Select a player, team, or school to drill down.</p><StaffConnectionsBoard /></section> : <>
     <div className="mt-5 rounded-2xl border bg-white p-4 sm:p-5">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
         <label className="text-sm font-semibold">Search recruiting details
@@ -96,18 +116,18 @@ export default function AskRLTNLPage() {
     {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</p>}
     {truncated && <p className="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Only the most recent recorded communications are loaded. These dates may not represent the complete recruiting history.</p>}
     <section className="mt-5 overflow-hidden rounded-2xl border bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4"><h2 className="font-bold">Recorded coach conversations</h2><span className="text-xs text-slate-500">{loading ? 'Loading…' : result.length + ' athlete–school–coach relationships'}</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b p-4"><h2 className="font-bold">{view === 'followup' ? 'Unanswered athlete outreach' : view === 'contact' ? 'Last contact by relationship' : 'Team email relationships'}</h2><div className="flex items-center gap-2"><label className="text-xs text-slate-600" htmlFor="intel-sort">Sort</label><select id="intel-sort" className="input text-sm" value={sort} onChange={e => setSort(e.target.value as typeof sort)}><option value="recent">Most recent</option><option value="oldest">Oldest contact</option><option value="athlete">Athlete</option><option value="school">School</option></select><span className="text-xs text-slate-500">{loading ? 'Loading…' : displayRows.length + ' relationships'}</span></div></div>
       <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm">
         <thead className="bg-slate-50 text-xs text-slate-600"><tr>{['Athlete','School / Coach','Last contact','Last outreach','Last coach email','History'].map(h => <th key={h} className="px-4 py-3 font-bold">{h}</th>)}</tr></thead>
-        <tbody className="divide-y">{result.map((r, i) => <tr key={r.athleteId + r.school + r.coach + i} className="align-top">
+        <tbody className="divide-y">{displayRows.map((r, i) => <tr key={r.athleteId + r.school + r.coach + i} className="align-top">
           <td className="px-4 py-3 font-semibold">{r.athlete}</td><td className="px-4 py-3"><div className="font-semibold">{r.school}</div><div className="text-xs text-slate-600">{r.coach}</div></td>
           <td className="px-4 py-3">{format(r.lastContact)}</td><td className="px-4 py-3">{format(r.lastOutreach)}</td><td className="px-4 py-3">{format(r.lastReply)}</td>
           <td className="px-4 py-3"><Link className="font-semibold text-red-700 underline" href={`/advisors/communications?player=${encodeURIComponent(r.athleteId)}&message=${encodeURIComponent(r.messageId)}`}>View {r.count} email{r.count === 1 ? '' : 's'}</Link></td>
         </tr>)}</tbody>
       </table></div>
-      {!loading && !error && !result.length && <p className="p-6 text-sm text-slate-600">No recorded recruiting emails match this search. This does not mean the athlete has no recruiting relationships.</p>}
+      {!loading && !error && !displayRows.length && <p className="p-6 text-sm text-slate-600">No recorded recruiting emails match this search. This does not mean the athlete has no recruiting relationships.</p>}
     </section>
     <p className="mt-3 text-xs text-slate-500">Last contact is the latest loaded sent or received email. Outreach is the latest sent email; coach email is the latest received email. Manually logged non-email interactions are not included. Dates are based on recorded timestamps, not predictions of coach interest.</p>
-    <Link href="/advisors/communications" className="mt-5 inline-block text-sm font-bold text-red-700 underline">Open full Recruiting Conversations</Link>
+    <Link href="/advisors/communications" className="mt-5 inline-block text-sm font-bold text-red-700 underline">Open full Recruiting Conversations</Link></>
   </main></AppShell>;
 }
