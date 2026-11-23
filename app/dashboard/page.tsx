@@ -290,6 +290,7 @@ export default async function Dashboard({
     reminders: reminders.data || [],
     tasks: tasks.data || [],
     events: eventRows,
+    offers: offerRows || [],
     healthProfile: { classYear: athleteProfile.data?.class_year || null, profileComplete: !!profile.data?.profile_completed_at, fitComplete: !!fitProfile.data?.completed_at },
   });
   const insights = buildRelationshipInsights(
