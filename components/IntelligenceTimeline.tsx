@@ -21,7 +21,7 @@ export default function IntelligenceTimeline(){
  for(const r of data?.tasks||[])if(eligible(r)&&!school&&!coach)entries.push({id:'t'+r.id,at:r.due_date,type:'Advisor task',title:r.title||'Task',detail:r.description||'',status:r.status});
  for(const r of data?.schools||[]){const s=one(r.colleges);if(eligible(r,s.id)&&!coach)entries.push({id:'s'+r.id,at:'',type:'School relationship',title:s.name||'School',detail:'Recruiting stage: '+(r.status||'Not specified')+(r.archived_at?' · Archived':''),schoolId:s.id,status:r.status})}
  for(const r of data?.coaches||[]){const s=one(r.colleges),c=one(r.college_coaches);if(eligible(r,s.id,c.id))entries.push({id:'c'+r.id,at:r.last_contact_date||'',type:'Coach relationship',title:[c.first_name,c.last_name].filter(Boolean).join(' ')||'Coach',detail:r.next_step?'Next step: '+r.next_step:'No next step recorded',schoolId:s.id,coachId:c.id})}
- return entries.filter(e=>kind==='all'||e.type===kind).sort((a,b)=>Date.parse(b.at||'')-Date.parse(a.at||'')||Number(!!b.at)-Number(!!a.at));
+ return entries.filter(e=>kind==='all'||e.type===kind).sort((a,b)=>(Date.parse(b.at||'')||0)-(Date.parse(a.at||'')||0));
  },[data,athlete,school,coach,kind]);
  if(loading)return <div className="card p-6 text-sm">Loading unified recruiting history…</div>;
  if(error)return <div role="alert" className="rounded-xl bg-red-50 p-4 text-sm text-red-800">{error}</div>;
