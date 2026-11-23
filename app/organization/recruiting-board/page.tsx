@@ -6,6 +6,7 @@ import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import PlayerPhotoUpload from '@/components/PlayerPhotoUpload';
 import IntelligenceTimeline from '@/components/IntelligenceTimeline';
+import RecruitingIntelligenceExport from '@/components/RecruitingIntelligenceExport';
 import {createClient} from '@/lib/supabase-browser';
 import {buildRecruitingIntelligence} from '@/lib/recruiting-intelligence';
 import {AthleteAvatar,CollegeChip,HealthRing,PipelinePill as SharedPipelinePill,AttentionBadge} from '@/components/RebelsRecruitUI';
@@ -46,6 +47,7 @@ const fitProfiles=await c.from('college_fit_profiles').select('user_id,completed
   {!loading&&!loadError&&view==='table'&&<section id="recruiting-activity" className="mt-4 scroll-mt-6 space-y-3" aria-label="Recruiting activity and follow-through">
    {viewerRole==='advisor'&&!previewReadOnly?<IntelligenceTimeline selectedAthlete={intelAthlete} onSelectAthlete={setIntelAthlete} allowedAthleteIds={visible.map((r:any)=>r.id)}/>:<div className="card p-5"><h2 className="font-black">Recruiting activity and follow-through</h2><p className="mt-2 text-sm text-slate-600">Detailed recruiting history is available to advisors with approved athlete access.</p></div>}
    <p className="text-xs text-slate-500">Private message contents are not displayed in organization-wide reporting. Advisor communication history remains restricted to athletes with approved advisor access.</p>
+   {viewerRole==='advisor'&&!previewReadOnly&&<RecruitingIntelligenceExport selectedAthlete={intelAthlete} allowedAthleteIds={visible.map((r:any)=>r.id)}/>}
   </section>}
   {!loading&&!loadError&&view==='warroom'?<WarRoom rows={visible} stages={pipelineStages} onManage={previewReadOnly?()=>{}:setManaging}/>:null}
   {!loading&&!loadError&&<div className="grid lg:grid-cols-3 gap-3 mt-5"><Insight title="Most Targeted Schools" items={topCounts(visible,'athleteTop')}/><Insight title="Most Coach Relationships" items={visible.filter(r=>r.coaches>0).sort((a,b)=>b.coaches-a.coaches||a.name.localeCompare(b.name)).slice(0,5).map(r=>({label:r.name,value:`${r.coaches} coach${r.coaches===1?'':'es'}`}))}/><Insight title="Recruiting Momentum" items={momentumRows(visible)}/></div>}
