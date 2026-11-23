@@ -1,7 +1,7 @@
 export type RecruitingStage='early'|'building'|'active'|'decision';
 export type HealthCategory={id:string;label:string;score:number;max:number;status:'strong'|'building'|'attention';detail:string;href:string};
 export type HealthProfile={classYear?:number|null;profileComplete?:boolean;fitComplete?:boolean};
-export type IntelligenceInput={colleges?:any[];coaches?:any[];interactions?:any[];reminders?:any[];tasks?:any[];events?:any[];healthProfile?:HealthProfile};
+export type IntelligenceInput={colleges?:any[];coaches?:any[];interactions?:any[];reminders?:any[];tasks?:any[];events?:any[];offers?:any[];healthProfile?:HealthProfile};
 export type RecruitingSignal={id:string;kind:'urgent'|'opportunity'|'momentum'|'foundation';title:string;detail:string;priority:number;href?:string};
 export type RecruitingHealthFactor={id:string;label:string;impact:number;status:'strong'|'building'|'attention';detail:string;href:string};
 export type HealthOpportunity={id:string;title:string;detail:string;points:number;href:string};
@@ -65,7 +65,15 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  const activityRatio=lastExact===null?0:lastExact<=t.grace?1:lastExact<=t.grace*2?.65:lastExact<=t.grace*3?.3:0;
  const raw=[['foundation','Foundation',foundationRatio,'/profile'],['schools','School Discovery & Fit',schoolRatio,'/connections'],['relationships','Coach Relationships',relationshipRatio,'/connections'],['follow','Follow-Through',followRatio,'/game-plan#next-moves'],['activity','Recent Activity',activityRatio,'/journey']] as const;
  const categories:HealthCategory[]=raw.map(([id,label,ratio,href])=>{const max=w[id],score=points(max,ratio);return{id,label,score,max,status:status(score,max),href,detail:id==='foundation'?`${hp.profileComplete?'Profile complete':'Profile still needs work'} · ${hp.fitComplete?'College Fit Survey complete':'College Fit Survey not complete'}`:id==='schools'?`${active.length} active school${active.length===1?'':'s'} · ${target.length} beyond Researching`:id==='relationships'?`${coaches.length} coach relationship${coaches.length===1?'':'s'} · ${freshCoaches} active within this stage’s window`:id==='follow'?`${completedMoves.length} completed Next Step${completedMoves.length===1?'':'s'} · ${overdueMoves} overdue`:lastExact===null?'No meaningful recruiting activity with a known date yet.':`Last meaningful recruiting activity was ${lastExact} day${lastExact===1?'':'s'} ago.`}});
- const score=categories.reduce((sum,c)=>sum+c.score,0),health=score>=85?'Excellent':score>=70?'Strong':score>=50?'On Track':score>=25?'Building':'Getting Started';
+ const baseScore=categories.reduce((sum,c)=>sum+c.score,0);
+ // A recorded Offer journey stage or a separate offer record is an achieved recruiting outcome.
+ // Preserve category diagnostics, but do not penalize offer-stage athletes for winding down outreach.
+ const offerSchoolIds=new Set<string>();
+ for(const rel of active){if(['offer','decision','committed'].includes(String(rel.status||'').toLowerCase())&&rel.college_id)offerSchoolIds.add(String(rel.college_id));}
+ for(const offer of input.offers||[]){if(offer.college_id&&!['withdrawn','declined','rejected','rescinded','expired'].includes(String(offer.status||'').toLowerCase()))offerSchoolIds.add(String(offer.college_id));}
+ const offerCount=offerSchoolIds.size;
+ const offerFloor=offerCount?Math.min(96,88+Math.min(offerCount,4)*2):0;
+ const score=Math.max(baseScore,offerFloor),health=score>=85?'Excellent':score>=70?'Strong':score>=50?'On Track':score>=25?'Building':'Getting Started';
  const ready=true;
  const factors:RecruitingHealthFactor[]=categories.map(c=>({id:c.id,label:c.label,impact:c.score,status:c.status,detail:c.detail,href:c.href}));
  const opportunities:HealthOpportunity[]=[];
@@ -78,5 +86,5 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  const activityCat=categories.find(c=>c.id==='activity');if(activityCat&&activityCat.score<activityCat.max)opportunities.push({id:'recent-activity',title:'Get your recruiting moving again',detail:'Complete a meaningful recruiting action such as coach outreach, follow-up, event preparation or school research.',points:activityCat.max-activityCat.score,href:'/game-plan'});
  opportunities.sort((a,b)=>b.points-a.points);
  const top=signals.sort((a,b)=>b.priority-a.priority).slice(0,6);
- return {score,health,scoreReady:ready,stage,stageLabel:stageLabel(stage),categories,activeSchools:active.length,targetSchools:target.length,coachRelationships:coaches.length,lastMeaningfulActivityDays:lastExact,openNextMoves:openMoves.length,overdueNextMoves:overdueMoves,upcomingEvents:upcoming.length,signals:top,topPriority:top[0]||null,healthFactors:factors,opportunities:opportunities.slice(0,3),relationshipIntelligence,scoreFormula:`Your score is earned from Foundation, School Discovery & Fit, Coach Relationships, Follow-Through and Recent Activity. Expectations adjust for your ${stageLabel(stage).toLowerCase()} stage, and activity points can fade when recruiting activity slows.`};
+ return {score,health,scoreReady:ready,stage,stageLabel:stageLabel(stage),categories,activeSchools:active.length,targetSchools:target.length,coachRelationships:coaches.length,lastMeaningfulActivityDays:lastExact,openNextMoves:openMoves.length,overdueNextMoves:overdueMoves,upcomingEvents:upcoming.length,signals:top,topPriority:top[0]||null,healthFactors:factors,opportunities:opportunities.slice(0,3),relationshipIntelligence,scoreFormula:offerCount?`Your score recognizes ${offerCount} recorded offer-stage school${offerCount===1?'':'s'} or active offer record${offerCount===1?'':'s'}. Reaching the offer stage establishes a strong Recruiting Health floor, even if routine outreach slows. Category scores still show areas you can improve.`:`Your score is earned from Foundation, School Discovery & Fit, Coach Relationships, Follow-Through and Recent Activity. Expectations adjust for your ${stageLabel(stage).toLowerCase()} stage, and activity points can fade when recruiting activity slows.`};
 }
