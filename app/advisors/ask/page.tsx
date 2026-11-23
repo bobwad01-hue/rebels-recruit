@@ -23,6 +23,7 @@ export default function AskRLTNLPage() {
   const [submitted, setSubmitted] = useState('');
   const [view, setView] = useState<'team' | 'contact' | 'followup' | 'schools'>('team');
   const [sort, setSort] = useState<'recent' | 'oldest' | 'athlete' | 'school'>('recent');
+  const [selectedRelationship, setSelectedRelationship] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     fetch('/api/advisors/communications', { cache: 'no-store' })
@@ -79,6 +80,8 @@ export default function AskRLTNLPage() {
   const sharedSchools = new Map<string, Set<string>>();
   for (const r of rows) { if (!sharedSchools.has(r.school)) sharedSchools.set(r.school, new Set()); sharedSchools.get(r.school)!.add(r.athleteId); }
   const sharedCount = [...sharedSchools.values()].filter(s => s.size > 1).length;
+  const selectedMessages = selectedRelationship ? messages.filter(m => [m.athleteId, m.collegeId || m.schoolName, m.coachId || m.coachName].join('|') === selectedRelationship).sort((a,b) => dateValue(b.timestamp)-dateValue(a.timestamp)) : [];
+  const selected = selectedMessages[0];
   return <AppShell><main className="mx-auto max-w-7xl px-4 py-6 sm:px-5 md:px-8">
     <PageHeader eyebrow="RECRUITING INTELLIGENCE" title="Recruiting Intelligence" subtitle="Team, athlete, and college recruiting insights using recorded RLTNL data. No AI required." />
     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
@@ -120,13 +123,19 @@ export default function AskRLTNLPage() {
       <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left text-sm">
         <thead className="bg-slate-50 text-xs text-slate-600"><tr>{['Athlete','School / Coach','Last contact','Last outreach','Last coach email','History'].map(h => <th key={h} className="px-4 py-3 font-bold">{h}</th>)}</tr></thead>
         <tbody className="divide-y">{displayRows.map((r, i) => <tr key={r.athleteId + r.school + r.coach + i} className="align-top">
-          <td className="px-4 py-3 font-semibold">{r.athlete}</td><td className="px-4 py-3"><div className="font-semibold">{r.school}</div><div className="text-xs text-slate-600">{r.coach}</div></td>
+          <td className="px-4 py-3 font-semibold"><button type="button" className="text-left text-red-700 underline" onClick={() => setSelectedRelationship([r.athleteId, messages.find(m => m.athleteId === r.athleteId && m.collegeId && m.schoolName === r.school && m.coachName === r.coach)?.collegeId || r.school, messages.find(m => m.athleteId === r.athleteId && m.schoolName === r.school && m.coachName === r.coach)?.coachId || r.coach].join('|'))}>{r.athlete}</button></td><td className="px-4 py-3"><div className="font-semibold">{r.school}</div><div className="text-xs text-slate-600">{r.coach}</div></td>
           <td className="px-4 py-3">{format(r.lastContact)}</td><td className="px-4 py-3">{format(r.lastOutreach)}</td><td className="px-4 py-3">{format(r.lastReply)}</td>
           <td className="px-4 py-3"><Link className="font-semibold text-red-700 underline" href={`/advisors/communications?player=${encodeURIComponent(r.athleteId)}&message=${encodeURIComponent(r.messageId)}`}>View {r.count} email{r.count === 1 ? '' : 's'}</Link></td>
         </tr>)}</tbody>
       </table></div>
       {!loading && !error && !displayRows.length && <p className="p-6 text-sm text-slate-600">No recorded recruiting emails match this search. This does not mean the athlete has no recruiting relationships.</p>}
     </section>
+    {selected && <section className="mt-5 rounded-2xl border bg-white p-5" aria-label="Relationship detail">
+      <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Athlete → School → Coach</p><h3 className="mt-1 text-xl font-black">{selected.athleteName} → {selected.schoolName} → {selected.coachName}</h3><p className="mt-1 text-sm text-slate-600">Recorded email timeline · {selectedMessages.length} loaded message{selectedMessages.length === 1 ? '' : 's'}</p></div><button type="button" className="btn" onClick={() => setSelectedRelationship(null)}>Close</button></div>
+      <div className="mt-4 flex flex-wrap gap-3 text-sm"><Link className="font-bold text-red-700 underline" href={`/players/${selected.athleteId}`}>Athlete profile</Link>{selected.collegeId && <Link className="font-bold text-red-700 underline" href={`/colleges/${selected.collegeId}?athlete=${selected.athleteId}`}>School relationship and milestones</Link>}{selected.coachId && <Link className="font-bold text-red-700 underline" href={`/coaches/${selected.coachId}?athlete=${selected.athleteId}`}>Coach relationship</Link>}</div>
+      <ol className="mt-5 space-y-3">{selectedMessages.map(m => <li key={m.id} className="rounded-xl border p-4"><div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-bold">{m.direction === 'received' ? 'Coach email received' : 'Email sent'}</span><time className="text-xs text-slate-600">{format(m.timestamp)}</time></div><p className="mt-2 text-sm font-semibold">{m.subject}</p>{m.summary && <p className="mt-1 text-sm text-slate-600">{m.summary}</p>}{m.nextAction && <p className="mt-2 text-sm"><b>Recorded next action:</b> {m.nextAction}</p>}<Link className="mt-2 inline-block text-xs font-bold text-red-700 underline" href={`/advisors/communications?player=${encodeURIComponent(m.athleteId)}&message=${encodeURIComponent(m.id)}`}>Open source email</Link></li>)}</ol>
+      {truncated && <p className="mt-3 text-xs text-amber-800">Older messages may be missing from this timeline.</p>}
+    </section>}
     <p className="mt-3 text-xs text-slate-500">Last contact is the latest loaded sent or received email. Outreach is the latest sent email; coach email is the latest received email. Manually logged non-email interactions are not included. Dates are based on recorded timestamps, not predictions of coach interest.</p>
     <Link href="/advisors/communications" className="mt-5 inline-block text-sm font-bold text-red-700 underline">Open full Recruiting Conversations</Link></>}
   </main></AppShell>;
