@@ -128,6 +128,6 @@ export default function AskRLTNLPage() {
       {!loading && !error && !displayRows.length && <p className="p-6 text-sm text-slate-600">No recorded recruiting emails match this search. This does not mean the athlete has no recruiting relationships.</p>}
     </section>
     <p className="mt-3 text-xs text-slate-500">Last contact is the latest loaded sent or received email. Outreach is the latest sent email; coach email is the latest received email. Manually logged non-email interactions are not included. Dates are based on recorded timestamps, not predictions of coach interest.</p>
-    <Link href="/advisors/communications" className="mt-5 inline-block text-sm font-bold text-red-700 underline">Open full Recruiting Conversations</Link></>
+    <Link href="/advisors/communications" className="mt-5 inline-block text-sm font-bold text-red-700 underline">Open full Recruiting Conversations</Link></>}
   </main></AppShell>;
 }
