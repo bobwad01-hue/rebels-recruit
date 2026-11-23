@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import PageHeader from '@/components/PageHeader';
 import StaffConnectionsBoard from '@/components/StaffConnectionsBoard';
+import IntelligenceTimeline from '@/components/IntelligenceTimeline';
+import { Suspense } from 'react';
 import type { AdvisorMessage } from '@/lib/advisor-communication-threads';
 
 type Player = { id: string; name: string };
@@ -87,6 +89,7 @@ export default function AskRLTNLPage() {
     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
       <strong>Source-grounded reporting.</strong> School and coach connections are shown separately from recorded email activity. Email reports use athlete-approved Advisor access; missing emails do not imply a missing relationship. No data is sent to an AI service.
     </div>
+    <IntelligenceTimeline />
     <div className="mt-5 grid gap-3 sm:grid-cols-3">
       <div className="rounded-xl border bg-white p-4"><div className="text-xs font-semibold text-slate-600">Approved athletes (email access)</div><div className="mt-1 text-3xl font-black">{loading ? '—' : players.length}</div></div>
       <div className="rounded-xl border bg-white p-4"><div className="text-xs font-semibold text-slate-600">Recorded email relationships</div><div className="mt-1 text-3xl font-black">{loading ? '—' : rows.length}</div></div>
@@ -95,7 +98,7 @@ export default function AskRLTNLPage() {
     <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Intelligence report">
       {([['team','Team intelligence'],['contact','Last contact report'],['followup','Needs follow-up'],['schools','School and coach connections']] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={view === key} onClick={() => setView(key)} className={'rounded-lg border px-3 py-2 text-sm font-bold ' + (view === key ? 'border-slate-900 bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50')}>{label}</button>)}
     </div>
-    {view === 'schools' ? <section className="mt-5"><p className="mb-4 text-sm text-slate-600">All active school and coach connections visible to your current Advisor or Admin view, including relationships without recorded emails. Select a player, team, or school to drill down.</p><StaffConnectionsBoard /></section> : <>
+    {view === 'schools' ? <section className="mt-5"><p className="mb-4 text-sm text-slate-600">All active school and coach connections visible to your current Advisor or Admin view, including relationships without recorded emails. Select a player, team, or school to drill down.</p><Suspense fallback={<p>Loading school connections…</p>}><StaffConnectionsBoard /></Suspense></section> : <>
     <div className="mt-5 rounded-2xl border bg-white p-4 sm:p-5">
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
         <label className="text-sm font-semibold">Search recruiting details
