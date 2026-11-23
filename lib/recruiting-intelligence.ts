@@ -72,7 +72,7 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  for(const rel of active){if(['offer','decision','committed'].includes(String(rel.status||'').toLowerCase())&&rel.college_id)offerSchoolIds.add(String(rel.college_id));}
  for(const offer of input.offers||[]){if(offer.college_id&&!['withdrawn','declined','rejected','rescinded','expired'].includes(String(offer.status||'').toLowerCase()))offerSchoolIds.add(String(offer.college_id));}
  const offerCount=offerSchoolIds.size;
- const offerFloor=offerCount?Math.min(96,88+Math.min(offerCount,4)*2):0;
+ const offerFloor=offerCount?Math.min(100,88+Math.min(offerCount,4)*3):0;
  const bonus=Math.max(0,offerFloor-baseScore);
  let remaining=bonus;
  for(const id of ['relationships','schools','activity','follow','foundation']){
