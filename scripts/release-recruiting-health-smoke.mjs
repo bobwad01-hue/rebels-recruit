@@ -38,6 +38,15 @@ const overdue=score({tasks:[{id:'one',status:'completed'},{id:'two',status:'open
 assert.ok(category(overdue,'follow').score<category(done,'follow').score);
 assert.equal(overdue.overdueNextMoves,1);
 assert.ok(overdue.signals.some(s=>s.id==='overdue-two'));
+const offerStage=score({colleges:[{college_id:'a',status:'Decision'}]});
+assert.ok(offerStage.score>=90,'A recorded Offer stage must materially improve Recruiting Health');
+assert.equal(offerStage.categories.reduce((n,c)=>n+c.score,0),offerStage.score);
+const twoOffers=score({colleges:[{college_id:'a',status:'Decision'},{college_id:'b',status:'Offer'}]});
+assert.ok(twoOffers.score>offerStage.score,'Multiple offers should increase outcome credit');
+const explicitOffer=score({offers:[{college_id:'c',status:'considering'}]});
+assert.ok(explicitOffer.score>=90,'A recorded scholarship offer must earn outcome credit');
+const withdrawn=score({offers:[{college_id:'d',status:'withdrawn'}]});
+assert.ok(withdrawn.score<90,'Withdrawn offers must not earn outcome credit');
 const gamePlan=readFileSync(new URL('../app/game-plan/page.tsx',import.meta.url),'utf8');
 assert.ok(gamePlan.includes('checks.filter(x=>x.ok).length/checks.length*100'));
 const quickFill=readFileSync(new URL('../app/recruiting-quickfill/page.tsx',import.meta.url),'utf8');
