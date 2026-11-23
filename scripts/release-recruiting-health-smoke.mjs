@@ -43,6 +43,11 @@ assert.ok(offerStage.score>=90,'A recorded Offer stage must materially improve R
 assert.equal(offerStage.categories.reduce((n,c)=>n+c.score,0),offerStage.score);
 const twoOffers=score({colleges:[{college_id:'a',status:'Decision'},{college_id:'b',status:'Offer'}]});
 assert.ok(twoOffers.score>offerStage.score,'Multiple offers should increase outcome credit');
+for(const [count,expected] of [[1,90],[2,92],[3,94],[4,96],[5,98],[6,99],[7,99]]) {
+ const offers=Array.from({length:count},(_,i)=>({college_id:'offer-'+i,status:'considering'}));
+ assert.equal(score({offers}).score,expected,`${count} offers must score ${expected}`);
+}
+assert.equal(score({colleges:[{college_id:'committed',status:'Committed'}]}).score,100,'Commitment must score 100');
 const explicitOffer=score({offers:[{college_id:'c',status:'considering'}]});
 assert.ok(explicitOffer.score>=90,'A recorded scholarship offer must earn outcome credit');
 const withdrawn=score({offers:[{college_id:'d',status:'withdrawn'}]});
