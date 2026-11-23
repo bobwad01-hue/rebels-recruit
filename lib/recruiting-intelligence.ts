@@ -72,7 +72,8 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  for(const rel of active){if(['offer','decision','committed'].includes(String(rel.status||'').toLowerCase())&&rel.college_id)offerSchoolIds.add(String(rel.college_id));}
  for(const offer of input.offers||[]){if(offer.college_id&&!['withdrawn','declined','rejected','rescinded','expired'].includes(String(offer.status||'').toLowerCase()))offerSchoolIds.add(String(offer.college_id));}
  const offerCount=offerSchoolIds.size;
- const offerFloor=offerCount?offerCount>=4?100:88+offerCount*2:0;
+ const committed=active.some(rel=>String(rel.status||'').toLowerCase()==='committed');
+ const offerFloor=committed?100:offerCount>=4?98:offerCount?88+offerCount*2:0;
  const bonus=Math.max(0,offerFloor-baseScore);
  let remaining=bonus;
  for(const id of ['relationships','schools','activity','follow','foundation']){
@@ -84,6 +85,8 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
   if(added)category.detail+=' · Offer-stage outcome credit: +'+added;
   remaining-=added;
  }
+ // Reserve a perfect score for a recorded commitment, even when activity categories are full.
+ if(!committed){let excess=Math.max(0,categories.reduce((sum,c)=>sum+c.score,0)-98);for(const id of ['activity','follow','relationships','schools','foundation']){const category=categories.find(x=>x.id===id);if(!category||!excess)continue;const deduction=Math.min(excess,category.score);category.score-=deduction;category.status=status(category.score,category.max);excess-=deduction;}}
  const score=categories.reduce((sum,c)=>sum+c.score,0),health=score>=85?'Excellent':score>=70?'Strong':score>=50?'On Track':score>=25?'Building':'Getting Started';
  const ready=true;
  const factors:RecruitingHealthFactor[]=categories.map(c=>({id:c.id,label:c.label,impact:c.score,status:c.status,detail:c.detail,href:c.href}));
@@ -97,5 +100,5 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  const activityCat=categories.find(c=>c.id==='activity');if(activityCat&&activityCat.score<activityCat.max)opportunities.push({id:'recent-activity',title:'Get your recruiting moving again',detail:'Complete a meaningful recruiting action such as coach outreach, follow-up, event preparation or school research.',points:activityCat.max-activityCat.score,href:'/game-plan'});
  opportunities.sort((a,b)=>b.points-a.points);
  const top=signals.sort((a,b)=>b.priority-a.priority).slice(0,6);
- return {score,health,scoreReady:ready,stage,stageLabel:stageLabel(stage),categories,activeSchools:active.length,targetSchools:target.length,coachRelationships:coaches.length,lastMeaningfulActivityDays:lastExact,openNextMoves:openMoves.length,overdueNextMoves:overdueMoves,upcomingEvents:upcoming.length,signals:top,topPriority:top[0]||null,healthFactors:factors,opportunities:opportunities.slice(0,3),relationshipIntelligence,scoreFormula:offerCount?`Your score recognizes ${offerCount} recorded offer-stage school${offerCount===1?'':'s'} or active offer record${offerCount===1?'':'s'}. Reaching the offer stage establishes a strong Recruiting Health floor, even if routine outreach slows. Category scores still show areas you can improve.`:`Your score is earned from Foundation, School Discovery & Fit, Coach Relationships, Follow-Through and Recent Activity. Expectations adjust for your ${stageLabel(stage).toLowerCase()} stage, and activity points can fade when recruiting activity slows.`};
+ return {score,health,scoreReady:ready,stage,stageLabel:stageLabel(stage),categories,activeSchools:active.length,targetSchools:target.length,coachRelationships:coaches.length,lastMeaningfulActivityDays:lastExact,openNextMoves:openMoves.length,overdueNextMoves:overdueMoves,upcomingEvents:upcoming.length,signals:top,topPriority:top[0]||null,healthFactors:factors,opportunities:opportunities.slice(0,3),relationshipIntelligence,scoreFormula:committed?'Your recorded commitment completes Recruiting Health at 100/100.':offerCount?`Your score recognizes ${offerCount} recorded offer-stage school${offerCount===1?'':'s'} or active offer record${offerCount===1?'':'s'}. Reaching the offer stage establishes a strong Recruiting Health floor, even if routine outreach slows. Category scores still show areas you can improve.`:`Your score is earned from Foundation, School Discovery & Fit, Coach Relationships, Follow-Through and Recent Activity. Expectations adjust for your ${stageLabel(stage).toLowerCase()} stage, and activity points can fade when recruiting activity slows.`};
 }
