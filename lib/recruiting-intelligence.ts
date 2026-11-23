@@ -73,7 +73,18 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
  for(const offer of input.offers||[]){if(offer.college_id&&!['withdrawn','declined','rejected','rescinded','expired'].includes(String(offer.status||'').toLowerCase()))offerSchoolIds.add(String(offer.college_id));}
  const offerCount=offerSchoolIds.size;
  const offerFloor=offerCount?Math.min(96,88+Math.min(offerCount,4)*2):0;
- const score=Math.max(baseScore,offerFloor),health=score>=85?'Excellent':score>=70?'Strong':score>=50?'On Track':score>=25?'Building':'Getting Started';
+ const bonus=Math.max(0,offerFloor-baseScore);
+ let remaining=bonus;
+ for(const id of ['relationships','schools','activity','follow','foundation']){
+  const category=categories.find(x=>x.id===id);
+  if(!category||!remaining)continue;
+  const added=Math.min(remaining,category.max-category.score);
+  category.score+=added;
+  category.status=status(category.score,category.max);
+  if(added)category.detail+=' · Offer-stage outcome credit: +'+added;
+  remaining-=added;
+ }
+ const score=categories.reduce((sum,c)=>sum+c.score,0),health=score>=85?'Excellent':score>=70?'Strong':score>=50?'On Track':score>=25?'Building':'Getting Started';
  const ready=true;
  const factors:RecruitingHealthFactor[]=categories.map(c=>({id:c.id,label:c.label,impact:c.score,status:c.status,detail:c.detail,href:c.href}));
  const opportunities:HealthOpportunity[]=[];
