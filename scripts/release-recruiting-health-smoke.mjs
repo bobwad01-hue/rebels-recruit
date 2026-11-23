@@ -70,4 +70,8 @@ for(const [view,code] of [['Athlete Health',athleteHealth],['Organization Recrui
  assert.ok(code.includes('tasks:'),view+' must pass next steps');
 }
 
+const board=readFileSync(new URL('../app/organization/recruiting-board/page.tsx',import.meta.url),'utf8');
+assert.ok(board.includes('offers:athleteOffers'),'Recruiting HQ must pass offer records into shared scoring');
+assert.ok(board.includes("offers?'offers':state.pipeline_stage"),'Offer outcomes must override stale organization pipeline stages');
+assert.ok(board.includes("committed?'committed':offers?'offers'"),'Commitment must outrank offers on Recruiting HQ');
 console.log('Recruiting Health scoring, cross-view source and QuickFill regression tests passed');
