@@ -86,7 +86,7 @@ export function buildRecruitingIntelligence(input:IntelligenceInput){
   remaining-=added;
  }
  // Reserve a perfect score for a recorded commitment, even when activity categories are full.
- if(!committed){let excess=Math.max(0,categories.reduce((sum,c)=>sum+c.score,0)-98);for(const id of ['activity','follow','relationships','schools','foundation']){const category=categories.find(x=>x.id===id);if(!category||!excess)continue;const deduction=Math.min(excess,category.score);category.score-=deduction;category.status=status(category.score,category.max);excess-=deduction;}}
+ if(!committed){let excess=Math.max(0,categories.reduce((sum,c)=>sum+c.score,0)-(offerCount>=6?99:98));for(const id of ['activity','follow','relationships','schools','foundation']){const category=categories.find(x=>x.id===id);if(!category||!excess)continue;const deduction=Math.min(excess,category.score);category.score-=deduction;category.status=status(category.score,category.max);excess-=deduction;}}
  const score=categories.reduce((sum,c)=>sum+c.score,0),health=score>=85?'Excellent':score>=70?'Strong':score>=50?'On Track':score>=25?'Building':'Getting Started';
  const ready=true;
  const factors:RecruitingHealthFactor[]=categories.map(c=>({id:c.id,label:c.label,impact:c.score,status:c.status,detail:c.detail,href:c.href}));
