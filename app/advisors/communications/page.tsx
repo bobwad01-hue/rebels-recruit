@@ -139,7 +139,7 @@ function Communications() {
     </div>
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
       <span>Sent and received are message counts. Follow-through is counted once per conversation, based on open RLTNL suggestions without a later sent reply. Review suggestions with the athlete.</span>
-      <Link href="/advisors/ask" className="shrink-0 font-bold text-red-700 hover:underline">Recruiting Intelligence <ArrowRight size={13} className="inline" /></Link>\n      <Link href="/advisors/access" className="shrink-0 font-bold text-red-700 hover:underline">Manage player assignments <ArrowRight size={13} className="inline" /></Link>
+      <Link href="/organization/recruiting-board?view=intelligence" className="shrink-0 font-bold text-red-700 hover:underline">Recruiting Intelligence <ArrowRight size={13} className="inline" /></Link>\n      <Link href="/advisors/access" className="shrink-0 font-bold text-red-700 hover:underline">Manage player assignments <ArrowRight size={13} className="inline" /></Link>
     </div>
 
     <div className="mt-6 rounded-2xl border bg-white p-4 sm:p-5">
