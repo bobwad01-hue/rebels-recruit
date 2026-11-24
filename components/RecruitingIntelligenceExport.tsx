@@ -8,13 +8,13 @@ const download=(name:string,body:string,type:string)=>{const url=URL.createObjec
 const stamp=()=>new Date().toISOString().slice(0,10);
 const date=(v:any)=>v?String(v).slice(0,10):'';
 const label=(v:any)=>String(v||'').replace(/[\r\n]+/g,' ').trim();
-export default function RecruitingIntelligenceExport({selectedAthlete,allowedAthleteIds}:{selectedAthlete?:string;allowedAthleteIds:string[]}){
+export default function RecruitingIntelligenceExport({selectedAthlete,allowedAthleteIds,endpoint='/api/advisors/intelligence'}:{selectedAthlete?:string;allowedAthleteIds:string[];endpoint?:string}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[format,setFormat]=useState('both');
  const [scope,setScope]=useState('all');
  async function run(){
   setBusy(true);setError('');
   try{
-   const response=await fetch('/api/advisors/intelligence',{cache:'no-store',credentials:'same-origin'});
+   const response=await fetch(endpoint,{cache:'no-store',credentials:'same-origin'});
    const d=await response.json();
    if(!response.ok)throw new Error(d.error||'Unable to load authorized recruiting data.');
    if(d.truncated)throw new Error('Some recruiting records exceed the current retrieval limit. Export stopped to avoid an incomplete report.');
