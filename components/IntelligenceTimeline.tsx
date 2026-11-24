@@ -5,11 +5,11 @@ type RecordRow=Record<string,any>;
 const one=(v:any):RecordRow=>Array.isArray(v)?(v[0]||{}):(v||{});
 const fmt=(d:any)=>d?new Date(String(d).length===10?d+'T12:00:00':d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'Not recorded';
 type Entry={id:string;at:string;type:string;title:string;detail:string;athleteId:string;coachId?:string;schoolId?:string;status?:string};
-type Props={selectedAthlete?:string;onSelectAthlete?:(id:string)=>void;allowedAthleteIds?:string[]};
-export default function IntelligenceTimeline({selectedAthlete,onSelectAthlete,allowedAthleteIds}:Props){
+type Props={selectedAthlete?:string;onSelectAthlete?:(id:string)=>void;allowedAthleteIds?:string[];endpoint?:string};
+export default function IntelligenceTimeline({selectedAthlete,onSelectAthlete,allowedAthleteIds,endpoint='/api/advisors/intelligence'}:Props){
  const [data,setData]=useState<Record<string,RecordRow[]>|null>(null),[error,setError]=useState(''),[loading,setLoading]=useState(true);
  const [localAthlete,setLocalAthlete]=useState(''),[school,setSchool]=useState(''),[coach,setCoach]=useState(''),[kind,setKind]=useState('all'),[showAll,setShowAll]=useState(false),[mode,setMode]=useState<'recent'|'attention'|'history'>('recent');
- useEffect(()=>{let active=true;fetch('/api/advisors/intelligence',{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load intelligence');if(active)setData(d)}).catch(e=>{if(active)setError(e.message)}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[]);
+ useEffect(()=>{let active=true;fetch(endpoint,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error||'Could not load intelligence');if(active)setData(d)}).catch(e=>{if(active)setError(e.message)}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[endpoint]);
  const athlete=selectedAthlete===undefined?localAthlete:selectedAthlete;
  const permitted=new Set(allowedAthleteIds||[]);
  const athletes=(data?.athletes||[]).filter(r=>!allowedAthleteIds||permitted.has(r.id));
